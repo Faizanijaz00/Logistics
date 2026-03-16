@@ -1,0 +1,224 @@
+[
+  {
+    "id": "v1",
+    "trackerId": null,
+    "make": "Mercedes",
+    "model": "GLE",
+    "year": 2023,
+    "color": "White",
+    "licensePlate": "GLE-001",
+    "status": "parked",
+    "currentDriver": null,
+    "destination": null,
+    "dailyMileage": 0,
+    "heading": 0,
+    "position": { "lat": 51.5348, "lng": -0.1198 },
+    "route": null,
+    "imageId": "img-1",
+    "insurance": {
+      "provider": "SafeDrive Insurance",
+      "policyNumber": "POL-2024-001",
+      "expiryDate": "2025-08-15",
+      "annualCost": 1800,
+      "documentUrl": null
+    },
+    "maintenance": {
+      "lastService": "2024-11-01",
+      "nextService": "2025-05-01",
+      "serviceCost": 600,
+      "tireWear": 75,
+      "oilLife": 60
+    },
+    "tax": {
+      "status": "paid",
+      "expiryDate": "2025-09-30",
+      "annualCost": 165
+    },
+    "parkingPermit": null
+  },
+  {
+    "id": "v2",
+    "trackerId": null,
+    "make": "Range Rover",
+    "model": "Sport",
+    "year": 2022,
+    "color": "Black",
+    "licensePlate": "RR-002",
+    "status": "parked",
+    "currentDriver": null,
+    "destination": null,
+    "dailyMileage": 0,
+    "heading": 180,
+    "position": { "lat": 51.5074, "lng": -0.1278 },
+    "route": null,
+    "imageId": "img-2",
+    "insurance": {
+      "provider": "FleetGuard",
+      "policyNumber": "POL-2024-002",
+      "expiryDate": "2025-06-20",
+      "annualCost": 2200,
+      "documentUrl": null
+    },
+    "maintenance": {
+      "lastService": "2024-09-15",
+      "nextService": "2025-03-15",
+      "serviceCost": 700,
+      "tireWear": 50,
+      "oilLife": 45
+    },
+    "tax": {
+      "status": "paid",
+      "expiryDate": "2025-07-05",
+      "annualCost": 165
+    },
+    "parkingPermit": null
+  },
+  {
+    "id": "v3",
+    "trackerId": null,
+    "make": "Vauxhall",
+    "model": "Insignia",
+    "year": 2021,
+    "color": "Silver",
+    "licensePlate": "INS-003",
+    "status": "parked",
+    "currentDriver": null,
+    "destination": null,
+    "dailyMileage": 0,
+    "heading": 90,
+    "position": { "lat": 51.5155, "lng": -0.0922 },
+    "route": null,
+    "imageId": "img-3",
+    "insurance": {
+      "provider": "SafeDrive Insurance",
+      "policyNumber": "POL-2024-003",
+      "expiryDate": "2025-05-10",
+      "annualCost": 1100,
+      "documentUrl": null
+    },
+    "maintenance": {
+      "lastService": "2024-12-01",
+      "nextService": "2025-06-01",
+      "serviceCost": 350,
+      "tireWear": 80,
+      "oilLife": 70
+    },
+    "tax": {
+      "status": "paid",
+      "expiryDate": "2025-11-15",
+      "annualCost": 165
+    },
+    "parkingPermit": null
+  },
+  {
+    "id": "v4",
+    "trackerId": null,
+    "make": "Mercedes",
+    "model": "Sprinter",
+    "year": 2022,
+    "color": "White",
+    "licensePlate": "VAN-004",
+    "status": "parked",
+    "currentDriver": null,
+    "destination": null,
+    "dailyMileage": 0,
+    "heading": 270,
+    "position": { "lat": 51.5225, "lng": -0.0734 },
+    "route": null,
+    "imageId": "img-4",
+    "insurance": {
+      "provider": "FleetGuard",
+      "policyNumber": "POL-2024-004",
+      "expiryDate": "2025-04-22",
+      "annualCost": 1400,
+      "documentUrl": null
+    },
+    "maintenance": {
+      "lastService": "2024-10-15",
+      "nextService": "2025-04-15",
+      "serviceCost": 500,
+      "tireWear": 60,
+      "oilLife": 55
+    },
+    "tax": {
+      "status": "paid",
+      "expiryDate": "2025-08-20",
+      "annualCost": 165
+    },
+    "parkingPermit": null
+  },
+  {
+    "id": "v5",
+    "trackerId": null,
+    "make": "Mercedes",
+    "model": "V Class",
+    "year": 2023,
+    "color": "Black",
+    "licensePlate": "VCL-005",
+    "status": "parked",
+    "currentDriver": null,
+    "destination": null,
+    "dailyMileage": 0,
+    "heading": 45,
+    "position": { "lat": 51.5013, "lng": -0.1419 },
+    "route": null,
+    "imageId": "img-5",
+    "insurance": {
+      "provider": "SafeDrive Insurance",
+      "policyNumber": "POL-2024-005",
+      "expiryDate": "2025-10-01",
+      "annualCost": 1900,
+      "documentUrl": null
+    },
+    "maintenance": {
+      "lastService": "2024-11-20",
+      "nextService": "2025-05-20",
+      "serviceCost": 550,
+      "tireWear": 85,
+      "oilLife": 80
+    },
+    "tax": {
+      "status": "paid",
+      "expiryDate": "2025-12-31",
+      "annualCost": 165
+    },
+    "parkingPermit": null
+  },
+  {
+    "id": "v6",
+    "trackerId": null,
+    "make": "Mercedes",
+    "model": "S Class",
+    "year": 2024,
+    "color": "Black",
+    "licensePlate": "SCL-006",
+    "status": "parked",
+    "currentDriver": null,
+    "destination": null,
+    "dailyMileage": 0,
+    "heading": 315,
+    "position": { "lat": 51.5118, "lng": -0.1160 },
+    "route": null,
+    "imageId": "img-6",
+    "insurance": {
+      "provider": "FleetGuard",
+      "policyNumber": "POL-2024-006",
+      "expiryDate": "2025-07-15",
+      "annualCost": 2500,
+      "documentUrl": null
+    },
+    "maintenance": {
+      "lastService": "2024-12-10",
+      "nextService": "2025-06-10",
+      "serviceCost": 800,
+      "tireWear": 90,
+      "oilLife": 85
+    },
+    "tax": {
+      "status": "paid",
+      "expiryDate": "2025-10-20",
+      "annualCost": 165
+    },
+    "parkingPermit": null
+  }
+]

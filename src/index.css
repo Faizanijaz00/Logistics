@@ -1,0 +1,27 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+@import "tailwindcss";
+@import "./styles/modern.css";
+
+body {
+  margin: 0;
+  min-height: 100vh;
+}
+
+#root {
+  min-height: 100vh;
+}
+
+/* Remove Google Maps marker box/background */
+img[src*="gstatic.com/mapfiles"] {
+  display: none !important;
+}
+
+.gm-style img {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Google Places autocomplete dropdown must appear above modals */
+.pac-container {
+  z-index: 10000 !important;
+}

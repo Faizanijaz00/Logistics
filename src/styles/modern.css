@@ -1,0 +1,789 @@
+/* ============================================
+   PORSCHE-STYLE DESIGN SYSTEM
+   Clean, minimal, sophisticated
+   ============================================ */
+
+:root {
+  /* Porsche Color Palette */
+  --porsche-white: #ffffff;
+  --porsche-light-gray: #f4f4f4;
+  --porsche-gray: #e0e0e0;
+  --porsche-dark-gray: #626669;
+  --porsche-black: #000000;
+
+  /* Background Colors */
+  --bg-primary: #f4f4f4;
+  --bg-secondary: #ffffff;
+  --bg-tertiary: #fafafa;
+  --bg-card: #ffffff;
+  --bg-hover: #f0f0f0;
+
+  /* Text Colors */
+  --text-primary: #000000;
+  --text-secondary: #323639;
+  --text-muted: #626669;
+  --text-light: #8c8f93;
+
+  /* Accent - Porsche uses black as primary accent */
+  --accent-primary: #000000;
+  --accent-hover: #2a2a2a;
+
+  /* Status Colors */
+  --status-success: #018a16;
+  --status-success-bg: rgba(1, 138, 22, 0.08);
+  --status-warning: #cc7700;
+  --status-warning-bg: rgba(204, 119, 0, 0.08);
+  --status-danger: #c4001a;
+  --status-danger-bg: rgba(196, 0, 26, 0.08);
+  --status-info: #0061bd;
+  --status-info-bg: rgba(0, 97, 189, 0.08);
+
+  /* Borders */
+  --border-light: #e0e0e0;
+  --border-default: #c9cacb;
+  --border-dark: #8c8f93;
+
+  /* Shadows - Very subtle for Porsche look */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.06);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.08);
+
+  /* Radius - Porsche uses subtle rounded corners */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
+
+  /* Transitions */
+  --transition-fast: 150ms ease;
+  --transition-normal: 200ms ease;
+}
+
+/* ============================================
+   BASE STYLES
+   ============================================ */
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-weight: 400;
+}
+
+/* ============================================
+   TYPOGRAPHY - Porsche Style
+   ============================================ */
+
+h1, h2, h3, h4, h5, h6 {
+  font-weight: 400;
+  letter-spacing: -0.01em;
+  color: var(--text-primary);
+  line-height: 1.2;
+}
+
+h1 {
+  font-size: 40px;
+  font-weight: 400;
+}
+
+h2 {
+  font-size: 28px;
+  font-weight: 400;
+}
+
+h3 {
+  font-size: 22px;
+  font-weight: 500;
+}
+
+h4 {
+  font-size: 18px;
+  font-weight: 500;
+}
+
+p {
+  color: var(--text-secondary);
+}
+
+.text-xs { font-size: 12px; }
+.text-sm { font-size: 14px; }
+.text-base { font-size: 16px; }
+.text-lg { font-size: 18px; }
+.text-xl { font-size: 22px; }
+.text-2xl { font-size: 28px; }
+.text-3xl { font-size: 36px; }
+.text-4xl { font-size: 40px; }
+
+/* ============================================
+   LAYOUT - Porsche Style
+   ============================================ */
+
+.app-layout {
+  display: flex;
+  min-height: 100vh;
+}
+
+.main-content {
+  flex: 1;
+  background: var(--bg-primary);
+}
+
+/* ============================================
+   TOP HEADER BAR - Porsche Style
+   ============================================ */
+
+.top-header {
+  height: 56px;
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-light);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+}
+
+.top-header-logo {
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0.15em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.top-header-nav {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.top-header-link {
+  font-size: 14px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color var(--transition-fast);
+}
+
+.top-header-link:hover {
+  color: var(--text-primary);
+}
+
+/* ============================================
+   PAGE HEADERS
+   ============================================ */
+
+.page-header {
+  background: var(--bg-secondary);
+  padding: 32px 40px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.page-header h1 {
+  font-size: 40px;
+  font-weight: 400;
+  margin: 0;
+  color: var(--text-primary);
+}
+
+.page-header p {
+  font-size: 16px;
+  color: var(--text-muted);
+  margin-top: 8px;
+}
+
+/* ============================================
+   CARDS - Porsche Style
+   ============================================ */
+
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.card-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.card-body {
+  padding: 24px;
+}
+
+/* ============================================
+   BUTTONS - Porsche Style
+   ============================================ */
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 14px 32px;
+  font-family: inherit;
+  font-size: 16px;
+  font-weight: 400;
+  border-radius: var(--radius-sm);
+  border: none;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.btn-primary {
+  background: var(--accent-primary);
+  color: var(--porsche-white);
+}
+
+.btn-primary:hover {
+  background: var(--accent-hover);
+}
+
+.btn-secondary {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--text-primary);
+}
+
+.btn-secondary:hover {
+  background: var(--bg-hover);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-secondary);
+  padding: 8px 16px;
+}
+
+.btn-ghost:hover {
+  color: var(--text-primary);
+}
+
+.btn-success {
+  background: var(--status-success);
+  color: var(--porsche-white);
+}
+
+.btn-danger {
+  background: var(--status-danger);
+  color: var(--porsche-white);
+}
+
+.btn-sm {
+  padding: 10px 20px;
+  font-size: 14px;
+}
+
+/* ============================================
+   FORM INPUTS - Porsche Style
+   ============================================ */
+
+.input {
+  width: 100%;
+  padding: 14px 16px;
+  font-family: inherit;
+  font-size: 16px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  transition: all var(--transition-fast);
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--text-primary);
+}
+
+.input::placeholder {
+  color: var(--text-light);
+}
+
+.select {
+  width: 100%;
+  padding: 14px 40px 14px 16px;
+  font-family: inherit;
+  font-size: 16px;
+  color: var(--text-primary);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23626669' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.select:focus {
+  outline: none;
+  border-color: var(--text-primary);
+}
+
+label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+input[type="checkbox"],
+input[type="radio"] {
+  width: 20px;
+  height: 20px;
+  accent-color: var(--accent-primary);
+  cursor: pointer;
+}
+
+/* ============================================
+   TAGS / PILLS - Porsche Style
+   ============================================ */
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}
+
+/* ============================================
+   STATUS BADGES
+   ============================================ */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 12px;
+  font-size: 14px;
+  font-weight: 400;
+  border-radius: var(--radius-sm);
+}
+
+.badge-success {
+  background: var(--status-success-bg);
+  color: var(--status-success);
+}
+
+.badge-warning {
+  background: var(--status-warning-bg);
+  color: var(--status-warning);
+}
+
+.badge-danger {
+  background: var(--status-danger-bg);
+  color: var(--status-danger);
+}
+
+.badge-info {
+  background: var(--status-info-bg);
+  color: var(--status-info);
+}
+
+.badge-neutral {
+  background: var(--bg-hover);
+  color: var(--text-muted);
+}
+
+/* ============================================
+   STAT CARDS
+   ============================================ */
+
+.stat-card {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  padding: 20px 24px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.stat-icon {
+  width: 48px;
+  height: 48px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-icon-blue { background: var(--status-info-bg); color: var(--status-info); }
+.stat-icon-green { background: var(--status-success-bg); color: var(--status-success); }
+.stat-icon-yellow { background: var(--status-warning-bg); color: var(--status-warning); }
+.stat-icon-red { background: var(--status-danger-bg); color: var(--status-danger); }
+
+.stat-value {
+  font-size: 28px;
+  font-weight: 400;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.stat-label {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* ============================================
+   SIDEBAR - Porsche Style
+   ============================================ */
+
+.sidebar {
+  width: 240px;
+  background: var(--bg-secondary);
+  border-right: 1px solid var(--border-light);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  position: sticky;
+  top: 0;
+}
+
+.sidebar-header {
+  padding: 24px 20px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.sidebar-logo {
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-primary);
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  font-size: 15px;
+  font-weight: 400;
+  color: var(--text-secondary);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+  transition: all var(--transition-fast);
+}
+
+.nav-item:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+}
+
+.nav-item.active {
+  background: var(--accent-primary);
+  color: var(--porsche-white);
+}
+
+.nav-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.nav-badge {
+  margin-left: auto;
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  background: var(--status-danger);
+  color: var(--porsche-white);
+  border-radius: 10px;
+}
+
+/* ============================================
+   FILTER SIDEBAR - Porsche Model Overview Style
+   ============================================ */
+
+.filter-sidebar {
+  width: 220px;
+  padding: 32px 24px;
+  background: var(--bg-primary);
+}
+
+.filter-section {
+  margin-bottom: 32px;
+}
+
+.filter-section h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 16px;
+}
+
+.filter-option {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 0;
+  cursor: pointer;
+}
+
+.filter-option input[type="radio"] {
+  width: 18px;
+  height: 18px;
+}
+
+.filter-option span {
+  font-size: 15px;
+  color: var(--text-secondary);
+}
+
+.filter-divider {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-light);
+  cursor: pointer;
+}
+
+.filter-divider span {
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+/* ============================================
+   VEHICLE CARDS - Porsche Style
+   ============================================ */
+
+.vehicle-card {
+  background: var(--bg-card);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  border: 1px solid var(--border-light);
+  transition: box-shadow var(--transition-normal);
+}
+
+.vehicle-card:hover {
+  box-shadow: var(--shadow-lg);
+}
+
+.vehicle-card-image {
+  background: linear-gradient(180deg, #f8f8f8 0%, #e8e8e8 100%);
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+
+.vehicle-card-content {
+  padding: 24px;
+}
+
+.vehicle-card-title {
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin: 0 0 4px 0;
+}
+
+.vehicle-card-subtitle {
+  font-size: 14px;
+  color: var(--text-muted);
+  margin: 0 0 16px 0;
+}
+
+.vehicle-card-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 24px;
+}
+
+.vehicle-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 12px;
+  font-size: 14px;
+  color: var(--text-secondary);
+  background: transparent;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+}
+
+.vehicle-card-stats {
+  margin-bottom: 24px;
+}
+
+.vehicle-stat {
+  margin-bottom: 16px;
+}
+
+.vehicle-stat:last-child {
+  margin-bottom: 0;
+}
+
+.vehicle-stat-value {
+  font-size: 24px;
+  font-weight: 500;
+  color: var(--text-primary);
+  display: block;
+}
+
+.vehicle-stat-label {
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.vehicle-card-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.vehicle-card-actions .btn {
+  flex: 1;
+}
+
+/* ============================================
+   TABS - Porsche Style
+   ============================================ */
+
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border-light);
+  background: var(--bg-secondary);
+}
+
+.tab {
+  padding: 16px 24px;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.tab:hover {
+  color: var(--text-primary);
+}
+
+.tab.active {
+  color: var(--text-primary);
+  border-bottom-color: var(--accent-primary);
+}
+
+/* ============================================
+   MAP STYLES
+   ============================================ */
+
+.leaflet-container {
+  background: var(--bg-tertiary);
+  font-family: inherit;
+}
+
+.leaflet-popup-content-wrapper {
+  background: var(--bg-secondary) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: var(--shadow-lg) !important;
+  padding: 0 !important;
+  border: 1px solid var(--border-light) !important;
+}
+
+.leaflet-popup-content {
+  margin: 0 !important;
+  color: var(--text-primary) !important;
+}
+
+.leaflet-control-zoom {
+  border: 1px solid var(--border-default) !important;
+  border-radius: var(--radius-md) !important;
+  overflow: hidden;
+  box-shadow: var(--shadow-md) !important;
+}
+
+.leaflet-control-zoom a {
+  background: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border-color: var(--border-light) !important;
+  width: 36px !important;
+  height: 36px !important;
+  line-height: 36px !important;
+}
+
+.leaflet-control-zoom a:hover {
+  background: var(--bg-hover) !important;
+}
+
+/* ============================================
+   SCROLLBAR - Minimal
+   ============================================ */
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-default);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-dark);
+}
+
+/* ============================================
+   ANIMATIONS
+   ============================================ */
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(196, 0, 26, 0.4); }
+  50% { box-shadow: 0 0 0 8px rgba(196, 0, 26, 0); }
+}
+
+.animate-fade-in { animation: fade-in 0.3s ease; }
+.animate-pulse-glow { animation: pulse-glow 2s ease-in-out infinite; }
+
+/* ============================================
+   UTILITY CLASSES
+   ============================================ */
+
+.flex { display: flex; }
+.items-center { align-items: center; }
+.justify-between { justify-content: space-between; }
+.gap-2 { gap: 8px; }
+.gap-3 { gap: 12px; }
+.gap-4 { gap: 16px; }
+.rounded-full { border-radius: 9999px; }
+.capitalize { text-transform: capitalize; }

@@ -1,0 +1,74 @@
+[
+  {
+    "id": "user-1771865058336-4v09",
+    "username": "admin",
+    "password": "$2b$10$yuMX6Ixi4VsniHXm5g61hubCYRsBygDVmjDXgqjgIa6HwE6RoVtge",
+    "name": "Admin",
+    "role": "admin",
+    "selectedVehicleId": "v6",
+    "createdAt": "2026-02-23T16:44:18.336Z"
+  },
+  {
+    "id": "user-1771865058390-5sun",
+    "username": "faizan",
+    "password": "$2b$10$JyTbhOtO58k4obPcHwH5mOIteFxXQTYshVEAFansEg3UDbqq45rdK",
+    "name": "Faizan",
+    "role": "driver",
+    "selectedVehicleId": null,
+    "createdAt": "2026-02-23T16:44:18.390Z"
+  },
+  {
+    "id": "user-1771866652220-z5g1",
+    "username": "ali",
+    "password": "$2b$10$yO1rl9AAIijNK0gCa58eCuDLmEaZ3ukNr6J.A4nT30U3zuHCeRSh.",
+    "name": "Ali",
+    "role": "driver",
+    "selectedVehicleId": null,
+    "createdAt": "2026-02-23T17:10:52.220Z"
+  },
+  {
+    "id": "user-1771866652322-nsv3",
+    "username": "adam",
+    "password": "$2b$10$k1xpuX49.tvZBcTv7kOd2.3puAGh.u8abaeBNFxEsV9cSpn/uPTL.",
+    "name": "Adam",
+    "role": "driver",
+    "selectedVehicleId": null,
+    "createdAt": "2026-02-23T17:10:52.322Z"
+  },
+  {
+    "id": "user-1771866652426-5l6u",
+    "username": "fivos",
+    "password": "$2b$10$iJleHRajXpyQ9pFiU3DaDO/UBGwo/FHM.b08iYEB7DXquN6.79li6",
+    "name": "Fivos",
+    "role": "driver",
+    "selectedVehicleId": null,
+    "createdAt": "2026-02-23T17:10:52.426Z"
+  },
+  {
+    "id": "user-1771866652530-lb36",
+    "username": "aris",
+    "password": "$2b$10$upHwazbtuFguFg8h80SiPuKrdzq5k8N7xGD1tNWoSSoXFPtRQhfwy",
+    "name": "Aris",
+    "role": "driver",
+    "selectedVehicleId": null,
+    "createdAt": "2026-02-23T17:10:52.530Z"
+  },
+  {
+    "id": "user-1771866652634-0tth",
+    "username": "panos",
+    "password": "$2b$10$vJviiTVkILa.ujLHIX3VCeJP.Q8X7gf1AH192gia15jdGA1GaZtLq",
+    "name": "Panos",
+    "role": "driver",
+    "selectedVehicleId": null,
+    "createdAt": "2026-02-23T17:10:52.634Z"
+  },
+  {
+    "id": "user-1771866652737-sx6r",
+    "username": "ar",
+    "password": "$2b$10$gV2dTF3Qi5eik4HZBZ0NouugdLyaKsjWXaW65TKiUqmRvOSxFQpAy",
+    "name": "AR",
+    "role": "driver",
+    "selectedVehicleId": null,
+    "createdAt": "2026-02-23T17:10:52.737Z"
+  }
+]
