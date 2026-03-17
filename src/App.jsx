@@ -4,7 +4,7 @@ import { LoadScript } from '@react-google-maps/api';
 import { ModernLayout } from './features/shared/components';
 import { ModernMapPage } from './features/map';
 import { ModernFleetPage } from './features/fleet';
-import { JourneyPlannerPage } from './features/journeys/JourneyPlannerPage';
+import JourneyPlannerPage from './features/journeys/JourneyPlannerPage';
 import { MyProfilePage } from './features/profile';
 import { AdminOverviewPage } from './features/admin/AdminOverviewPage';
 import { LoginPage } from './features/auth/LoginPage';
