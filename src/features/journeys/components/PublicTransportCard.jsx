@@ -10,12 +10,17 @@ export default function PublicTransportCard({
   onPersonDragEnd,
   showStars = true,
 }) {
-  const publicTransportPeople = people.filter(p => p.car_id === -1);
+  const publicTransportPeople = people.filter(person => person.car_id === -1);
 
-  const handleDragOver = (e) => e.preventDefault();
+  const handleDragOver = (e) => {
+    e.preventDefault();
+  };
+
   const handleDrop = (e) => {
     e.preventDefault();
-    if (draggedPersonId) onPersonDrop(draggedPersonId);
+    if (draggedPersonId) {
+      onPersonDrop(draggedPersonId);
+    }
   };
 
   const canDrop = draggedPersonId !== null;
@@ -24,12 +29,14 @@ export default function PublicTransportCard({
     <div
       className={`
         relative p-6 rounded-xl shadow-lg backdrop-blur-sm border border-white/10 min-w-[300px]
-        bg-gradient-to-br from-emerald-600/40 to-emerald-800/40 transition-all duration-200
+        bg-gradient-to-br from-emerald-600/40 to-emerald-800/40
+        transition-all duration-200
         ${canDrop ? 'ring-2 ring-emerald-400/50 bg-emerald-600/50' : ''}
       `}
       onDragOver={handleDragOver}
       onDrop={handleDrop}
     >
+      {/* Header */}
       <div className="flex items-center gap-3 mb-4">
         <div className="p-2 rounded-lg bg-emerald-600">
           <Bus className="w-5 h-5 text-white" />
@@ -40,6 +47,7 @@ export default function PublicTransportCard({
         </span>
       </div>
 
+      {/* People Grid */}
       <div className="space-y-3">
         {publicTransportPeople.length === 0 ? (
           <div className="text-center py-8 text-white/60">

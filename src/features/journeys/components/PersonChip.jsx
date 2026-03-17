@@ -40,7 +40,7 @@ export default function PersonChip({
         ${isDragging ? 'opacity-50 scale-95' : ''}
         ${className}
       `}
-      title={onRemove ? 'Double-click to remove' : ''}
+      title={onRemove ? "Double-click to remove" : ""}
     >
       <span className="select-none">
         {!!person.is_vip && showStars && <span className="mr-1">⭐</span>}
