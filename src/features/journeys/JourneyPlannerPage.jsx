@@ -214,7 +214,7 @@ export default function JourneyPlannerPage() {
       <div className={`p-6 overflow-y-auto transition-all duration-300 ${isPanelVisible ? 'mr-80' : 'mr-0'}`}>
         {/* Tab Navigation */}
         <div className="mb-8">
-          <div className="flex gap-4 mb-6 items-center flex-wrap">
+          <div className="flex gap-4 mb-6 items-center">
             {/* Back to Fleet Hub */}
             <button onClick={() => navigate('/')} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors">
               <ArrowLeft className="w-4 h-4" /> Fleet Hub

@@ -47,6 +47,7 @@ export function CarSelectPage() {
 
   return (
     <div
+      className="modern-app"
       style={{
         minHeight: '100vh',
         background: '#f4f4f4',

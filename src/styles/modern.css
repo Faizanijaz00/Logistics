@@ -62,13 +62,14 @@
    BASE STYLES
    ============================================ */
 
-* {
+.modern-app,
+.modern-app * {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-body {
+.modern-app {
   font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
   background-color: var(--bg-primary);
   color: var(--text-primary);
@@ -83,45 +84,36 @@ body {
    TYPOGRAPHY - Porsche Style
    ============================================ */
 
-h1, h2, h3, h4, h5, h6 {
+.modern-app h1, .modern-app h2, .modern-app h3, .modern-app h4, .modern-app h5, .modern-app h6 {
   font-weight: 400;
   letter-spacing: -0.01em;
   color: var(--text-primary);
   line-height: 1.2;
 }
 
-h1 {
+.modern-app h1 {
   font-size: 40px;
   font-weight: 400;
 }
 
-h2 {
+.modern-app h2 {
   font-size: 28px;
   font-weight: 400;
 }
 
-h3 {
+.modern-app h3 {
   font-size: 22px;
   font-weight: 500;
 }
 
-h4 {
+.modern-app h4 {
   font-size: 18px;
   font-weight: 500;
 }
 
-p {
+.modern-app p {
   color: var(--text-secondary);
 }
-
-.text-xs { font-size: 12px; }
-.text-sm { font-size: 14px; }
-.text-base { font-size: 16px; }
-.text-lg { font-size: 18px; }
-.text-xl { font-size: 22px; }
-.text-2xl { font-size: 28px; }
-.text-3xl { font-size: 36px; }
-.text-4xl { font-size: 40px; }
 
 /* ============================================
    LAYOUT - Porsche Style
@@ -331,7 +323,7 @@ p {
   border-color: var(--text-primary);
 }
 
-label {
+.modern-app label {
   display: block;
   font-size: 14px;
   font-weight: 500;
@@ -339,8 +331,8 @@ label {
   margin-bottom: 8px;
 }
 
-input[type="checkbox"],
-input[type="radio"] {
+.modern-app input[type="checkbox"],
+.modern-app input[type="radio"] {
   width: 20px;
   height: 20px;
   accent-color: var(--accent-primary);
@@ -779,11 +771,4 @@ input[type="radio"] {
    UTILITY CLASSES
    ============================================ */
 
-.flex { display: flex; }
-.items-center { align-items: center; }
-.justify-between { justify-content: space-between; }
-.gap-2 { gap: 8px; }
-.gap-3 { gap: 12px; }
-.gap-4 { gap: 16px; }
-.rounded-full { border-radius: 9999px; }
-.capitalize { text-transform: capitalize; }
+/* Utility overrides removed — Tailwind handles these */
