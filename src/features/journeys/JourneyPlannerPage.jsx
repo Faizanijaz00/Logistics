@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { Plus, Car, Home as HomeIcon, Users } from 'lucide-react';
+import { Plus, Car, Home as HomeIcon, Users, ArrowLeft } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { useLogisticsStore } from '../../store/logisticsStore';
 import CarCard from './components/CarCard';
 import SidePanel from './components/SidePanel';
@@ -13,6 +14,7 @@ const COLORS = [
 ];
 
 export default function JourneyPlannerPage() {
+  const navigate = useNavigate();
   const cars = useLogisticsStore(s => s.cars);
   const people = useLogisticsStore(s => s.people);
   const rooms = useLogisticsStore(s => s.rooms);
@@ -213,6 +215,10 @@ export default function JourneyPlannerPage() {
         {/* Tab Navigation */}
         <div className="mb-8">
           <div className="flex gap-4 mb-6 items-center flex-wrap">
+            {/* Back to Fleet Hub */}
+            <button onClick={() => navigate('/')} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors">
+              <ArrowLeft className="w-4 h-4" /> Fleet Hub
+            </button>
             {/* Journey Direction Toggle */}
             <div className="flex gap-1 bg-slate-800 rounded-lg p-1">
               <button onClick={() => setJourneyDirection('outbound')} className={`px-4 py-2 rounded-lg transition-colors ${journeyDirection === 'outbound' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-white'}`}>Outbound</button>

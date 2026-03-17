@@ -53,12 +53,12 @@ function App() {
     <LoadScript googleMapsApiKey={GOOGLE_MAPS_API_KEY} libraries={googleMapsLibraries}>
       <BrowserRouter>
         <Routes>
+          <Route path="/journeys" element={<JourneyPlannerPage />} />
           <Route path="/" element={<ModernLayout />}>
             <Route index element={<MyProfilePage />} />
             <Route path="map" element={<ModernMapPage />} />
             <Route path="fleet" element={<ModernFleetPage />} />
             <Route path="admin" element={<AdminOverviewPage />} />
-            <Route path="journeys" element={<JourneyPlannerPage />} />
           </Route>
         </Routes>
       </BrowserRouter>
