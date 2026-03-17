@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { NavLink, useLocation } from 'react-router-dom';
-import { Menu, Map, Car, User, Bell, AlertCircle, LogOut, ChevronDown, BarChart3, Route } from 'lucide-react';
+import { Menu, Map, Car, User, Bell, AlertCircle, LogOut, ChevronDown, BarChart3, Route, ReceiptText } from 'lucide-react';
 import { useNotificationStore, useEmergencyStore, useAuthStore, useVehicleStore } from '../../../store';
 import { useIsMobile } from '../../../hooks/useIsMobile';
 
@@ -9,6 +9,7 @@ const driverNavItems = [
   { to: '/map', icon: Map, label: 'Live Map' },
   { to: '/fleet', icon: Car, label: 'Fleet' },
   { to: '/journeys', icon: Route, label: 'Journeys' },
+  { to: '/tickets', icon: ReceiptText, label: 'Tickets' },
 ];
 
 const adminNavItems = [
@@ -16,6 +17,7 @@ const adminNavItems = [
   { to: '/map', icon: Map, label: 'Live Map' },
   { to: '/fleet', icon: Car, label: 'Fleet' },
   { to: '/journeys', icon: Route, label: 'Journeys' },
+  { to: '/tickets', icon: ReceiptText, label: 'Tickets' },
   { to: '/admin', icon: BarChart3, label: 'Admin' },
 ];
 

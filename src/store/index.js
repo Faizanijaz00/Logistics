@@ -10,3 +10,4 @@ export { useCarImageStore } from './carImageStore';
 export { useSavedLocationStore } from './savedLocationStore';
 export { useAuthStore } from './authStore';
 export { useActivityStore } from './activityStore';
+export { useTicketStore } from './ticketStore';

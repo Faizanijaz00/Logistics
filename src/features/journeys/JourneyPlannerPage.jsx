@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Car, Home as HomeIcon, Users, ArrowLeft } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { Plus, Car, Home as HomeIcon, Users } from 'lucide-react';
 import { useLogisticsStore } from '../../store/logisticsStore';
 import CarCard from './components/CarCard';
 import SidePanel from './components/SidePanel';
@@ -24,8 +23,6 @@ const tableColors = [
 ];
 
 export default function JourneyPlannerPage() {
-  const navigate = useNavigate();
-
   const cars = useLogisticsStore(s => s.cars);
   const people = useLogisticsStore(s => s.people);
   const rooms = useLogisticsStore(s => s.rooms);
@@ -331,17 +328,13 @@ export default function JourneyPlannerPage() {
 
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900">
+    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" style={{ minHeight: 'calc(100vh - 64px)' }}>
       {/* Main Content */}
       <div className={`p-6 overflow-y-auto transition-all duration-300 ${isPanelVisible ? 'mr-80' : 'mr-0'}`}>
         {/* Header */}
         <div className="mb-8">
           {/* Tab Navigation */}
           <div className="flex gap-4 mb-6 items-center">
-            {/* Back to Fleet Hub */}
-            <button onClick={() => navigate('/')} className="flex items-center gap-2 px-4 py-2 rounded-lg bg-slate-800 text-slate-300 hover:text-white hover:bg-slate-700 transition-colors">
-              <ArrowLeft className="w-4 h-4" /> Fleet Hub
-            </button>
             {/* Journey Direction Toggle */}
             <div className="flex gap-1 bg-slate-800 rounded-lg p-1">
               <button

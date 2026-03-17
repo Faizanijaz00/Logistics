@@ -5,6 +5,7 @@ import { ModernLayout } from './features/shared/components';
 import { ModernMapPage } from './features/map';
 import { ModernFleetPage } from './features/fleet';
 import JourneyPlannerPage from './features/journeys/JourneyPlannerPage';
+import TicketsPage from './features/tickets/TicketsPage';
 import { MyProfilePage } from './features/profile';
 import { AdminOverviewPage } from './features/admin/AdminOverviewPage';
 import { LoginPage } from './features/auth/LoginPage';
@@ -53,11 +54,12 @@ function App() {
     <LoadScript googleMapsApiKey={GOOGLE_MAPS_API_KEY} libraries={googleMapsLibraries}>
       <BrowserRouter>
         <Routes>
-          <Route path="/journeys" element={<JourneyPlannerPage />} />
           <Route path="/" element={<ModernLayout />}>
             <Route index element={<MyProfilePage />} />
             <Route path="map" element={<ModernMapPage />} />
             <Route path="fleet" element={<ModernFleetPage />} />
+            <Route path="journeys" element={<JourneyPlannerPage />} />
+            <Route path="tickets" element={<TicketsPage />} />
             <Route path="admin" element={<AdminOverviewPage />} />
           </Route>
         </Routes>
