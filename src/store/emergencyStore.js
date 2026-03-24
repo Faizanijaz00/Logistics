@@ -2,31 +2,59 @@ import { create } from 'zustand';
 import { useVehicleStore } from './vehicleStore';
 import { useNotificationStore } from './notificationStore';
 
+const API = 'http://localhost:3001';
+
+function getToken() {
+  try {
+    const raw = localStorage.getItem('auth-storage');
+    if (!raw) return null;
+    return JSON.parse(raw)?.state?.token || null;
+  } catch { return null; }
+}
+
+async function api(method, path, body) {
+  const token = getToken();
+  if (!token) return null;
+  const res = await fetch(`${API}${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: body ? JSON.stringify(body) : undefined,
+  }).catch(() => null);
+  return res?.ok ? res.json().catch(() => null) : null;
+}
+
 export const useEmergencyStore = create((set, get) => ({
   activeEmergency: null,
   emergencyHistory: [],
   isEmergencyMode: false,
 
-  // Trigger emergency - broadcasts to all community members
+  fetchEmergencies: async () => {
+    const data = await api('GET', '/api/emergencies');
+    if (!data) return;
+    const active = data.find((e) => e.is_active) || null;
+    const history = data.filter((e) => !e.is_active);
+    set({
+      activeEmergency: active,
+      emergencyHistory: history,
+      isEmergencyMode: !!active,
+    });
+  },
+
   triggerEmergency: (vehicleId, type = 'police_stop', message = '') => {
     const vehicleStore = useVehicleStore.getState();
     const vehicle = vehicleStore.getVehicleById(vehicleId);
-
-    if (!vehicle) {
-      console.error('Vehicle not found for emergency');
-      return null;
-    }
+    if (!vehicle) return null;
 
     const emergency = {
       id: `emerg-${Date.now()}`,
       type,
-      vehicleId,
-      driverId: vehicle.currentDriver || 'Unknown',
+      vehicle_id: vehicleId,
+      driver_id: vehicle.currentDriver || 'Unknown',
       location: vehicle.position,
       timestamp: new Date().toISOString(),
       message: message || `Emergency triggered for ${vehicle.make} ${vehicle.model}`,
-      isActive: true,
-      acknowledgedBy: [],
+      is_active: true,
+      acknowledged_by: [],
       vehicle: {
         make: vehicle.make,
         model: vehicle.model,
@@ -36,99 +64,85 @@ export const useEmergencyStore = create((set, get) => ({
       },
     };
 
-    // Set vehicle to emergency status
     vehicleStore.setVehicleStatus(vehicleId, 'emergency');
+    set({ activeEmergency: emergency, isEmergencyMode: true });
 
-    set({
-      activeEmergency: emergency,
-      isEmergencyMode: true,
-    });
-
-    // Broadcast to all community members
     useNotificationStore.getState().addNotification({
       type: 'emergency',
-      title: '🚨 EMERGENCY ALERT',
+      title: 'EMERGENCY ALERT',
       message: `${vehicle.currentDriver || 'Driver'} needs help! Vehicle: ${vehicle.licensePlate}`,
       relatedId: emergency.id,
     });
 
+    api('POST', '/api/emergencies', emergency);
     return emergency;
   },
 
-  // Acknowledge emergency (community member saw it)
   acknowledgeEmergency: (emergencyId, userId) => {
     set((state) => {
-      if (state.activeEmergency?.id === emergencyId) {
-        return {
-          activeEmergency: {
-            ...state.activeEmergency,
-            acknowledgedBy: [...state.activeEmergency.acknowledgedBy, userId],
-          },
-        };
-      }
-      return state;
+      if (state.activeEmergency?.id !== emergencyId) return state;
+      const updated = {
+        ...state.activeEmergency,
+        acknowledged_by: [...(state.activeEmergency.acknowledged_by || []), userId],
+      };
+      api('PATCH', `/api/emergencies/${emergencyId}`, { acknowledged_by: updated.acknowledged_by });
+      return { activeEmergency: updated };
     });
   },
 
-  // Resolve emergency
   resolveEmergency: (emergencyId) => {
     const { activeEmergency } = get();
+    if (activeEmergency?.id !== emergencyId) return;
 
-    if (activeEmergency?.id === emergencyId) {
-      // Reset vehicle status
-      useVehicleStore.getState().setVehicleStatus(activeEmergency.vehicleId, 'parked');
+    useVehicleStore.getState().setVehicleStatus(activeEmergency.vehicle_id, 'parked');
+    const resolvedAt = new Date().toISOString();
 
-      set((state) => ({
-        activeEmergency: null,
-        isEmergencyMode: false,
-        emergencyHistory: [
-          { ...state.activeEmergency, isActive: false, resolvedAt: new Date().toISOString() },
-          ...state.emergencyHistory,
-        ],
-      }));
+    set((state) => ({
+      activeEmergency: null,
+      isEmergencyMode: false,
+      emergencyHistory: [
+        { ...state.activeEmergency, is_active: false, resolved_at: resolvedAt },
+        ...state.emergencyHistory,
+      ],
+    }));
 
-      useNotificationStore.getState().addNotification({
-        type: 'info',
-        title: 'Emergency Resolved',
-        message: 'The emergency situation has been resolved. All clear.',
-      });
-    }
+    useNotificationStore.getState().addNotification({
+      type: 'info',
+      title: 'Emergency Resolved',
+      message: 'The emergency situation has been resolved. All clear.',
+    });
+
+    api('PATCH', `/api/emergencies/${emergencyId}`, { is_active: false, resolved_at: resolvedAt });
   },
 
-  // Get share link for insurance documents
   getEmergencyShareLink: () => {
     const { activeEmergency } = get();
     if (!activeEmergency) return null;
-
-    // In a real app, this would generate a secure temporary link
     const shareData = {
-      vehiclePlate: activeEmergency.vehicle.licensePlate,
-      insurance: activeEmergency.vehicle.insurance,
+      vehiclePlate: activeEmergency.vehicle?.licensePlate,
+      insurance: activeEmergency.vehicle?.insurance,
       timestamp: activeEmergency.timestamp,
     };
-
-    // Encode for URL sharing
     const encoded = btoa(JSON.stringify(shareData));
     return `${window.location.origin}/emergency/verify/${encoded}`;
   },
 
-  // Cancel emergency (false alarm)
   cancelEmergency: () => {
     const { activeEmergency } = get();
+    if (!activeEmergency) return;
 
-    if (activeEmergency) {
-      useVehicleStore.getState().setVehicleStatus(activeEmergency.vehicleId, 'parked');
+    useVehicleStore.getState().setVehicleStatus(activeEmergency.vehicle_id, 'parked');
+    set({ activeEmergency: null, isEmergencyMode: false });
 
-      set({
-        activeEmergency: null,
-        isEmergencyMode: false,
-      });
+    useNotificationStore.getState().addNotification({
+      type: 'info',
+      title: 'Emergency Cancelled',
+      message: 'False alarm - emergency has been cancelled.',
+    });
 
-      useNotificationStore.getState().addNotification({
-        type: 'info',
-        title: 'Emergency Cancelled',
-        message: 'False alarm - emergency has been cancelled.',
-      });
-    }
+    api('PATCH', `/api/emergencies/${activeEmergency.id}`, {
+      is_active: false,
+      resolved_at: new Date().toISOString(),
+    });
   },
 }));

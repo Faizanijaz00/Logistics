@@ -1,13 +1,39 @@
 import { create } from 'zustand';
 
+const API = 'http://localhost:3001';
+
+function getToken() {
+  try {
+    const raw = localStorage.getItem('auth-storage');
+    if (!raw) return null;
+    return JSON.parse(raw)?.state?.token || null;
+  } catch { return null; }
+}
+
+async function api(method, path, body) {
+  const token = getToken();
+  if (!token) return null;
+  const res = await fetch(`${API}${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: body ? JSON.stringify(body) : undefined,
+  }).catch(() => null);
+  return res?.ok ? res.json().catch(() => null) : null;
+}
+
 export const useNotificationStore = create((set, get) => ({
   notifications: [],
   unreadCount: 0,
 
-  // Getters
+  fetchNotifications: async () => {
+    const data = await api('GET', '/api/notifications');
+    if (data) {
+      set({ notifications: data, unreadCount: data.filter((n) => !n.read).length });
+    }
+  },
+
   getUnreadNotifications: () => get().notifications.filter((n) => !n.read),
 
-  // Actions
   addNotification: ({ type, title, message, actionUrl, relatedId }) => {
     const notification = {
       id: `notif-${Date.now()}`,
@@ -16,52 +42,47 @@ export const useNotificationStore = create((set, get) => ({
       message,
       timestamp: new Date().toISOString(),
       read: false,
-      actionUrl,
-      relatedId,
+      action_url: actionUrl,
+      related_id: relatedId,
     };
-
     set((state) => ({
       notifications: [notification, ...state.notifications],
       unreadCount: state.unreadCount + 1,
     }));
-
-    // Play sound for emergency notifications
-    if (type === 'emergency') {
-      // Could trigger audio here
-      console.log('🚨 EMERGENCY ALERT:', message);
-    }
-
+    if (type === 'emergency') console.log('EMERGENCY ALERT:', message);
+    api('POST', '/api/notifications', notification);
     return notification;
   },
 
-  markAsRead: (notificationId) =>
-    set((state) => ({
-      notifications: state.notifications.map((n) =>
+  markAsRead: (notificationId) => {
+    set((state) => {
+      const updated = state.notifications.map((n) =>
         n.id === notificationId ? { ...n, read: true } : n
-      ),
-      unreadCount: Math.max(0, state.unreadCount - 1),
-    })),
+      );
+      return { notifications: updated, unreadCount: updated.filter((n) => !n.read).length };
+    });
+    api('PATCH', `/api/notifications/${notificationId}`, { read: true });
+  },
 
-  markAllAsRead: () =>
+  markAllAsRead: () => {
+    const ids = get().notifications.filter((n) => !n.read).map((n) => n.id);
     set((state) => ({
       notifications: state.notifications.map((n) => ({ ...n, read: true })),
       unreadCount: 0,
-    })),
+    }));
+    ids.forEach((id) => api('PATCH', `/api/notifications/${id}`, { read: true }));
+  },
 
-  clearNotifications: () =>
-    set({
-      notifications: [],
-      unreadCount: 0,
-    }),
+  clearNotifications: async () => {
+    set({ notifications: [], unreadCount: 0 });
+    await api('DELETE', '/api/notifications');
+  },
 
-  removeNotification: (notificationId) =>
+  removeNotification: (notificationId) => {
     set((state) => {
-      const notification = state.notifications.find((n) => n.id === notificationId);
-      return {
-        notifications: state.notifications.filter((n) => n.id !== notificationId),
-        unreadCount: notification && !notification.read
-          ? state.unreadCount - 1
-          : state.unreadCount,
-      };
-    }),
+      const updated = state.notifications.filter((n) => n.id !== notificationId);
+      return { notifications: updated, unreadCount: updated.filter((n) => !n.read).length };
+    });
+    api('DELETE', `/api/notifications/${notificationId}`);
+  },
 }));

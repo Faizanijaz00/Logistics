@@ -15,6 +15,8 @@
     "position": { "lat": 51.5348, "lng": -0.1198 },
     "route": null,
     "imageId": "img-1",
+    "capacity": 7,
+    "seatingLayout": [2, 3, 2],
     "insurance": {
       "provider": "SafeDrive Insurance",
       "policyNumber": "POL-2024-001",
@@ -52,6 +54,8 @@
     "position": { "lat": 51.5074, "lng": -0.1278 },
     "route": null,
     "imageId": "img-2",
+    "capacity": 7,
+    "seatingLayout": [2, 3, 2],
     "insurance": {
       "provider": "FleetGuard",
       "policyNumber": "POL-2024-002",
@@ -89,6 +93,8 @@
     "position": { "lat": 51.5155, "lng": -0.0922 },
     "route": null,
     "imageId": "img-3",
+    "capacity": 5,
+    "seatingLayout": [2, 3],
     "insurance": {
       "provider": "SafeDrive Insurance",
       "policyNumber": "POL-2024-003",
@@ -126,6 +132,8 @@
     "position": { "lat": 51.5225, "lng": -0.0734 },
     "route": null,
     "imageId": "img-4",
+    "capacity": 3,
+    "seatingLayout": [1, 2],
     "insurance": {
       "provider": "FleetGuard",
       "policyNumber": "POL-2024-004",
@@ -163,6 +171,8 @@
     "position": { "lat": 51.5013, "lng": -0.1419 },
     "route": null,
     "imageId": "img-5",
+    "capacity": 8,
+    "seatingLayout": [2, 6],
     "insurance": {
       "provider": "SafeDrive Insurance",
       "policyNumber": "POL-2024-005",
@@ -200,6 +210,8 @@
     "position": { "lat": 51.5118, "lng": -0.1160 },
     "route": null,
     "imageId": "img-6",
+    "capacity": 5,
+    "seatingLayout": [2, 3],
     "insurance": {
       "provider": "FleetGuard",
       "policyNumber": "POL-2024-006",

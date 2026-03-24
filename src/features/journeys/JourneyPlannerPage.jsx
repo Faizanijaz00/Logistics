@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, Car, Home as HomeIcon, Users } from 'lucide-react';
+import { Plus, Car, Home as HomeIcon, Users, ArrowRight, ArrowLeft, Star, Train } from 'lucide-react';
 import { useLogisticsStore } from '../../store/logisticsStore';
+import { useVehicleStore } from '../../store/vehicleStore';
 import CarCard from './components/CarCard';
 import SidePanel from './components/SidePanel';
 import PublicTransportCard from './components/PublicTransportCard';
@@ -21,6 +22,35 @@ const tableColors = [
   '#3B82F6', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6',
   '#06B6D4', '#F97316', '#84CC16', '#EC4899', '#6366F1'
 ];
+
+const inputStyle = {
+  padding: '8px 12px',
+  fontSize: '14px',
+  border: '1px solid #d1d1d1',
+  background: '#fff',
+  color: '#000',
+  outline: 'none',
+};
+
+const btnPrimary = {
+  padding: '8px 16px',
+  fontSize: '14px',
+  fontWeight: '500',
+  background: '#000',
+  color: '#fff',
+  border: 'none',
+  cursor: 'pointer',
+};
+
+const btnSecondary = {
+  padding: '8px 16px',
+  fontSize: '14px',
+  fontWeight: '500',
+  background: '#f0f0f0',
+  color: '#333',
+  border: '1px solid #d1d1d1',
+  cursor: 'pointer',
+};
 
 export default function JourneyPlannerPage() {
   const cars = useLogisticsStore(s => s.cars);
@@ -49,6 +79,10 @@ export default function JourneyPlannerPage() {
   const createRouteStop = useLogisticsStore(s => s.createRouteStop);
   const getStopsForRoute = useLogisticsStore(s => s.getStopsForRoute);
 
+  // Fleet integration
+  const vehicles = useVehicleStore(s => s.vehicles);
+  const updateVehicle = useVehicleStore(s => s.updateVehicle);
+
   const [draggedPersonId, setDraggedPersonId] = useState(null);
   const [undoStack, setUndoStack] = useState([]);
   const [currentStageIndex, setCurrentStageIndex] = useState(0);
@@ -71,6 +105,7 @@ export default function JourneyPlannerPage() {
   const [carCapacity, setCarCapacity] = useState(5);
   const [newCarOrigin, setNewCarOrigin] = useState('');
   const [newCarDestination, setNewCarDestination] = useState('');
+  const [linkedVehicleId, setLinkedVehicleId] = useState('');
   const [newRoomName, setNewRoomName] = useState('');
   const [newRoomCapacity, setNewRoomCapacity] = useState(4);
   const [newRoomBedspace, setNewRoomBedspace] = useState(2);
@@ -87,6 +122,21 @@ export default function JourneyPlannerPage() {
   const [showStars, setShowStars] = useState(true);
   const [journeyDirection, setJourneyDirection] = useState('outbound');
 
+  // Sync journey car destinations to fleet vehicles
+  const syncCarToFleet = (car) => {
+    if (car.linkedVehicleId && car.destination) {
+      updateVehicle(car.linkedVehicleId, { destination: car.destination });
+    }
+  };
+
+  const handleCarUpdate = (carId, updates) => {
+    updateCar(carId, updates);
+    const car = cars.find(c => c.id === carId);
+    if (car) {
+      const merged = { ...car, ...updates };
+      syncCarToFleet(merged);
+    }
+  };
 
   const recordUndo = (personId) => {
     const person = people.find(p => p.id === personId);
@@ -105,7 +155,7 @@ export default function JourneyPlannerPage() {
       },
     };
 
-    setUndoStack(prev => [...prev.slice(-49), undoAction]); // Keep last 50 actions
+    setUndoStack(prev => [...prev.slice(-49), undoAction]);
   };
 
   const handleUndo = async () => {
@@ -115,7 +165,6 @@ export default function JourneyPlannerPage() {
     const { personId, previousState } = lastAction;
 
     try {
-      // Restore all assignment states for both journey directions
       assignPersonToCar(personId, {
         car_id: previousState.car_id,
         seat_position: previousState.seat_position,
@@ -132,7 +181,6 @@ export default function JourneyPlannerPage() {
         table_position: previousState.table_position,
       });
 
-      // Remove this action from the stack
       setUndoStack(prev => prev.slice(0, -1));
     } catch (error) {
       console.error('Failed to undo:', error);
@@ -142,106 +190,62 @@ export default function JourneyPlannerPage() {
   const handlePersonSwapInCar = async (draggedId, targetId) => {
     const draggedPerson = people.find(p => p.id === draggedId);
     const targetPerson = people.find(p => p.id === targetId);
-
     if (!draggedPerson || !targetPerson) return;
 
-    // Record undo for both people
     recordUndo(draggedId);
     recordUndo(targetId);
 
-    // Get the appropriate car assignment based on journey direction
     const draggedCarId = journeyDirection === 'outbound' ? draggedPerson.outbound_car_id : draggedPerson.return_car_id;
     const draggedSeatPos = journeyDirection === 'outbound' ? draggedPerson.outbound_seat_position : draggedPerson.return_seat_position;
     const targetCarId = journeyDirection === 'outbound' ? targetPerson.outbound_car_id : targetPerson.return_car_id;
     const targetSeatPos = journeyDirection === 'outbound' ? targetPerson.outbound_seat_position : targetPerson.return_seat_position;
 
-    // Swap their positions
-    assignPersonToCar(draggedId, {
-      car_id: targetCarId,
-      seat_position: targetSeatPos
-    }, journeyDirection);
-
-    assignPersonToCar(targetId, {
-      car_id: draggedCarId,
-      seat_position: draggedSeatPos
-    }, journeyDirection);
-
+    assignPersonToCar(draggedId, { car_id: targetCarId, seat_position: targetSeatPos }, journeyDirection);
+    assignPersonToCar(targetId, { car_id: draggedCarId, seat_position: draggedSeatPos }, journeyDirection);
     setDraggedPersonId(null);
   };
 
   const handlePersonSwapInRoom = async (draggedId, targetId) => {
     const draggedPerson = people.find(p => p.id === draggedId);
     const targetPerson = people.find(p => p.id === targetId);
-
     if (!draggedPerson || !targetPerson) return;
 
-    // Record undo for both people
     recordUndo(draggedId);
     recordUndo(targetId);
 
-    // Swap their room positions (rooms don't have journey direction)
-    assignPersonToRoom(draggedId, {
-      room_id: targetPerson.room_id,
-      bed_position: targetPerson.bed_position
-    });
-
-    assignPersonToRoom(targetId, {
-      room_id: draggedPerson.room_id,
-      bed_position: draggedPerson.bed_position
-    });
-
+    assignPersonToRoom(draggedId, { room_id: targetPerson.room_id, bed_position: targetPerson.bed_position });
+    assignPersonToRoom(targetId, { room_id: draggedPerson.room_id, bed_position: draggedPerson.bed_position });
     setDraggedPersonId(null);
   };
 
   const handlePersonSwapInTable = async (draggedId, targetId) => {
     const draggedPerson = people.find(p => p.id === draggedId);
     const targetPerson = people.find(p => p.id === targetId);
-
     if (!draggedPerson || !targetPerson) return;
 
-    // Record undo for both people
     recordUndo(draggedId);
     recordUndo(targetId);
 
-    // Swap their table positions (tables don't have journey direction)
-    assignPersonToTable(draggedId, {
-      table_id: targetPerson.table_id,
-      table_position: targetPerson.table_position
-    });
-
-    assignPersonToTable(targetId, {
-      table_id: draggedPerson.table_id,
-      table_position: draggedPerson.table_position
-    });
-
+    assignPersonToTable(draggedId, { table_id: targetPerson.table_id, table_position: targetPerson.table_position });
+    assignPersonToTable(targetId, { table_id: draggedPerson.table_id, table_position: draggedPerson.table_position });
     setDraggedPersonId(null);
   };
 
   const handlePersonDropOnCar = async (personId, carId, seatPosition, legId) => {
     recordUndo(personId);
-    assignPersonToCar(personId, {
-      car_id: carId,
-      seat_position: seatPosition,
-      car_leg_id: legId || null  // Default to null so person appears in all legs
-    }, journeyDirection);
+    assignPersonToCar(personId, { car_id: carId, seat_position: seatPosition, car_leg_id: legId || null }, journeyDirection);
     setDraggedPersonId(null);
   };
 
   const handlePersonDropOnPublicTransport = async (personId) => {
     recordUndo(personId);
-    assignPersonToCar(personId, {
-      car_id: -1, // Use -1 to represent public transport
-      seat_position: null
-    }, journeyDirection);
+    assignPersonToCar(personId, { car_id: -1, seat_position: null }, journeyDirection);
     setDraggedPersonId(null);
   };
 
   const handlePersonRemove = async (personId) => {
     recordUndo(personId);
-    assignPersonToCar(personId, {
-      car_id: null,
-      seat_position: null
-    }, journeyDirection);
+    assignPersonToCar(personId, { car_id: null, seat_position: null }, journeyDirection);
   };
 
   const handlePersonDropOnRoom = async (personId, roomId, bedPosition) => {
@@ -268,21 +272,30 @@ export default function JourneyPlannerPage() {
 
   const handleCreateCar = async (e) => {
     e.preventDefault();
-    if (newCarName.trim()) {
-      const randomColor = carColors[Math.floor(Math.random() * carColors.length)];
-      createCar({
-        name: newCarName.trim(),
-        color: randomColor,
-        capacity: carCapacity,
-        origin: newCarOrigin.trim() || undefined,
-        destination: newCarDestination.trim() || undefined,
-      });
-      setNewCarName('');
-      setCarCapacity(5);
-      setNewCarOrigin('');
-      setNewCarDestination('');
-      setIsAddingCar(false);
+    const isFleetCar = linkedVehicleId && linkedVehicleId !== '__other__';
+    const carName = isFleetCar ? newCarName : newCarName.trim();
+    if (!carName) return;
+
+    const randomColor = carColors[Math.floor(Math.random() * carColors.length)];
+    const actualLinkedId = isFleetCar ? linkedVehicleId : undefined;
+    createCar({
+      name: carName,
+      color: randomColor,
+      capacity: carCapacity,
+      origin: newCarOrigin.trim() || undefined,
+      destination: newCarDestination.trim() || undefined,
+      linkedVehicleId: actualLinkedId,
+    });
+    // Sync destination to fleet vehicle
+    if (actualLinkedId && newCarDestination.trim()) {
+      updateVehicle(actualLinkedId, { destination: newCarDestination.trim() });
     }
+    setNewCarName('');
+    setCarCapacity(5);
+    setNewCarOrigin('');
+    setNewCarDestination('');
+    setLinkedVehicleId('');
+    setIsAddingCar(false);
   };
 
   const handleCreateRoom = async (e) => {
@@ -325,361 +338,255 @@ export default function JourneyPlannerPage() {
     }
   };
 
-
+  const tabs = [
+    { id: 'transportation', label: 'Transportation', icon: Car },
+    { id: 'rooms', label: 'Rooms', icon: HomeIcon },
+    { id: 'tables', label: 'Tables', icon: Users },
+  ];
 
   return (
-    <div className="h-full bg-gradient-to-br from-slate-900 via-slate-800 to-slate-900" style={{ minHeight: 'calc(100vh - 64px)' }}>
+    <div style={{ display: 'flex', minHeight: 'calc(100vh - 64px)', background: '#f5f5f5' }}>
       {/* Main Content */}
-      <div className={`p-6 overflow-y-auto transition-all duration-300 ${isPanelVisible ? 'mr-80' : 'mr-0'}`}>
-        {/* Header */}
-        <div className="mb-8">
-          {/* Tab Navigation */}
-          <div className="flex gap-4 mb-6 items-center">
+      <div style={{ flex: 1, minWidth: 0, padding: '24px', overflowY: 'auto' }}>
+        {/* Header bar */}
+        <div style={{ marginBottom: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap', marginBottom: '16px' }}>
             {/* Journey Direction Toggle */}
-            <div className="flex gap-1 bg-slate-800 rounded-lg p-1">
+            <div style={{ display: 'flex', background: '#e0e0e0', padding: '2px', gap: '2px' }}>
               <button
                 onClick={() => setJourneyDirection('outbound')}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  journeyDirection === 'outbound'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-400 hover:text-white'
-                }`}
+                style={{
+                  padding: '8px 18px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: journeyDirection === 'outbound' ? '#000' : 'transparent',
+                  color: journeyDirection === 'outbound' ? '#fff' : '#666',
+                }}
               >
-                Outbound
+                <ArrowRight size={14} /> Outbound
               </button>
               <button
                 onClick={() => setJourneyDirection('return')}
-                className={`px-4 py-2 rounded-lg transition-colors ${
-                  journeyDirection === 'return'
-                    ? 'bg-blue-600 text-white'
-                    : 'text-slate-400 hover:text-white'
-                }`}
+                style={{
+                  padding: '8px 18px',
+                  fontSize: '13px',
+                  fontWeight: '600',
+                  border: 'none',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  background: journeyDirection === 'return' ? '#000' : 'transparent',
+                  color: journeyDirection === 'return' ? '#fff' : '#666',
+                }}
               >
-                Return
+                <ArrowLeft size={14} /> Return
               </button>
             </div>
 
+            <div style={{ width: '1px', height: '28px', background: '#d1d1d1' }} />
+
+            {/* Tab buttons */}
+            {tabs.map(tab => {
+              const Icon = tab.icon;
+              const isActive = activeTab === tab.id;
+              return (
+                <button
+                  key={tab.id}
+                  onClick={() => setActiveTab(tab.id)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 16px',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    border: isActive ? '1px solid #000' : '1px solid #d1d1d1',
+                    background: isActive ? '#000' : '#fff',
+                    color: isActive ? '#fff' : '#333',
+                    cursor: 'pointer',
+                  }}
+                >
+                  <Icon size={14} />
+                  {tab.label}
+                </button>
+              );
+            })}
+
+            <div style={{ width: '1px', height: '28px', background: '#d1d1d1' }} />
+
+            {/* VIP toggle */}
             <button
               onClick={() => setShowStars(!showStars)}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                showStars
-                  ? 'bg-yellow-600 text-white'
-                  : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
-              }`}
-              title={showStars ? 'Hide VIP stars' : 'Show VIP stars'}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '8px 14px',
+                fontSize: '13px',
+                fontWeight: '500',
+                border: '1px solid #d1d1d1',
+                background: showStars ? '#fef3c7' : '#fff',
+                color: '#333',
+                cursor: 'pointer',
+              }}
             >
-              <span className="text-sm">⭐ {showStars ? 'Hide' : 'Show'}</span>
+              <Star size={14} fill={showStars ? '#f59e0b' : 'none'} color={showStars ? '#f59e0b' : '#999'} />
+              VIP
             </button>
-            <button
-              onClick={() => setActiveTab('transportation')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                activeTab === 'transportation'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
-              }`}
-            >
-              <Car className="w-4 h-4" />
-              Transportation
-            </button>
-            {activeTab === 'transportation' && (
-              <button
-                onClick={() => setIsAddingCar(true)}
-                className="p-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
-                title="Add car"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            )}
-            <button
-              onClick={() => setActiveTab('rooms')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                activeTab === 'rooms'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
-              }`}
-            >
-              <HomeIcon className="w-4 h-4" />
-              Rooms
-            </button>
-            {activeTab === 'rooms' && (
-              <button
-                onClick={() => setIsAddingRoom(true)}
-                className="p-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
-                title="Add room"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            )}
-            <button
-              onClick={() => setActiveTab('tables')}
-              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
-                activeTab === 'tables'
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700'
-              }`}
-            >
-              <Users className="w-4 h-4" />
-              Tables
-            </button>
-            {activeTab === 'tables' && (
-              <button
-                onClick={() => setIsAddingTable(true)}
-                className="p-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white transition-colors"
-                title="Add table"
-              >
-                <Plus className="w-4 h-4" />
-              </button>
-            )}
 
+            {/* Add button */}
+            <button
+              onClick={() => {
+                if (activeTab === 'transportation') setIsAddingCar(true);
+                else if (activeTab === 'rooms') setIsAddingRoom(true);
+                else if (activeTab === 'tables') setIsAddingTable(true);
+              }}
+              style={{ ...btnPrimary, display: 'flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Plus size={14} />
+              Add {activeTab === 'transportation' ? 'Car' : activeTab === 'rooms' ? 'Room' : 'Table'}
+            </button>
           </div>
 
-          {/* Add Forms */}
+          {/* Add Car Form */}
           {activeTab === 'transportation' && isAddingCar && (
-            <div className="flex items-center justify-end">
-              {(
-                <form onSubmit={handleCreateCar} className="flex gap-3 items-center flex-wrap">
-                  <input
-                    type="text"
-                    value={newCarName}
-                    onChange={(e) => setNewCarName(e.target.value)}
-                    placeholder="Car name"
-                    className="px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    autoFocus
-                  />
-                  <input
-                    type="text"
-                    value={newCarOrigin}
-                    onChange={(e) => setNewCarOrigin(e.target.value)}
-                    placeholder="Origin (optional)"
-                    className="px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <input
-                    type="text"
-                    value={newCarDestination}
-                    onChange={(e) => setNewCarDestination(e.target.value)}
-                    placeholder="Destination (optional)"
-                    className="px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                  />
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm text-white whitespace-nowrap">Size:</label>
-                    <select
-                      value={carCapacity}
-                      onChange={(e) => setCarCapacity(parseInt(e.target.value))}
-                      className="px-3 py-3 bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="2">2-seater</option>
-                      <option value="5">5-seater</option>
-                      <option value="7">7-seater</option>
-                      <option value="9">Van (9+)</option>
-                    </select>
-                  </div>
-                  <button
-                    type="submit"
-                    className="px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-                  >
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsAddingCar(false);
+            <div style={{ background: '#fff', border: '1px solid #e0e0e0', padding: '16px', marginBottom: '16px' }}>
+              <form onSubmit={handleCreateCar} style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <select
+                  value={linkedVehicleId}
+                  onChange={(e) => {
+                    const vid = e.target.value;
+                    setLinkedVehicleId(vid);
+                    if (vid && vid !== '__other__') {
+                      const v = vehicles.find(x => x.id === vid);
+                      if (v) {
+                        setNewCarName(`${v.make} ${v.model}`);
+                        const cap = v.capacity || (v.is_two_seater ? 2 : 5);
+                        setCarCapacity(cap);
+                      }
+                    } else {
                       setNewCarName('');
                       setCarCapacity(5);
-                      setNewCarOrigin('');
-                      setNewCarDestination('');
-                    }}
-                    className="px-4 py-3 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </form>
-              )}
-            </div>
-          )}
-          {activeTab === 'rooms' && isAddingRoom && (
-            <div className="flex items-center justify-end">
-              {(
-                <form onSubmit={handleCreateRoom} className="flex gap-3 items-center flex-wrap">
-                  <input
-                    type="text"
-                    value={newRoomName}
-                    onChange={(e) => setNewRoomName(e.target.value)}
-                    placeholder="Enter room name"
-                    className="px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    autoFocus
-                  />
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm text-white whitespace-nowrap">Capacity:</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="20"
-                      value={newRoomCapacity}
-                      onChange={(e) => setNewRoomCapacity(parseInt(e.target.value) || 4)}
-                      className="w-20 px-3 py-3 bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm text-white whitespace-nowrap">Bedspace:</label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="10"
-                      value={newRoomBedspace}
-                      onChange={(e) => setNewRoomBedspace(parseInt(e.target.value) || 2)}
-                      className="w-20 px-3 py-3 bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm text-white whitespace-nowrap">Floor:</label>
-                    <select
-                      value={newRoomFloor}
-                      onChange={(e) => setNewRoomFloor(e.target.value)}
-                      className="px-3 py-3 bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="G">G</option>
-                      <option value="1">1</option>
-                      <option value="2">2</option>
-                      <option value="3">3</option>
-                    </select>
-                  </div>
-                  <label className="flex items-center gap-2 text-sm text-white">
-                    <input
-                      type="checkbox"
-                      checked={newRoomIsEnsuite}
-                      onChange={(e) => setNewRoomIsEnsuite(e.target.checked)}
-                      className="w-4 h-4 text-blue-600 bg-slate-800 border-slate-600 rounded focus:ring-blue-500 focus:ring-2"
-                    />
-                    Ensuite
-                  </label>
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm text-white whitespace-nowrap">Photo URL:</label>
-                    <input
-                      type="url"
-                      value={newRoomPhotoUrl}
-                      onChange={(e) => setNewRoomPhotoUrl(e.target.value)}
-                      placeholder="Optional photo URL"
-                      className="px-3 py-3 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <button
-                    type="submit"
-                    className="px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-                  >
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsAddingRoom(false);
-                      setNewRoomName('');
-                      setNewRoomCapacity(4);
-                      setNewRoomBedspace(2);
-                      setNewRoomFloor('G');
-                      setNewRoomIsEnsuite(false);
-                      setNewRoomPhotoUrl('');
-                    }}
-                    className="px-4 py-3 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </form>
-              )}
+                    }
+                  }}
+                  style={{ ...inputStyle, minWidth: '200px' }}
+                  autoFocus
+                >
+                  <option value="">Select a vehicle...</option>
+                  {vehicles.map(v => (
+                    <option key={v.id} value={v.id}>{v.make} {v.model} ({v.licensePlate})</option>
+                  ))}
+                  <option value="__other__">Other (custom car)</option>
+                </select>
+                {linkedVehicleId === '__other__' && (
+                  <input type="text" value={newCarName} onChange={(e) => setNewCarName(e.target.value)} placeholder="Car name" style={inputStyle} />
+                )}
+                {linkedVehicleId === '__other__' && (
+                  <select value={carCapacity} onChange={(e) => setCarCapacity(parseInt(e.target.value))} style={inputStyle}>
+                    <option value="2">2-seater</option>
+                    <option value="5">5-seater</option>
+                    <option value="7">7-seater</option>
+                    <option value="9">Van (9+)</option>
+                  </select>
+                )}
+                {linkedVehicleId && linkedVehicleId !== '__other__' && (
+                  <span style={{ fontSize: '13px', color: '#666', padding: '8px 0' }}>{carCapacity}-seater</span>
+                )}
+                <input type="text" value={newCarOrigin} onChange={(e) => setNewCarOrigin(e.target.value)} placeholder="Origin" style={inputStyle} />
+                <input type="text" value={newCarDestination} onChange={(e) => setNewCarDestination(e.target.value)} placeholder="Destination" style={inputStyle} />
+                <button type="submit" style={btnPrimary} disabled={!linkedVehicleId || (linkedVehicleId === '__other__' && !newCarName.trim())}>Add</button>
+                <button type="button" onClick={() => { setIsAddingCar(false); setNewCarName(''); setCarCapacity(5); setNewCarOrigin(''); setNewCarDestination(''); setLinkedVehicleId(''); }} style={btnSecondary}>Cancel</button>
+              </form>
             </div>
           )}
 
+          {/* Add Room Form */}
+          {activeTab === 'rooms' && isAddingRoom && (
+            <div style={{ background: '#fff', border: '1px solid #e0e0e0', padding: '16px', marginBottom: '16px' }}>
+              <form onSubmit={handleCreateRoom} style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input type="text" value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} placeholder="Room name" style={inputStyle} autoFocus />
+                <label style={{ fontSize: '13px', color: '#666', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  Capacity:
+                  <input type="number" min="1" max="20" value={newRoomCapacity} onChange={(e) => setNewRoomCapacity(parseInt(e.target.value) || 4)} style={{ ...inputStyle, width: '60px' }} />
+                </label>
+                <label style={{ fontSize: '13px', color: '#666', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  Beds:
+                  <input type="number" min="1" max="10" value={newRoomBedspace} onChange={(e) => setNewRoomBedspace(parseInt(e.target.value) || 2)} style={{ ...inputStyle, width: '60px' }} />
+                </label>
+                <label style={{ fontSize: '13px', color: '#666', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  Floor:
+                  <select value={newRoomFloor} onChange={(e) => setNewRoomFloor(e.target.value)} style={inputStyle}>
+                    <option value="G">G</option>
+                    <option value="1">1</option>
+                    <option value="2">2</option>
+                    <option value="3">3</option>
+                  </select>
+                </label>
+                <label style={{ fontSize: '13px', color: '#666', display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+                  <input type="checkbox" checked={newRoomIsEnsuite} onChange={(e) => setNewRoomIsEnsuite(e.target.checked)} />
+                  Ensuite
+                </label>
+                <button type="submit" style={btnPrimary}>Add</button>
+                <button type="button" onClick={() => { setIsAddingRoom(false); setNewRoomName(''); }} style={btnSecondary}>Cancel</button>
+              </form>
+            </div>
+          )}
+
+          {/* Add Table Form */}
           {activeTab === 'tables' && isAddingTable && (
-            <div className="flex items-center justify-end">
-              {(
-                <form onSubmit={handleCreateTable} className="flex gap-3 items-center flex-wrap">
-                  <input
-                    type="text"
-                    value={newTableName}
-                    onChange={(e) => setNewTableName(e.target.value)}
-                    placeholder="Enter table name"
-                    className="px-4 py-3 bg-slate-800 border border-slate-600 rounded-lg text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    autoFocus
-                  />
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm text-white whitespace-nowrap">Capacity:</label>
-                    <input
-                      type="number"
-                      min="2"
-                      max="20"
-                      value={newTableCapacity}
-                      onChange={(e) => setNewTableCapacity(parseInt(e.target.value) || 4)}
-                      className="w-20 px-3 py-3 bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    />
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <label className="text-sm text-white whitespace-nowrap">Type:</label>
-                    <select
-                      value={newTableType}
-                      onChange={(e) => setNewTableType(e.target.value)}
-                      className="px-3 py-3 bg-slate-800 border border-slate-600 rounded-lg text-white focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    >
-                      <option value="rectangular">Rectangular</option>
-                      <option value="round">Round</option>
-                    </select>
-                  </div>
-                  <button
-                    type="submit"
-                    className="px-4 py-3 bg-green-600 hover:bg-green-700 text-white rounded-lg transition-colors"
-                  >
-                    Add
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setIsAddingTable(false);
-                      setNewTableName('');
-                      setNewTableCapacity(4);
-                      setNewTableType('rectangular');
-                    }}
-                    className="px-4 py-3 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </form>
-              )}
+            <div style={{ background: '#fff', border: '1px solid #e0e0e0', padding: '16px', marginBottom: '16px' }}>
+              <form onSubmit={handleCreateTable} style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
+                <input type="text" value={newTableName} onChange={(e) => setNewTableName(e.target.value)} placeholder="Table name" style={inputStyle} autoFocus />
+                <label style={{ fontSize: '13px', color: '#666', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  Capacity:
+                  <input type="number" min="2" max="20" value={newTableCapacity} onChange={(e) => setNewTableCapacity(parseInt(e.target.value) || 4)} style={{ ...inputStyle, width: '60px' }} />
+                </label>
+                <label style={{ fontSize: '13px', color: '#666', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  Type:
+                  <select value={newTableType} onChange={(e) => setNewTableType(e.target.value)} style={inputStyle}>
+                    <option value="rectangular">Rectangular</option>
+                    <option value="round">Round</option>
+                  </select>
+                </label>
+                <button type="submit" style={btnPrimary}>Add</button>
+                <button type="button" onClick={() => { setIsAddingTable(false); setNewTableName(''); }} style={btnSecondary}>Cancel</button>
+              </form>
             </div>
           )}
         </div>
 
-        {/* Content based on active tab */}
-        <div className="space-y-8">
+        {/* Content */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
           {activeTab === 'transportation' ? (
             <>
-              {/* Show all people, but with journey-specific car assignments */}
               {(() => {
-                // Map people to show the appropriate car assignment for this journey
                 const filteredPeople = people.map(person => ({
                   ...person,
                   car_id: journeyDirection === 'outbound' ? person.outbound_car_id : person.return_car_id,
                   seat_position: journeyDirection === 'outbound' ? person.outbound_seat_position : person.return_seat_position,
                   car_leg_id: journeyDirection === 'outbound' ? person.outbound_car_leg_id : person.return_car_leg_id,
                 }));
-                const filteredCars = cars;
 
                 return (
                   <>
-                    {/* Cars Section */}
-                    {filteredCars.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center">
-                  <Car className="w-16 h-16 text-slate-600 mb-4" />
-                  <h3 className="text-xl font-semibold text-slate-400 mb-2">No cars added yet</h3>
-                  <p className="text-slate-500 mb-6">Add your first car to start organizing people</p>
-                  <button
-                    onClick={() => setIsAddingCar(true)}
-                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                  >
-                    <Plus className="w-5 h-5" />
-                    Add First Car
-                  </button>
-                </div>
-              ) : (
+                    {cars.length === 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 0', textAlign: 'center' }}>
+                        <Car size={48} color="#ccc" style={{ marginBottom: '16px' }} />
+                        <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#666', marginBottom: '8px' }}>No cars added yet</h3>
+                        <p style={{ fontSize: '14px', color: '#999', marginBottom: '20px' }}>Add your first car to start organizing people</p>
+                        <button onClick={() => setIsAddingCar(true)} style={{ ...btnPrimary, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <Plus size={16} /> Add First Car
+                        </button>
+                      </div>
+                    ) : (
                       <div className="flex flex-wrap gap-6">
-                        {filteredCars.map((car, index) => (
+                        {cars.map((car, index) => (
                           <CarCard
                             key={car.id}
                             car={car}
@@ -690,7 +597,7 @@ export default function JourneyPlannerPage() {
                             onPersonRemove={handlePersonRemove}
                             onPersonSwap={handlePersonSwapInCar}
                             onCarDelete={deleteCar}
-                            onCarUpdate={updateCar}
+                            onCarUpdate={handleCarUpdate}
                             onRouteCreate={createRoute}
                             onRouteUpdate={updateRoute}
                             onRouteStopCreate={createRouteStop}
@@ -705,9 +612,11 @@ export default function JourneyPlannerPage() {
                       </div>
                     )}
 
-                    {/* Public Transport Section */}
+                    {/* Public Transport */}
                     <div>
-                      <h2 className="text-2xl font-bold text-white mb-4">Public Transport</h2>
+                      <h2 style={{ fontSize: '16px', fontWeight: '600', color: '#333', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <Train size={18} /> Public Transport
+                      </h2>
                       <PublicTransportCard
                         people={filteredPeople}
                         onPersonDrop={handlePersonDropOnPublicTransport}
@@ -724,30 +633,24 @@ export default function JourneyPlannerPage() {
             </>
           ) : activeTab === 'rooms' ? (
             <>
-              {/* Rooms Section */}
               {rooms.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center">
-                  <HomeIcon className="w-16 h-16 text-slate-600 mb-4" />
-                  <h3 className="text-xl font-semibold text-slate-400 mb-2">No rooms added yet</h3>
-                  <p className="text-slate-500 mb-6">Add your first room to start organizing people</p>
-                  <button
-                    onClick={() => setIsAddingRoom(true)}
-                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                  >
-                    <Plus className="w-5 h-5" />
-                    Add First Room
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 0', textAlign: 'center' }}>
+                  <HomeIcon size={48} color="#ccc" style={{ marginBottom: '16px' }} />
+                  <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#666', marginBottom: '8px' }}>No rooms added yet</h3>
+                  <p style={{ fontSize: '14px', color: '#999', marginBottom: '20px' }}>Add your first room to start organizing people</p>
+                  <button onClick={() => setIsAddingRoom(true)} style={{ ...btnPrimary, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Plus size={16} /> Add First Room
                   </button>
                 </div>
               ) : (
-                <div className="space-y-8">
-                  {/* Group rooms by floor */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
                   {['G', '1', '2', '3'].map(floor => {
                     const floorRooms = rooms.filter(room => room.floor === floor);
                     if (floorRooms.length === 0) return null;
 
                     return (
-                      <div key={floor} className="space-y-4">
-                        <h2 className="text-2xl font-bold text-white">
+                      <div key={floor}>
+                        <h2 style={{ fontSize: '16px', fontWeight: '600', color: '#333', marginBottom: '12px' }}>
                           Floor {floor === 'G' ? 'Ground' : floor}
                         </h2>
                         <div className="flex flex-wrap gap-6">
@@ -776,18 +679,13 @@ export default function JourneyPlannerPage() {
             </>
           ) : activeTab === 'tables' ? (
             <>
-              {/* Tables Section */}
               {tables.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-20 text-center">
-                  <Users className="w-16 h-16 text-slate-600 mb-4" />
-                  <h3 className="text-xl font-semibold text-slate-400 mb-2">No tables added yet</h3>
-                  <p className="text-slate-500 mb-6">Add your first table to start organizing seating</p>
-                  <button
-                    onClick={() => setIsAddingTable(true)}
-                    className="flex items-center gap-2 px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg transition-colors"
-                  >
-                    <Plus className="w-5 h-5" />
-                    Add First Table
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '80px 0', textAlign: 'center' }}>
+                  <Users size={48} color="#ccc" style={{ marginBottom: '16px' }} />
+                  <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#666', marginBottom: '8px' }}>No tables added yet</h3>
+                  <p style={{ fontSize: '14px', color: '#999', marginBottom: '20px' }}>Add your first table to start organizing seating</p>
+                  <button onClick={() => setIsAddingTable(true)} style={{ ...btnPrimary, display: 'flex', alignItems: 'center', gap: '6px' }}>
+                    <Plus size={16} /> Add First Table
                   </button>
                 </div>
               ) : (
@@ -834,8 +732,6 @@ export default function JourneyPlannerPage() {
         journeyDirection={journeyDirection}
         showStars={showStars}
       />
-
-
     </div>
   );
 }

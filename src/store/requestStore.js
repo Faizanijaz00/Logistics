@@ -1,82 +1,94 @@
 import { create } from 'zustand';
-import requestsData from '../data/rideRequests.json';
 import { useVehicleStore } from './vehicleStore';
 import { useNotificationStore } from './notificationStore';
 
+const API = 'http://localhost:3001';
+
+function getToken() {
+  try {
+    const raw = localStorage.getItem('auth-storage');
+    if (!raw) return null;
+    return JSON.parse(raw)?.state?.token || null;
+  } catch { return null; }
+}
+
+async function api(method, path, body) {
+  const token = getToken();
+  if (!token) return null;
+  const res = await fetch(`${API}${path}`, {
+    method,
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+    body: body ? JSON.stringify(body) : undefined,
+  }).catch(() => null);
+  return res?.ok ? res.json().catch(() => null) : null;
+}
+
 export const useRequestStore = create((set, get) => ({
-  requests: requestsData,
+  requests: [],
   loading: false,
 
-  // Getters
+  fetchRequests: async () => {
+    set({ loading: true });
+    const data = await api('GET', '/api/ride-requests');
+    if (data) set({ requests: data, loading: false });
+    else set({ loading: false });
+  },
+
   getRequestById: (id) => get().requests.find((r) => r.id === id),
   getPendingRequests: () => get().requests.filter((r) => r.status === 'pending'),
   getAcceptedRequests: () => get().requests.filter((r) => r.status === 'accepted'),
   getInProgressRequests: () => get().requests.filter((r) => r.status === 'in_progress'),
 
-  // Actions
   addRequest: (requestData) => {
     const newRequest = {
       ...requestData,
       id: `req-${Date.now()}`,
       status: 'pending',
-      assignedVehicle: null,
-      assignedDriver: null,
-      createdAt: new Date().toISOString(),
+      assigned_vehicle: null,
+      assigned_driver: null,
+      created_at: new Date().toISOString(),
     };
-    set((state) => ({
-      requests: [...state.requests, newRequest],
-    }));
-
-    // Notify about new request
+    set((state) => ({ requests: [...state.requests, newRequest] }));
     useNotificationStore.getState().addNotification({
       type: 'request',
       title: 'New Ride Request',
       message: `${requestData.requester} needs a ride for ${requestData.reason}`,
     });
-
+    api('POST', '/api/ride-requests', newRequest);
     return newRequest;
   },
 
-  updateRequest: (requestId, updates) =>
+  updateRequest: (requestId, updates) => {
     set((state) => ({
-      requests: state.requests.map((r) =>
-        r.id === requestId ? { ...r, ...updates } : r
-      ),
-    })),
+      requests: state.requests.map((r) => r.id === requestId ? { ...r, ...updates } : r),
+    }));
+    api('PATCH', `/api/ride-requests/${requestId}`, updates);
+  },
 
   acceptRequest: (requestId, vehicleId, driverName) => {
     const request = get().getRequestById(requestId);
     if (!request) return;
-
-    // Update request
+    const updates = {
+      status: 'accepted',
+      assigned_vehicle: vehicleId,
+      assigned_driver: driverName,
+      accepted_at: new Date().toISOString(),
+    };
     set((state) => ({
-      requests: state.requests.map((r) =>
-        r.id === requestId
-          ? {
-              ...r,
-              status: 'accepted',
-              assignedVehicle: vehicleId,
-              assignedDriver: driverName,
-              acceptedAt: new Date().toISOString(),
-            }
-          : r
-      ),
+      requests: state.requests.map((r) => r.id === requestId ? { ...r, ...updates } : r),
     }));
-
-    // Update vehicle with route
     const vehicleStore = useVehicleStore.getState();
     vehicleStore.assignDriver(vehicleId, driverName, request.destination);
     vehicleStore.setVehicleRoute(vehicleId, {
-      start: request.pickupCoords,
-      end: request.destinationCoords,
+      start: request.pickup_coords || request.pickupCoords,
+      end: request.destination_coords || request.destinationCoords,
     });
-
-    // Notify
     useNotificationStore.getState().addNotification({
       type: 'info',
       title: 'Request Accepted',
       message: `${driverName} is heading to pick up ${request.requester}`,
     });
+    api('PATCH', `/api/ride-requests/${requestId}`, updates);
   },
 
   startTrip: (requestId) => {
@@ -85,30 +97,28 @@ export const useRequestStore = create((set, get) => ({
         r.id === requestId ? { ...r, status: 'in_progress' } : r
       ),
     }));
+    api('PATCH', `/api/ride-requests/${requestId}`, { status: 'in_progress' });
   },
 
   completeRequest: (requestId) => {
     const request = get().getRequestById(requestId);
     if (!request) return;
-
+    const updates = { status: 'completed', completed_at: new Date().toISOString() };
     set((state) => ({
-      requests: state.requests.map((r) =>
-        r.id === requestId
-          ? { ...r, status: 'completed', completedAt: new Date().toISOString() }
-          : r
-      ),
+      requests: state.requests.map((r) => r.id === requestId ? { ...r, ...updates } : r),
     }));
-
-    // Clear vehicle assignment
-    if (request.assignedVehicle) {
-      useVehicleStore.getState().clearDriver(request.assignedVehicle);
+    if (request.assigned_vehicle || request.assignedVehicle) {
+      useVehicleStore.getState().clearDriver(request.assigned_vehicle || request.assignedVehicle);
     }
+    api('PATCH', `/api/ride-requests/${requestId}`, updates);
   },
 
-  rejectRequest: (requestId) =>
+  rejectRequest: (requestId) => {
     set((state) => ({
       requests: state.requests.map((r) =>
         r.id === requestId ? { ...r, status: 'rejected' } : r
       ),
-    })),
+    }));
+    api('PATCH', `/api/ride-requests/${requestId}`, { status: 'rejected' });
+  },
 }));

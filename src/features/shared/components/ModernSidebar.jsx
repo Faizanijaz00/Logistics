@@ -1,11 +1,11 @@
-import { useState } from 'react';
-import { NavLink, useLocation } from 'react-router-dom';
-import { Menu, Map, Car, User, Bell, AlertCircle, LogOut, ChevronDown, BarChart3, Route, ReceiptText } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
+import { Menu, Map, Car, User, Users, Bell, AlertCircle, LogOut, ChevronDown, BarChart3, Route, ReceiptText, ArrowLeft } from 'lucide-react';
 import { useNotificationStore, useEmergencyStore, useAuthStore, useVehicleStore } from '../../../store';
 import { useIsMobile } from '../../../hooks/useIsMobile';
 
 const driverNavItems = [
-  { to: '/', icon: User, label: 'My Profile' },
+  { to: '/', icon: User, label: 'Current Drive' },
   { to: '/map', icon: Map, label: 'Live Map' },
   { to: '/fleet', icon: Car, label: 'Fleet' },
   { to: '/journeys', icon: Route, label: 'Journeys' },
@@ -13,7 +13,7 @@ const driverNavItems = [
 ];
 
 const adminNavItems = [
-  { to: '/', icon: User, label: 'My Profile' },
+  { to: '/', icon: User, label: 'Current Drive' },
   { to: '/map', icon: Map, label: 'Live Map' },
   { to: '/fleet', icon: Car, label: 'Fleet' },
   { to: '/journeys', icon: Route, label: 'Journeys' },
@@ -26,10 +26,37 @@ export function ModernSidebar() {
   const { isEmergencyMode } = useEmergencyStore();
   const { user, logout } = useAuthStore();
 
-  const navItems = user?.role === 'admin' ? adminNavItems : driverNavItems;
+  const adminUser = useAuthStore((s) => s.adminUser);
+  const cachedUsers = useAuthStore((s) => s.cachedUsers);
+  const isAdmin = user?.role === 'admin' || adminUser != null;
+  const firstTabLabel = user?.role === 'admin' ? 'Home Page' : (user?.name || user?.username || 'Current Drive');
+  const navItems = (isAdmin ? adminNavItems : driverNavItems).map((item, i) =>
+    i === 0 ? { ...item, label: firstTabLabel } : item
+  );
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const menuRef = useRef(null);
   const mobile = useIsMobile();
   const location = useLocation();
+  const navigate = useNavigate();
+
+  // Refresh user list in background when admin (updates cachedUsers in store)
+  useEffect(() => {
+    if (isAdmin) {
+      useAuthStore.getState().fetchUsers();
+    }
+  }, [isAdmin]);
+
+  // Close dropdown when clicking outside (replaces the full-screen overlay)
+  useEffect(() => {
+    if (!showUserMenu) return;
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setShowUserMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showUserMenu]);
 
   const handleSignOut = () => {
     setShowUserMenu(false);
@@ -44,6 +71,18 @@ export function ModernSidebar() {
       clearDriver(currentVehicleId);
     }
     useAuthStore.setState(s => ({ user: { ...s.user, selectedVehicleId: null }, carSelectReady: false }));
+  };
+
+  const handleSwitchProfile = (selectedUser) => {
+    setShowUserMenu(false);
+    useAuthStore.getState().switchToUser(selectedUser);
+    navigate('/');
+  };
+
+  const handleSwitchBackToAdmin = () => {
+    setShowUserMenu(false);
+    useAuthStore.getState().switchBackToAdmin();
+    navigate('/');
   };
 
   return (
@@ -185,7 +224,7 @@ export function ModernSidebar() {
             </button>
 
             {/* User dropdown */}
-            <div style={{ position: 'relative' }}>
+            <div ref={menuRef} style={{ position: 'relative' }}>
               <button
                 onClick={() => setShowUserMenu(!showUserMenu)}
                 style={{
@@ -222,11 +261,6 @@ export function ModernSidebar() {
               </button>
 
               {showUserMenu && (
-                <>
-                  <div
-                    style={{ position: 'fixed', inset: 0, zIndex: 999 }}
-                    onClick={() => setShowUserMenu(false)}
-                  />
                   <div
                     style={{
                       position: 'absolute',
@@ -237,9 +271,8 @@ export function ModernSidebar() {
                       border: '1px solid #e0e0e0',
                       borderRadius: '8px',
                       boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
-                      minWidth: '200px',
-                      zIndex: 1000,
-                      overflow: 'hidden',
+                      minWidth: '220px',
+                      zIndex: 1200,
                     }}
                   >
                     <div style={{ padding: '16px 20px', borderBottom: '1px solid #f0f0f0' }}>
@@ -280,6 +313,96 @@ export function ModernSidebar() {
                         <Car style={{ width: '16px', height: '16px', color: '#626669' }} />
                         Change Car
                       </button>
+                      {isAdmin && (
+                        <>
+                          <div style={{ borderTop: '1px solid #f0f0f0', margin: '4px 0' }} />
+                          <div style={{ padding: '8px 20px 4px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                              <Users style={{ width: '14px', height: '14px', color: '#999' }} />
+                              <span style={{ fontSize: '11px', fontWeight: '600', color: '#999', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                Switch Profile
+                              </span>
+                            </div>
+                          </div>
+                          {cachedUsers.length > 0 ? (
+                            <div style={{ maxHeight: '200px', overflowY: 'auto', padding: '0 0 4px' }}>
+                              {cachedUsers.map((u) => {
+                                const isCurrentUser = u.username === user?.username;
+                                const roleBg = u.role === 'admin' ? '#000' : u.role === 'driver' ? '#2563eb' : '#7c3aed';
+                                return (
+                                  <button
+                                    key={u._id || u.id || u.username}
+                                    onClick={() => { if (!isCurrentUser) handleSwitchProfile(u); }}
+                                    style={{
+                                      width: '100%',
+                                      padding: '8px 20px',
+                                      fontSize: '13px',
+                                      color: '#323639',
+                                      background: isCurrentUser ? '#f5f5f5' : 'transparent',
+                                      border: 'none',
+                                      cursor: isCurrentUser ? 'default' : 'pointer',
+                                      textAlign: 'left',
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      gap: '10px',
+                                      opacity: isCurrentUser ? 0.6 : 1,
+                                    }}
+                                    onMouseOver={(e) => { if (!isCurrentUser) e.currentTarget.style.background = '#f5f5f5'; }}
+                                    onMouseOut={(e) => { if (!isCurrentUser) e.currentTarget.style.background = 'transparent'; }}
+                                  >
+                                    <span style={{ fontWeight: isCurrentUser ? '600' : '400', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                      {u.name || u.username}
+                                      {isCurrentUser && <span style={{ color: '#999', fontWeight: '400' }}> (you)</span>}
+                                    </span>
+                                    <span style={{
+                                      fontSize: '10px',
+                                      fontWeight: '500',
+                                      color: '#fff',
+                                      background: roleBg,
+                                      padding: '2px 6px',
+                                      borderRadius: '8px',
+                                      textTransform: 'capitalize',
+                                      flexShrink: 0,
+                                    }}>
+                                      {u.role}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <div style={{ padding: '8px 20px', fontSize: '12px', color: '#999' }}>
+                              No profiles loaded. Log out and log back in to load profiles.
+                            </div>
+                          )}
+                          {adminUser && (
+                            <button
+                              onClick={handleSwitchBackToAdmin}
+                              style={{
+                                width: '100%',
+                                padding: '8px 20px',
+                                fontSize: '13px',
+                                fontWeight: '600',
+                                color: '#0061bd',
+                                background: '#e8f0fe',
+                                border: 'none',
+                                cursor: 'pointer',
+                                textAlign: 'left',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '8px',
+                              }}
+                              onMouseOver={(e) => { e.currentTarget.style.background = '#d0e3fc'; }}
+                              onMouseOut={(e) => { e.currentTarget.style.background = '#e8f0fe'; }}
+                            >
+                              <ArrowLeft style={{ width: '14px', height: '14px' }} />
+                              Back to {adminUser.name}
+                            </button>
+                          )}
+                          <div style={{ borderTop: '1px solid #f0f0f0', margin: '4px 0' }} />
+                        </>
+                      )}
                       <button
                         onClick={handleSignOut}
                         style={{
@@ -303,7 +426,6 @@ export function ModernSidebar() {
                       </button>
                     </div>
                   </div>
-                </>
               )}
             </div>
           </div>

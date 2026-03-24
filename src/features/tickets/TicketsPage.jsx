@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Plus, Trash2, X, Upload, ChevronDown, Image } from 'lucide-react';
 import { useTicketStore } from '../../store/ticketStore';
 import { useVehicleStore, useAuthStore } from '../../store';
@@ -113,14 +113,17 @@ export default function TicketsPage() {
   const [editingId, setEditingId] = useState(null);
   const [form, setForm] = useState({
     pcn: '', issuer: '', date: '', type: '', status: 'Issued',
-    outstanding: '', action_taken: false, plan_for_contesting: '',
+    outstanding: '', paid: false,
     picture_url: '', driver_id: '', vehicle_id: '', notes: '',
   });
 
-  const drivers = ['Admin', 'Faizan', 'Kiki', 'Reiner', 'Mikyas', 'Naz', 'Adam O', 'Z', 'Maitham', 'Ty', 'Micah', 'Axel', 'Silmi', 'Hamza'];
+  const cachedUsers = useAuthStore(s => s.cachedUsers);
+  const fetchUsers = useAuthStore(s => s.fetchUsers);
+  useEffect(() => { if (!cachedUsers || cachedUsers.length === 0) fetchUsers(); }, []);
+  const drivers = (cachedUsers || []).map(u => u.name || u.username).filter(Boolean);
 
   const resetForm = () => {
-    setForm({ pcn: '', issuer: '', date: '', type: '', status: 'Issued', outstanding: '', action_taken: false, plan_for_contesting: '', picture_url: '', driver_id: '', vehicle_id: '', notes: '' });
+    setForm({ pcn: '', issuer: '', date: '', type: '', status: 'Issued', outstanding: '', paid: false, picture_url: '', driver_id: '', vehicle_id: '', notes: '' });
     setShowAdd(false);
     setEditingId(null);
   };
@@ -139,7 +142,7 @@ export default function TicketsPage() {
     setForm({
       pcn: ticket.pcn, issuer: ticket.issuer, date: ticket.date, type: ticket.type,
       status: ticket.status, outstanding: ticket.outstanding?.toString() || '',
-      action_taken: ticket.action_taken, plan_for_contesting: ticket.plan_for_contesting,
+      paid: !!ticket.paid,
       picture_url: ticket.picture_url, driver_id: ticket.driver_id || '',
       vehicle_id: ticket.vehicle_id || '', notes: ticket.notes || '',
     });
@@ -210,7 +213,7 @@ export default function TicketsPage() {
           <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #e0e0e0', background: '#fafafa' }}>
-                {['PCN', 'Issuer', 'Date', 'Type', 'Status', 'Outstanding', 'Driver', 'Vehicle', 'Action Taken', 'Plan for Contesting', 'Evidence', ''].map((h, i) => (
+                {['PCN', 'Issuer', 'Date', 'Type', 'Status', 'Outstanding', 'Driver', 'Vehicle', 'Paid', 'Evidence', ''].map((h, i) => (
                   <th key={i} style={{
                     padding: '12px 16px', textAlign: 'left', fontWeight: '500',
                     color: '#626669', fontSize: '12px', textTransform: 'uppercase',
@@ -222,7 +225,7 @@ export default function TicketsPage() {
             <tbody>
               {tickets.length === 0 ? (
                 <tr>
-                  <td colSpan={12} style={{ padding: '48px', textAlign: 'center', color: '#8c8f93' }}>
+                  <td colSpan={11} style={{ padding: '48px', textAlign: 'center', color: '#8c8f93' }}>
                     No tickets yet. Click "Add Ticket" to log your first one.
                   </td>
                 </tr>
@@ -259,16 +262,18 @@ export default function TicketsPage() {
                     {ticket.vehicle_id ? vehicles.find(v => v.id === ticket.vehicle_id)?.make + ' ' + vehicles.find(v => v.id === ticket.vehicle_id)?.model : '—'}
                   </td>
                   <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                    <input
-                      type="checkbox"
-                      checked={ticket.action_taken}
-                      onClick={e => e.stopPropagation()}
-                      onChange={e => updateTicket(ticket.id, { action_taken: e.target.checked })}
-                      style={{ width: '18px', height: '18px', accentColor: '#000', cursor: 'pointer' }}
-                    />
-                  </td>
-                  <td style={{ padding: '12px 16px', color: '#626669', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {ticket.plan_for_contesting || '—'}
+                    <span
+                      onClick={e => { e.stopPropagation(); updateTicket(ticket.id, { paid: !ticket.paid }); }}
+                      style={{
+                        display: 'inline-block', padding: '3px 12px', fontSize: '12px', fontWeight: '600',
+                        background: ticket.paid ? '#f0fdf4' : '#fef2f2',
+                        color: ticket.paid ? '#018a16' : '#c4001a',
+                        border: `1px solid ${ticket.paid ? '#bbf7d0' : '#fecaca'}`,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {ticket.paid ? 'Paid' : 'Not Paid'}
+                    </span>
                   </td>
                   <td style={{ padding: '12px 16px', textAlign: 'center' }}>
                     {ticket.picture_url ? (
@@ -319,25 +324,7 @@ export default function TicketsPage() {
             </div>
 
             <div style={{ padding: '24px 28px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
-              {/* PCN */}
-              <div>
-                <label style={labelStyle}>PCN Number</label>
-                <input style={inputStyle} value={form.pcn} onChange={e => setForm({ ...form, pcn: e.target.value })} placeholder="e.g. IZ37457441" />
-              </div>
-              {/* Date */}
-              <div>
-                <label style={labelStyle}>Date & Time</label>
-                <input style={inputStyle} type="datetime-local" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
-              </div>
-              {/* Issuer */}
-              <div>
-                <label style={labelStyle}>Issuer</label>
-                <select style={inputStyle} value={form.issuer} onChange={e => setForm({ ...form, issuer: e.target.value })}>
-                  <option value="">Select issuer</option>
-                  {ISSUERS.map(i => <option key={i} value={i}>{i}</option>)}
-                </select>
-              </div>
-              {/* Type */}
+              {/* 1. Type */}
               <div>
                 <label style={labelStyle}>Type</label>
                 <select style={inputStyle} value={form.type} onChange={e => setForm({ ...form, type: e.target.value })}>
@@ -345,27 +332,15 @@ export default function TicketsPage() {
                   {TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
-              {/* Status */}
+              {/* 2. Issuer */}
               <div>
-                <label style={labelStyle}>Status</label>
-                <select style={inputStyle} value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
-                  {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                <label style={labelStyle}>Issuer</label>
+                <select style={inputStyle} value={form.issuer} onChange={e => setForm({ ...form, issuer: e.target.value })}>
+                  <option value="">Select issuer</option>
+                  {ISSUERS.map(i => <option key={i} value={i}>{i}</option>)}
                 </select>
               </div>
-              {/* Outstanding */}
-              <div>
-                <label style={labelStyle}>Outstanding (£)</label>
-                <input style={inputStyle} type="number" step="0.01" min="0" value={form.outstanding} onChange={e => setForm({ ...form, outstanding: e.target.value })} placeholder="0.00" />
-              </div>
-              {/* Driver */}
-              <div>
-                <label style={labelStyle}>Driver</label>
-                <select style={inputStyle} value={form.driver_id} onChange={e => setForm({ ...form, driver_id: e.target.value })}>
-                  <option value="">Unassigned</option>
-                  {drivers.map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-              {/* Vehicle */}
+              {/* 3. Vehicle */}
               <div>
                 <label style={labelStyle}>Vehicle</label>
                 <select style={inputStyle} value={form.vehicle_id} onChange={e => setForm({ ...form, vehicle_id: e.target.value })}>
@@ -373,34 +348,52 @@ export default function TicketsPage() {
                   {vehicles.map(v => <option key={v.id} value={v.id}>{v.make} {v.model} ({v.registration})</option>)}
                 </select>
               </div>
-              {/* Plan for Contesting - full width */}
-              <div style={{ gridColumn: '1 / -1' }}>
-                <label style={labelStyle}>Plan for Contesting</label>
-                <textarea
-                  style={{ ...inputStyle, minHeight: '80px', resize: 'vertical' }}
-                  value={form.plan_for_contesting}
-                  onChange={e => setForm({ ...form, plan_for_contesting: e.target.value })}
-                  placeholder="Describe your plan for appealing or contesting this ticket..."
-                />
+              {/* 4. PCN Number */}
+              <div>
+                <label style={labelStyle}>PCN Number</label>
+                <input style={inputStyle} value={form.pcn} onChange={e => setForm({ ...form, pcn: e.target.value })} placeholder="e.g. IZ37457441" />
               </div>
-              {/* Evidence URL */}
-              <div style={{ gridColumn: '1 / -1' }}>
+              {/* 5. Deadline / Date */}
+              <div>
+                <label style={labelStyle}>Date & Time</label>
+                <input style={inputStyle} type="datetime-local" value={form.date} onChange={e => setForm({ ...form, date: e.target.value })} />
+              </div>
+              {/* 6. Amount */}
+              <div>
+                <label style={labelStyle}>Outstanding (£)</label>
+                <input style={inputStyle} type="number" step="0.01" min="0" value={form.outstanding} onChange={e => setForm({ ...form, outstanding: e.target.value })} placeholder="0.00" />
+              </div>
+              {/* 7. Driver */}
+              <div>
+                <label style={labelStyle}>Driver</label>
+                <select style={inputStyle} value={form.driver_id} onChange={e => setForm({ ...form, driver_id: e.target.value })}>
+                  <option value="">Unassigned</option>
+                  {drivers.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              {/* 8. Status */}
+              <div>
+                <label style={labelStyle}>Status</label>
+                <select style={inputStyle} value={form.status} onChange={e => setForm({ ...form, status: e.target.value })}>
+                  {STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+              </div>
+              {/* 9. Paid */}
+              <div>
+                <label style={labelStyle}>Paid</label>
+                <select style={{
+                  ...inputStyle,
+                  color: (form.paid === true || form.paid === 'true') ? '#018a16' : '#c4001a',
+                  fontWeight: '600',
+                }} value={form.paid ? 'true' : 'false'} onChange={e => setForm({ ...form, paid: e.target.value === 'true' })}>
+                  <option value="false">Not Paid</option>
+                  <option value="true">Paid</option>
+                </select>
+              </div>
+              {/* 10. Picture / Evidence */}
+              <div>
                 <label style={labelStyle}>Picture / Evidence URL</label>
                 <input style={inputStyle} value={form.picture_url} onChange={e => setForm({ ...form, picture_url: e.target.value })} placeholder="Paste image URL or link to evidence" />
-              </div>
-              {/* Action Taken */}
-              <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <input
-                  type="checkbox"
-                  checked={form.action_taken}
-                  onChange={e => setForm({ ...form, action_taken: e.target.checked })}
-                  style={{ width: '18px', height: '18px', accentColor: '#000', cursor: 'pointer' }}
-                />
-                <label style={{ fontSize: '14px', color: '#323639', cursor: 'pointer' }}
-                  onClick={() => setForm({ ...form, action_taken: !form.action_taken })}
-                >
-                  Action has been taken on this ticket
-                </label>
               </div>
             </div>
 

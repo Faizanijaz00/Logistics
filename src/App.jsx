@@ -1,21 +1,25 @@
 import { useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
-import { LoadScript } from '@react-google-maps/api';
-import { ModernLayout } from './features/shared/components';
-import { ModernMapPage } from './features/map';
-import { ModernFleetPage } from './features/fleet';
-import JourneyPlannerPage from './features/journeys/JourneyPlannerPage';
-import TicketsPage from './features/tickets/TicketsPage';
-import { MyProfilePage } from './features/profile';
-import { AdminOverviewPage } from './features/admin/AdminOverviewPage';
+import { BrowserRouter } from 'react-router-dom';
+import { useJsApiLoader } from '@react-google-maps/api';
+import AppContent from './features/shared/components/AppContent';
 import { LoginPage } from './features/auth/LoginPage';
 import { CarSelectPage } from './features/auth/CarSelectPage';
 import { GOOGLE_MAPS_API_KEY, googleMapsLibraries } from './config/googleMaps';
 import { useTracking } from './hooks/useTracking';
 import { useVehicleStore, useAuthStore } from './store';
+import { useCarImageStore } from './store/carImageStore';
+import { useActivityStore } from './store/activityStore';
+import { useTicketStore } from './store/ticketStore';
+import { useParkingStore } from './store/parkingStore';
+import { useRequestStore } from './store/requestStore';
+import { useNotificationStore } from './store/notificationStore';
+import { useEmergencyStore } from './store/emergencyStore';
+import { useSavedLocationStore } from './store/savedLocationStore';
+import { useLogisticsStore } from './store/logisticsStore';
 
 function App() {
   useTracking();
+  useJsApiLoader({ googleMapsApiKey: GOOGLE_MAPS_API_KEY, libraries: googleMapsLibraries });
   const { token, user, fetchMe, carSelectReady } = useAuthStore();
 
   // Validate token on mount
@@ -23,17 +27,21 @@ function App() {
     fetchMe();
   }, [fetchMe]);
 
-  // One-time: move Land Rover to 17 New Wharf Rd, London N1 9RW
+  // Fetch all shared data from backend when authenticated
   useEffect(() => {
-    const state = useVehicleStore.getState();
-    const lr = state.vehicles.find(v => {
-      const text = `${v.make} ${v.model}`.toLowerCase();
-      return text.includes('land') || text.includes('rover') || text.includes('discovery');
-    });
-    if (lr) {
-      state.updateVehicle(lr.id, { position: { lat: 51.5348, lng: -0.1198 } });
+    if (token && user) {
+      useVehicleStore.getState().fetchVehicles();
+      useCarImageStore.getState().fetchImages();
+      useActivityStore.getState().fetchActivities();
+      useTicketStore.getState().fetchTickets();
+      useParkingStore.getState().fetchZones();
+      useRequestStore.getState().fetchRequests();
+      useNotificationStore.getState().fetchNotifications();
+      useEmergencyStore.getState().fetchEmergencies();
+      useSavedLocationStore.getState().fetchLocations();
+      useLogisticsStore.getState().fetchSession();
     }
-  }, []);
+  }, [token, user]);
 
   // Not logged in → show login page
   if (!token || !user) {
@@ -42,29 +50,14 @@ function App() {
 
   // All users must pick a car or click "Not Driving"
   if (!user.selectedVehicleId || !carSelectReady) {
-    return (
-      <LoadScript googleMapsApiKey={GOOGLE_MAPS_API_KEY} libraries={googleMapsLibraries}>
-        <CarSelectPage />
-      </LoadScript>
-    );
+    return <CarSelectPage />;
   }
 
   // Authenticated + car selected → main app
   return (
-    <LoadScript googleMapsApiKey={GOOGLE_MAPS_API_KEY} libraries={googleMapsLibraries}>
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<ModernLayout />}>
-            <Route index element={<MyProfilePage />} />
-            <Route path="map" element={<ModernMapPage />} />
-            <Route path="fleet" element={<ModernFleetPage />} />
-            <Route path="journeys" element={<JourneyPlannerPage />} />
-            <Route path="tickets" element={<TicketsPage />} />
-            <Route path="admin" element={<AdminOverviewPage />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </LoadScript>
+    <BrowserRouter unstable_useTransitions={false}>
+      <AppContent />
+    </BrowserRouter>
   );
 }
 

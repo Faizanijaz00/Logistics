@@ -2,6 +2,8 @@ import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
 const SERVER_URL = 'http://localhost:3001';
+const SUPABASE_URL = 'https://bwwfrdwpcxzlvprswzne.supabase.co';
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3d2ZyZHdwY3h6bHZwcnN3em5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTY2MjIsImV4cCI6MjA4ODU3MjYyMn0.KYJYGHFo2WstiVFgEIuBv0P3i40OM4wcHmdkLcujVeo';
 
 export const useAuthStore = create(
   persist(
@@ -11,6 +13,8 @@ export const useAuthStore = create(
       loading: false,
       error: null,
       carSelectReady: false,
+      cachedUsers: [],
+      adminUser: null, // stores original admin when impersonating another user
 
       login: async (username, password) => {
         set({ loading: true, error: null });
@@ -58,7 +62,7 @@ export const useAuthStore = create(
             return;
           }
           const { user } = await resp.json();
-          set({ user });
+          set({ user, adminUser: null }); // clear impersonation on fresh load
         } catch {
           // Server unreachable — keep existing state
         }
@@ -85,18 +89,56 @@ export const useAuthStore = create(
         }
       },
 
-      fetchUsers: async () => {
-        const { token } = get();
-        if (!token) return [];
-        try {
-          const resp = await fetch(`${SERVER_URL}/api/auth/users`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (!resp.ok) return [];
-          return await resp.json();
-        } catch {
-          return [];
+      switchToUser: (selectedUser) => {
+        const { user: current, adminUser: existingAdmin } = get();
+        set({
+          adminUser: existingAdmin || current,
+          user: { ...selectedUser, selectedVehicleId: current?.selectedVehicleId || '__skip__' },
+          carSelectReady: true,
+        });
+      },
+
+      switchBackToAdmin: () => {
+        const { adminUser } = get();
+        if (adminUser) {
+          set({ user: adminUser, adminUser: null });
         }
+      },
+
+      fetchUsers: async () => {
+        const { token, cachedUsers } = get();
+        // Try backend first
+        if (token) {
+          try {
+            const resp = await fetch(`${SERVER_URL}/api/auth/users`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (resp.ok) {
+              const users = await resp.json();
+              if (Array.isArray(users) && users.length > 0) {
+                set({ cachedUsers: users });
+                return users;
+              }
+            }
+          } catch {}
+        }
+        // Fallback: fetch directly from Supabase
+        try {
+          const resp = await fetch(`${SUPABASE_URL}/rest/v1/users?select=id,username,name,role`, {
+            headers: {
+              'apikey': SUPABASE_ANON_KEY,
+              'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            },
+          });
+          if (resp.ok) {
+            const users = await resp.json();
+            if (Array.isArray(users) && users.length > 0) {
+              set({ cachedUsers: users });
+              return users;
+            }
+          }
+        } catch {}
+        return cachedUsers;
       },
 
       registerUser: async (username, password, name, role) => {
@@ -147,7 +189,7 @@ export const useAuthStore = create(
     }),
     {
       name: 'auth-storage',
-      partialize: (state) => ({ token: state.token, user: state.user, carSelectReady: state.carSelectReady }),
+      partialize: (state) => ({ token: state.token, user: state.user, carSelectReady: state.carSelectReady, cachedUsers: state.cachedUsers, adminUser: state.adminUser }),
     }
   )
 );

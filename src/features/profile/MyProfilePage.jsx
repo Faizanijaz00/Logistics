@@ -1,12 +1,12 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useAuthStore, useVehicleStore, useCarImageStore, useSavedLocationStore } from '../../store';
-import { MapPin, Car, Check, ArrowRight, LogOut, ParkingSquare, MapPinned, X, Loader2, Navigation, Fuel, Crosshair, AlertTriangle } from 'lucide-react';
+import { useAuthStore, useVehicleStore, useCarImageStore, useSavedLocationStore, useTicketStore } from '../../store';
+import { MapPin, Car, Check, ArrowRight, LogOut, ParkingSquare, MapPinned, X, Loader2, Navigation, Fuel, Crosshair, AlertTriangle, ReceiptText } from 'lucide-react';
 import { calculateRoute } from '../../services/routeService';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
 export function MyProfilePage() {
   const { user } = useAuthStore();
-  const { vehicles, updateVehicle, setVehicleRoute, reportProblem } = useVehicleStore();
+  const { vehicles, updateVehicle, setVehicleRoute, reportProblem, addTicket } = useVehicleStore();
   const { images: carImages } = useCarImageStore();
   const { locations: savedLocations, addLocation: saveLocation } = useSavedLocationStore();
   const mobile = useIsMobile();
@@ -28,6 +28,19 @@ export function MyProfilePage() {
   // Report issue modal state
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [issueText, setIssueText] = useState('');
+
+  // Ticket modal state
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [ticketType, setTicketType] = useState('parking');
+  const [ticketPcn, setTicketPcn] = useState('');
+  const [ticketDeadline, setTicketDeadline] = useState('');
+  const [ticketCouncil, setTicketCouncil] = useState('');
+  const [ticketRoad, setTicketRoad] = useState('');
+  const [ticketRoadType, setTicketRoadType] = useState('Bus Lane');
+  const [ticketAmount, setTicketAmount] = useState('');
+  const [ticketDriver, setTicketDriver] = useState('');
+  const [ticketVehicleId, setTicketVehicleId] = useState('');
+  const [ticketPhoto, setTicketPhoto] = useState(null);
 
   // Stop driving modal state
   const [showStopModal, setShowStopModal] = useState(false);
@@ -161,6 +174,54 @@ export function MyProfilePage() {
     addFuelRecord(myVehicle.id, amount, user?.name || 'Unknown');
     setShowFuelModal(false);
     setFuelAmount('');
+  };
+
+  const handleOpenTicketModal = () => {
+    setShowTicketModal(true);
+    setTicketType('parking');
+    setTicketPcn('');
+    setTicketDeadline('');
+    setTicketCouncil('');
+    setTicketRoad('');
+    setTicketRoadType('Bus Lane');
+    setTicketAmount('');
+    setTicketDriver(user?.name || '');
+    setTicketVehicleId(myVehicle?.id || '');
+    setTicketPhoto(null);
+  };
+
+  const handleSubmitTicket = () => {
+    const targetVehicle = vehicles.find(v => v.id === ticketVehicleId) || myVehicle;
+    if (!targetVehicle) return;
+    const driverName = ticketDriver.trim() || user?.name || 'Unknown';
+    const issuer = ticketCouncil.trim() || 'Other';
+    const vehicleLabel = `${targetVehicle.make} ${targetVehicle.model} (${targetVehicle.licensePlate})`;
+
+    const ticketData = {
+      type: ticketType,
+      pcnNumber: ticketPcn.trim(),
+      deadline: ticketDeadline || null,
+      council: issuer,
+      amount: ticketAmount ? parseFloat(ticketAmount) : null,
+      driver: driverName,
+      vehicle: vehicleLabel,
+      photo: ticketPhoto,
+    };
+    addTicket(targetVehicle.id, ticketData, driverName);
+
+    const typeMap = { 'parking': 'Parking', 'road': 'Road', 'Bus Lane': 'Bus Lane', 'Speeding': 'Speeding', 'No Entry': 'No-entry' };
+    useTicketStore.getState().createTicket({
+      pcn: ticketPcn.trim(),
+      issuer,
+      date: new Date().toISOString().split('T')[0],
+      type: typeMap[ticketType] || 'Other',
+      status: 'Issued',
+      outstanding: ticketAmount ? parseFloat(ticketAmount) : 0,
+      driver_id: user?.id || null,
+      vehicle_id: targetVehicle.id,
+      notes: `Reported by ${driverName}. Deadline: ${ticketDeadline || 'N/A'}. Vehicle: ${vehicleLabel}`,
+    });
+    setShowTicketModal(false);
   };
 
   // --- Parked location autocomplete ---
@@ -358,7 +419,7 @@ export function MyProfilePage() {
           <h1 style={{
             fontSize: '15px', fontWeight: '600', margin: 0, color: '#000',
             letterSpacing: '0.08em', textTransform: 'uppercase',
-          }}>My Profile</h1>
+          }}>{user?.role === 'admin' ? 'Home Page' : (user?.name || user?.username || 'Current Drive')}</h1>
           <span style={{
             fontSize: '11px', fontWeight: '500',
             color: user?.role === 'admin' ? '#fff' : '#666',
@@ -511,65 +572,89 @@ export function MyProfilePage() {
             </div>
 
             {/* Action buttons */}
-            <div style={{ display: 'flex', flexDirection: mobile ? 'column' : 'row', gap: '12px', marginTop: '20px' }}>
-              <button
-                onClick={handleChangeCar}
-                style={{
-                  flex: 1, padding: '13px 20px', fontSize: '13px', fontWeight: '500',
-                  background: '#fff', border: 'none', borderRadius: '12px', color: '#555',
-                  cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                }}
-                onMouseOver={(e) => { e.currentTarget.style.color = '#000'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'; }}
-                onMouseOut={(e) => { e.currentTarget.style.color = '#555'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; }}
-              >
-                Switch Vehicle
-              </button>
-              <button
-                onClick={handleFuelUp}
-                style={{
-                  flex: 1, padding: '13px 20px', fontSize: '13px', fontWeight: '500',
-                  background: '#fff', border: 'none', borderRadius: '12px', color: '#555',
-                  cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                }}
-                onMouseOver={(e) => { e.currentTarget.style.color = '#f97316'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'; }}
-                onMouseOut={(e) => { e.currentTarget.style.color = '#555'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; }}
-              >
-                <Fuel style={{ width: '14px', height: '14px' }} />
-                Fuel Up
-              </button>
-              <button
-                onClick={() => { setShowIssueModal(true); setIssueText(''); }}
-                style={{
-                  flex: 1, padding: '13px 20px', fontSize: '13px', fontWeight: '500',
-                  background: '#fff', border: 'none', borderRadius: '12px', color: '#555',
-                  cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                  position: 'relative',
-                }}
-                onMouseOver={(e) => { e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'; }}
-                onMouseOut={(e) => { e.currentTarget.style.color = '#555'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; }}
-              >
-                <AlertTriangle style={{ width: '14px', height: '14px' }} />
-                Report Issue
-                {(myVehicle?.problems?.length || 0) > 0 && (
-                  <span style={{ position: 'absolute', top: '-4px', right: '-4px', width: '18px', height: '18px', borderRadius: '50%', background: '#dc2626', color: '#fff', fontSize: '10px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{myVehicle.problems.length}</span>
-                )}
-              </button>
-              <button
-                onClick={handleStopDriving}
-                style={{
-                  flex: 1, padding: '13px 20px', fontSize: '13px', fontWeight: '500',
-                  background: '#fff', border: 'none', borderRadius: '12px', color: '#c4001a',
-                  cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-                }}
-                onMouseOver={(e) => { e.currentTarget.style.background = '#c4001a'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(196,0,26,0.2)'; }}
-                onMouseOut={(e) => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#c4001a'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; }}
-              >
-                <LogOut style={{ width: '14px', height: '14px' }} />
-                Stop Driving
-              </button>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '20px' }}>
+              {/* Row 1: Fuel Up, Add Ticket, Report Issue */}
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={handleFuelUp}
+                  style={{
+                    flex: 1, padding: '13px 20px', fontSize: '13px', fontWeight: '500',
+                    background: '#fff', border: 'none', borderRadius: '12px', color: '#555',
+                    cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.color = '#f97316'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'; }}
+                  onMouseOut={(e) => { e.currentTarget.style.color = '#555'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; }}
+                >
+                  <Fuel style={{ width: '14px', height: '14px' }} />
+                  Fuel Up
+                </button>
+                <button
+                  onClick={handleOpenTicketModal}
+                  style={{
+                    flex: 1, padding: '13px 20px', fontSize: '13px', fontWeight: '500',
+                    background: '#fff', border: 'none', borderRadius: '12px', color: '#555',
+                    cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                    position: 'relative',
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.color = '#7c3aed'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'; }}
+                  onMouseOut={(e) => { e.currentTarget.style.color = '#555'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; }}
+                >
+                  <ReceiptText style={{ width: '14px', height: '14px' }} />
+                  Add Ticket
+                  {(myVehicle?.tickets?.length || 0) > 0 && (
+                    <span style={{ position: 'absolute', top: '-4px', right: '-4px', width: '18px', height: '18px', borderRadius: '50%', background: '#7c3aed', color: '#fff', fontSize: '10px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{myVehicle.tickets.length}</span>
+                  )}
+                </button>
+                <button
+                  onClick={() => { setShowIssueModal(true); setIssueText(''); }}
+                  style={{
+                    flex: 1, padding: '13px 20px', fontSize: '13px', fontWeight: '500',
+                    background: '#fff', border: 'none', borderRadius: '12px', color: '#555',
+                    cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                    position: 'relative',
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.color = '#dc2626'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'; }}
+                  onMouseOut={(e) => { e.currentTarget.style.color = '#555'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; }}
+                >
+                  <AlertTriangle style={{ width: '14px', height: '14px' }} />
+                  Report Issue
+                  {(myVehicle?.problems?.length || 0) > 0 && (
+                    <span style={{ position: 'absolute', top: '-4px', right: '-4px', width: '18px', height: '18px', borderRadius: '50%', background: '#dc2626', color: '#fff', fontSize: '10px', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{myVehicle.problems.length}</span>
+                  )}
+                </button>
+              </div>
+              {/* Row 2: Stop Driving, Switch Vehicle */}
+              <div style={{ display: 'flex', gap: '12px' }}>
+                <button
+                  onClick={handleStopDriving}
+                  style={{
+                    flex: 1, padding: '13px 20px', fontSize: '13px', fontWeight: '500',
+                    background: '#fff', border: 'none', borderRadius: '12px', color: '#c4001a',
+                    cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.background = '#c4001a'; e.currentTarget.style.color = '#fff'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(196,0,26,0.2)'; }}
+                  onMouseOut={(e) => { e.currentTarget.style.background = '#fff'; e.currentTarget.style.color = '#c4001a'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; }}
+                >
+                  <LogOut style={{ width: '14px', height: '14px' }} />
+                  Stop Driving
+                </button>
+                <button
+                  onClick={handleChangeCar}
+                  style={{
+                    flex: 1, padding: '13px 20px', fontSize: '13px', fontWeight: '500',
+                    background: '#fff', border: 'none', borderRadius: '12px', color: '#555',
+                    cursor: 'pointer', transition: 'all 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.color = '#000'; e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'; }}
+                  onMouseOut={(e) => { e.currentTarget.style.color = '#555'; e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)'; }}
+                >
+                  Switch Vehicle
+                </button>
+              </div>
             </div>
           </div>
         ) : (
@@ -945,6 +1030,161 @@ export function MyProfilePage() {
           </div>
         </div>
       )}
+
+      {/* Add Ticket Modal */}
+      {showTicketModal && (() => {
+        const fieldStyle = {
+          width: '100%', padding: '12px 16px', fontSize: mobile ? '16px' : '14px',
+          border: '1px solid #e0e0e0', borderRadius: '10px',
+          outline: 'none', background: '#f8f8f8', color: '#000',
+          boxSizing: 'border-box', transition: 'all 0.2s',
+        };
+        const selectStyle = {
+          ...fieldStyle,
+          appearance: 'none', WebkitAppearance: 'none',
+          backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' width=\'12\' height=\'12\' viewBox=\'0 0 12 12\'%3E%3Cpath fill=\'%23666\' d=\'M6 8L1 3h10z\'/%3E%3C/svg%3E")',
+          backgroundRepeat: 'no-repeat', backgroundPosition: 'right 14px center',
+        };
+        const labelStyle = { fontSize: '12px', fontWeight: '600', color: '#555', display: 'block', marginBottom: '6px' };
+        const focusHandler = (e) => { e.target.style.borderColor = '#7c3aed'; e.target.style.background = '#fff'; };
+        const blurHandler = (e) => { e.target.style.borderColor = '#e0e0e0'; e.target.style.background = '#f8f8f8'; };
+
+        return (
+          <div
+            style={{
+              position: 'fixed', inset: 0, display: 'flex', alignItems: 'center', justifyContent: 'center',
+              zIndex: 10000, background: 'rgba(0, 0, 0, 0.5)',
+              backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', padding: '20px',
+            }}
+            onClick={() => setShowTicketModal(false)}
+          >
+            <div
+              style={{
+                background: '#fff', borderRadius: '16px', width: '100%', maxWidth: '420px',
+                margin: mobile ? '0 16px' : undefined, maxHeight: '90vh', overflowY: 'auto',
+                padding: mobile ? '20px' : '32px', boxShadow: '0 25px 60px rgba(0,0,0,0.2)',
+              }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div style={{
+                width: '48px', height: '48px', borderRadius: '12px', background: '#f5f3ff',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px',
+              }}>
+                <ReceiptText style={{ width: '24px', height: '24px', color: '#7c3aed' }} />
+              </div>
+              <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#000', margin: '0 0 24px', textAlign: 'center' }}>
+                Report a Ticket
+              </h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '20px' }}>
+                {/* 1. Type */}
+                <div>
+                  <label style={labelStyle}>Type</label>
+                  <select value={ticketType} onChange={(e) => setTicketType(e.target.value)} style={selectStyle} onFocus={focusHandler} onBlur={blurHandler}>
+                    <option value="parking">Parking</option>
+                    <option value="bus_lane">Bus Lane</option>
+                    <option value="speeding">Speeding</option>
+                    <option value="no_entry">No Entry</option>
+                    <option value="congestion">Congestion Charge</option>
+                    <option value="ulez">ULEZ</option>
+                    <option value="other">Other</option>
+                  </select>
+                </div>
+
+                {/* 2. Issuer */}
+                <div>
+                  <label style={labelStyle}>Issuer</label>
+                  <input type="text" value={ticketCouncil} onChange={(e) => setTicketCouncil(e.target.value)} placeholder="e.g. TFL, Islington Council" style={fieldStyle} onFocus={focusHandler} onBlur={blurHandler} />
+                </div>
+
+                {/* 3. Vehicle */}
+                <div>
+                  <label style={labelStyle}>Vehicle</label>
+                  <select value={ticketVehicleId} onChange={(e) => setTicketVehicleId(e.target.value)} style={selectStyle} onFocus={focusHandler} onBlur={blurHandler}>
+                    {vehicles.map(v => (
+                      <option key={v.id} value={v.id}>{v.make} {v.model} — {v.licensePlate}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* 4. PCN Number */}
+                <div>
+                  <label style={labelStyle}>PCN Number</label>
+                  <input type="text" value={ticketPcn} onChange={(e) => setTicketPcn(e.target.value)} placeholder="Enter PCN number" style={fieldStyle} onFocus={focusHandler} onBlur={blurHandler} />
+                </div>
+
+                {/* 5. Deadline */}
+                <div>
+                  <label style={labelStyle}>Deadline to Pay</label>
+                  <input type="date" value={ticketDeadline} onChange={(e) => setTicketDeadline(e.target.value)} style={fieldStyle} onFocus={focusHandler} onBlur={blurHandler} />
+                </div>
+
+                {/* 6. Amount */}
+                <div>
+                  <label style={labelStyle}>Amount (£)</label>
+                  <input type="number" value={ticketAmount} onChange={(e) => setTicketAmount(e.target.value)} placeholder="e.g. 65" style={fieldStyle} onFocus={focusHandler} onBlur={blurHandler} />
+                </div>
+
+                {/* 7. Driver */}
+                <div>
+                  <label style={labelStyle}>Which Driver</label>
+                  <input type="text" value={ticketDriver} onChange={(e) => setTicketDriver(e.target.value)} placeholder="Driver name" style={fieldStyle} onFocus={focusHandler} onBlur={blurHandler} />
+                </div>
+
+                {/* 8. Picture */}
+                <div>
+                  <label style={labelStyle}>Picture</label>
+                  <label style={{
+                    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px',
+                    padding: '12px 16px', border: '1px dashed #d0d0d0', borderRadius: '10px',
+                    background: ticketPhoto ? '#f0fdf4' : '#f8f8f8', cursor: 'pointer',
+                    fontSize: '14px', color: ticketPhoto ? '#018a16' : '#888', transition: 'all 0.2s',
+                  }}>
+                    <input type="file" accept="image/*" style={{ display: 'none' }}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          const reader = new FileReader();
+                          reader.onload = (ev) => setTicketPhoto(ev.target.result);
+                          reader.readAsDataURL(file);
+                        }
+                      }}
+                    />
+                    {ticketPhoto ? 'Photo attached' : 'Upload photo'}
+                  </label>
+                  {ticketPhoto && (
+                    <img src={ticketPhoto} alt="Ticket" style={{ width: '100%', maxHeight: '120px', objectFit: 'cover', borderRadius: '8px', marginTop: '8px' }} />
+                  )}
+                </div>
+              </div>
+
+              {/* Buttons */}
+              <div style={{ display: 'flex', gap: '10px' }}>
+                <button
+                  onClick={() => setShowTicketModal(false)}
+                  style={{
+                    flex: 1, padding: '12px', fontSize: '14px', fontWeight: '500',
+                    background: '#f5f5f5', border: 'none', borderRadius: '10px',
+                    color: '#666', cursor: 'pointer', transition: 'all 0.2s',
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.background = '#e8e8e8'; }}
+                  onMouseOut={(e) => { e.currentTarget.style.background = '#f5f5f5'; }}
+                >Cancel</button>
+                <button
+                  onClick={handleSubmitTicket}
+                  style={{
+                    flex: 1, padding: '12px', fontSize: '14px', fontWeight: '600',
+                    background: '#7c3aed', border: 'none', borderRadius: '10px',
+                    color: '#fff', cursor: 'pointer', transition: 'all 0.2s',
+                  }}
+                  onMouseOver={(e) => { e.currentTarget.style.background = '#6d28d9'; }}
+                  onMouseOut={(e) => { e.currentTarget.style.background = '#7c3aed'; }}
+                >Submit Ticket</button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>

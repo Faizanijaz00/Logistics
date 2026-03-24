@@ -155,18 +155,20 @@ export default function SidePanel({
 
   if (!isVisible) {
     return (
-      <button
-        onClick={onToggleVisibility}
-        className="fixed top-6 right-4 z-50 p-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-700 transition-colors shadow-lg"
-        title="Show panel"
-      >
-        <PanelRightOpen className="w-5 h-5" />
-      </button>
+      <div style={{ width: '48px', flexShrink: 0 }}>
+        <button
+          onClick={onToggleVisibility}
+          className="m-2 p-3 bg-slate-800 hover:bg-slate-700 text-white rounded-lg border border-slate-700 transition-colors shadow-lg"
+          title="Show panel"
+        >
+          <PanelRightOpen className="w-5 h-5" />
+        </button>
+      </div>
     );
   }
 
   return (
-    <div className="fixed top-0 right-0 w-80 h-full bg-gradient-to-br from-slate-900 to-slate-800 border-l border-slate-700 flex flex-col z-40">
+    <div className="w-80 bg-gradient-to-br from-slate-900 to-slate-800 border-l border-slate-700 flex flex-col" style={{ flexShrink: 0, height: 'calc(100vh - 64px)', position: 'sticky', top: 0 }}>
       {/* Header */}
       <div className="p-4 border-b border-slate-700">
         <div className="flex items-center justify-between mb-3">

@@ -3,6 +3,14 @@
 
 const SERVER_URL = 'http://localhost:3001';
 
+function getToken() {
+  try {
+    const raw = localStorage.getItem('auth-storage');
+    if (!raw) return null;
+    return JSON.parse(raw)?.state?.token || null;
+  } catch { return null; }
+}
+
 /**
  * Look up vehicle details by registration number using DVLA + MOT APIs
  * @param {string} registration - UK vehicle registration number
@@ -42,9 +50,10 @@ export async function lookupVehicle(registration) {
  * Fetch vehicle data from DVLA via backend proxy
  */
 async function fetchDVLA(registration) {
+  const token = getToken();
   const response = await fetch(`${SERVER_URL}/api/vehicle-lookup`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify({ registration }),
   });
 
@@ -64,7 +73,10 @@ async function fetchDVLA(registration) {
  */
 async function fetchMOT(registration) {
   try {
-    const response = await fetch(`${SERVER_URL}/api/mot-lookup?registration=${encodeURIComponent(registration)}`);
+    const token = getToken();
+    const response = await fetch(`${SERVER_URL}/api/mot-lookup?registration=${encodeURIComponent(registration)}`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
     if (!response.ok) return null;
     return response.json();
   } catch (error) {

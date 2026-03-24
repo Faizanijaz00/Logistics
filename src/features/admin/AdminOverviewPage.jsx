@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useVehicleStore, useActivityStore, useAuthStore, useSavedLocationStore } from '../../store';
-import { ChevronLeft, ChevronRight, MapPin, MapPinned, Users, ParkingSquare, Crosshair, Check, Loader2, UserPlus, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, MapPin, MapPinned, Users, ParkingSquare, Crosshair, Check, Loader2, UserPlus, Trash2, ArrowLeft, Car, Fuel, Clock, Activity, Calendar, Eye } from 'lucide-react';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
 const activityTypeConfig = {
@@ -71,6 +72,7 @@ export function AdminOverviewPage() {
   const [selectedDay, setSelectedDay] = useState(null);
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
   const mobile = useIsMobile();
+  const navigate = useNavigate();
   const { vehicles } = useVehicleStore();
   const { activities } = useActivityStore();
   const { fetchUsers, registerUser, deleteUser } = useAuthStore();
@@ -99,7 +101,10 @@ export function AdminOverviewPage() {
   const [newDriverPassword, setNewDriverPassword] = useState('driver123');
   const [newDriverRole, setNewDriverRole] = useState('driver');
   const [addDriverError, setAddDriverError] = useState('');
+  const [payerPopover, setPayerPopover] = useState(null); // { rowIdx, field }
+  const [costView, setCostView] = useState('yearly'); // 'monthly' | 'yearly' | 'total'
   const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [selectedDriver, setSelectedDriver] = useState(null);
 
   // Fetch users on mount
   useEffect(() => {
@@ -412,6 +417,12 @@ export function AdminOverviewPage() {
       service,
       fuel,
       total,
+      insurancePaidBy: vehicle.insurance?.paidBy || '',
+      taxPaidBy: vehicle.tax?.paidBy || '',
+      servicePaidBy: vehicle.maintenance?.paidBy || '',
+      insuranceBankAccount: vehicle.insurance?.bankAccount || '',
+      taxBankAccount: vehicle.tax?.bankAccount || '',
+      serviceBankAccount: vehicle.maintenance?.bankAccount || '',
     };
   });
 
@@ -427,6 +438,11 @@ export function AdminOverviewPage() {
   );
 
   const formatCurrency = (val) => `\u00A3${val.toLocaleString()}`;
+  const displayCost = (annualVal) => {
+    if (costView === 'monthly') return `£${(annualVal / 12).toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+    if (costView === 'total') return `£${(annualVal * 5).toLocaleString()}`; // 5-year total
+    return formatCurrency(annualVal);
+  };
 
   // Activity log — past 30 days for selected vehicle (or all)
   const filteredActivities = useMemo(() => {
@@ -632,6 +648,7 @@ export function AdminOverviewPage() {
               return (
                 <div
                   key={user.id}
+                  onClick={() => setSelectedDriver(user)}
                   style={{
                     border: '1px solid #e8e8e8',
                     borderRadius: '8px',
@@ -640,7 +657,11 @@ export function AdminOverviewPage() {
                     alignItems: 'center',
                     gap: '12px',
                     background: '#fafafa',
+                    cursor: 'pointer',
+                    transition: 'border-color 0.15s, box-shadow 0.15s',
                   }}
+                  onMouseOver={(e) => { e.currentTarget.style.borderColor = '#999'; e.currentTarget.style.boxShadow = '0 1px 4px rgba(0,0,0,0.08)'; }}
+                  onMouseOut={(e) => { e.currentTarget.style.borderColor = '#e8e8e8'; e.currentTarget.style.boxShadow = 'none'; }}
                 >
                   <div
                     style={{
@@ -668,10 +689,24 @@ export function AdminOverviewPage() {
                       </div>
                     )}
                   </div>
+                  <div style={{ display: 'flex', gap: '4px', flexShrink: 0, alignItems: 'center' }}>
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setSelectedDriver(user); }}
+                      title="View activity"
+                      style={{
+                        padding: '6px', background: 'transparent', border: 'none',
+                        cursor: 'pointer', borderRadius: '4px', color: '#bbb',
+                        transition: 'color 0.15s',
+                      }}
+                      onMouseOver={(e) => { e.currentTarget.style.color = '#3b82f6'; }}
+                      onMouseOut={(e) => { e.currentTarget.style.color = '#bbb'; }}
+                    >
+                      <Eye style={{ width: '15px', height: '15px' }} />
+                    </button>
                   {confirmDeleteId === user.id ? (
                     <div style={{ display: 'flex', gap: '4px', flexShrink: 0 }}>
                       <button
-                        onClick={() => handleDeleteDriver(user.id)}
+                        onClick={(e) => { e.stopPropagation(); handleDeleteDriver(user.id); }}
                         style={{
                           padding: '4px 10px', fontSize: '11px', fontWeight: '600',
                           background: '#c4001a', color: '#fff', border: 'none', borderRadius: '4px',
@@ -679,7 +714,7 @@ export function AdminOverviewPage() {
                         }}
                       >Remove</button>
                       <button
-                        onClick={() => setConfirmDeleteId(null)}
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null); }}
                         style={{
                           padding: '4px 10px', fontSize: '11px', fontWeight: '500',
                           background: '#f0f0f0', color: '#666', border: 'none', borderRadius: '4px',
@@ -689,7 +724,7 @@ export function AdminOverviewPage() {
                     </div>
                   ) : (
                     <button
-                      onClick={() => setConfirmDeleteId(user.id)}
+                      onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(user.id); }}
                       style={{
                         padding: '6px', background: 'transparent', border: 'none',
                         cursor: 'pointer', borderRadius: '4px', color: '#ccc',
@@ -703,6 +738,7 @@ export function AdminOverviewPage() {
                       <Trash2 style={{ width: '15px', height: '15px' }} />
                     </button>
                   )}
+                  </div>
                 </div>
               );
             })}
@@ -882,16 +918,22 @@ export function AdminOverviewPage() {
                       fontWeight: isToday || isSelected ? '700' : '400',
                       color: isSelected
                         ? '#ffffff'
+                        : isToday
+                        ? '#ffffff'
                         : cell.currentMonth
                         ? '#1a1a1a'
                         : '#ccc',
                       marginBottom: '4px',
-                      width: '28px',
-                      height: '28px',
-                      lineHeight: '28px',
+                      width: '32px',
+                      height: '32px',
+                      lineHeight: '32px',
                       borderRadius: '50%',
-                      background: isToday && !isSelected ? '#1a1a1a' : 'transparent',
-                      ...(isToday && !isSelected ? { color: '#ffffff' } : {}),
+                      background: isSelected
+                        ? '#1a1a1a'
+                        : isToday
+                        ? '#0061bd'
+                        : 'transparent',
+                      boxShadow: isToday && !isSelected ? '0 2px 6px rgba(0,97,189,0.35)' : 'none',
                     }}
                   >
                     {cell.day}
@@ -1003,16 +1045,21 @@ export function AdminOverviewPage() {
             padding: mobile ? '16px' : '24px',
           }}
         >
-          <h2
-            style={{
-              fontSize: '16px',
-              fontWeight: '600',
-              marginTop: 0,
-              marginBottom: '16px',
-            }}
-          >
-            Annual Costs Summary
-          </h2>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
+            <h2 style={{ fontSize: '16px', fontWeight: '600', margin: 0 }}>
+              {costView === 'monthly' ? 'Monthly Costs' : costView === 'total' ? 'Total Ongoing Costs' : 'Annual Costs Summary'}
+            </h2>
+            <div style={{ display: 'flex', gap: '2px', background: '#f0f0f0', borderRadius: '8px', padding: '3px' }}>
+              {[['monthly', 'Per Month'], ['yearly', 'Per Year'], ['total', 'Total']].map(([val, label]) => (
+                <button key={val} onClick={() => setCostView(val)} style={{
+                  padding: '5px 14px', fontSize: '12px', fontWeight: '600', border: 'none', cursor: 'pointer', borderRadius: '6px',
+                  background: costView === val ? '#000' : 'transparent',
+                  color: costView === val ? '#fff' : '#666',
+                  transition: 'all 0.15s',
+                }}>{label}</button>
+              ))}
+            </div>
+          </div>
           <div style={{ overflowX: mobile ? 'auto' : 'visible' }}>
             <table
               style={{
@@ -1114,42 +1161,68 @@ export function AdminOverviewPage() {
                     >
                       {row.name}
                     </td>
-                    <td
-                      style={{
-                        padding: '14px 16px',
-                        fontSize: '14px',
-                        textAlign: 'right',
-                      }}
-                    >
-                      {formatCurrency(row.insurance)}
-                    </td>
-                    <td
-                      style={{
-                        padding: '14px 16px',
-                        fontSize: '14px',
-                        textAlign: 'right',
-                      }}
-                    >
-                      {formatCurrency(row.tax)}
-                    </td>
-                    <td
-                      style={{
-                        padding: '14px 16px',
-                        fontSize: '14px',
-                        textAlign: 'right',
-                      }}
-                    >
-                      {formatCurrency(row.service)}
-                    </td>
-                    <td
-                      style={{
-                        padding: '14px 16px',
-                        fontSize: '14px',
-                        textAlign: 'right',
-                      }}
-                    >
-                      {formatCurrency(row.fuel)}
-                    </td>
+                    {[
+                      { key: 'insurance', value: row.insurance, payer: row.insurancePaidBy, bank: row.insuranceBankAccount },
+                      { key: 'tax', value: row.tax, payer: row.taxPaidBy, bank: row.taxBankAccount },
+                      { key: 'service', value: row.service, payer: row.servicePaidBy, bank: row.serviceBankAccount },
+                      { key: 'fuel', value: row.fuel, payer: null, bank: null },
+                    ].map((cell) => (
+                      <td
+                        key={cell.key}
+                        style={{
+                          padding: '14px 16px',
+                          fontSize: '14px',
+                          textAlign: 'right',
+                          position: 'relative',
+                        }}
+                      >
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                          {displayCost(cell.value)}
+                          {cell.payer !== null && (
+                            <span
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const isOpen = payerPopover?.rowIdx === idx && payerPopover?.field === cell.key;
+                                setPayerPopover(isOpen ? null : { rowIdx: idx, field: cell.key });
+                              }}
+                              style={{
+                                display: 'inline-block',
+                                width: '8px',
+                                height: '8px',
+                                borderRadius: '50%',
+                                background: cell.payer ? '#4a90d9' : '#ccc',
+                                cursor: 'pointer',
+                                flexShrink: 0,
+                              }}
+                            />
+                          )}
+                        </span>
+                        {payerPopover?.rowIdx === idx && payerPopover?.field === cell.key && (
+                          <>
+                            <div style={{ position: 'fixed', inset: 0, zIndex: 998 }} onClick={() => setPayerPopover(null)} />
+                            <div style={{
+                              position: 'absolute',
+                              top: '100%',
+                              right: '8px',
+                              zIndex: 999,
+                              background: '#fff',
+                              border: '1px solid #e0e0e0',
+                              borderRadius: '6px',
+                              padding: '8px 14px',
+                              boxShadow: '0 4px 12px rgba(0,0,0,0.12)',
+                              whiteSpace: 'nowrap',
+                              fontSize: '13px',
+                              color: '#333',
+                            }}>
+                              {cell.payer
+                                ? <><div><strong>Paid by:</strong> {cell.payer}</div>{cell.bank && <div style={{ marginTop: '4px', color: '#666' }}><strong>Account:</strong> {cell.bank}</div>}</>
+                                : <span style={{ color: '#999' }}>Not set</span>
+                              }
+                            </div>
+                          </>
+                        )}
+                      </td>
+                    ))}
                     <td
                       style={{
                         padding: '14px 16px',
@@ -1158,7 +1231,7 @@ export function AdminOverviewPage() {
                         fontWeight: '500',
                       }}
                     >
-                      {formatCurrency(row.total)}
+                      {displayCost(row.total)}
                     </td>
                   </tr>
                 ))}
@@ -1187,7 +1260,7 @@ export function AdminOverviewPage() {
                       textAlign: 'right',
                     }}
                   >
-                    {formatCurrency(fleetTotals.insurance)}
+                    {displayCost(fleetTotals.insurance)}
                   </td>
                   <td
                     style={{
@@ -1197,7 +1270,7 @@ export function AdminOverviewPage() {
                       textAlign: 'right',
                     }}
                   >
-                    {formatCurrency(fleetTotals.tax)}
+                    {displayCost(fleetTotals.tax)}
                   </td>
                   <td
                     style={{
@@ -1207,7 +1280,7 @@ export function AdminOverviewPage() {
                       textAlign: 'right',
                     }}
                   >
-                    {formatCurrency(fleetTotals.service)}
+                    {displayCost(fleetTotals.service)}
                   </td>
                   <td
                     style={{
@@ -1217,7 +1290,7 @@ export function AdminOverviewPage() {
                       textAlign: 'right',
                     }}
                   >
-                    {formatCurrency(fleetTotals.fuel)}
+                    {displayCost(fleetTotals.fuel)}
                   </td>
                   <td
                     style={{
@@ -1227,7 +1300,7 @@ export function AdminOverviewPage() {
                       textAlign: 'right',
                     }}
                   >
-                    {formatCurrency(fleetTotals.total)}
+                    {displayCost(fleetTotals.total)}
                   </td>
                 </tr>
               </tfoot>
@@ -1344,7 +1417,17 @@ export function AdminOverviewPage() {
                           <div style={{ fontSize: '14px', color: '#111', fontWeight: '500' }}>
                             {activity.description}
                           </div>
-                          {activity.details?.parkedAt && (
+                          {activity.type === 'driver_assigned' && activity.details?.origin && (
+                            <div style={{ fontSize: '12px', color: '#3b82f6', marginTop: '2px' }}>
+                              From: {activity.details.origin}
+                            </div>
+                          )}
+                          {activity.type === 'driver_assigned' && activity.details?.destination && (
+                            <div style={{ fontSize: '12px', color: '#7c3aed', marginTop: '2px' }}>
+                              To: {activity.details.destination}
+                            </div>
+                          )}
+                          {activity.details?.parkedAt && activity.type !== 'driver_assigned' && (
                             <div style={{ fontSize: '12px', color: '#3b82f6', marginTop: '2px' }}>
                               Parked at {activity.details.parkedAt}
                             </div>
@@ -1795,6 +1878,316 @@ export function AdminOverviewPage() {
           </div>
         </div>
       )}
+
+      {/* Driver Activity Detail Overlay */}
+      {selectedDriver && (() => {
+        const driverName = selectedDriver.name;
+
+        // Activities involving this driver (check details.driverName or description)
+        const driverActivities = activities.filter(a =>
+          (a.details?.driverName && a.details.driverName === driverName) ||
+          (a.details?.reportedBy && a.details.reportedBy === driverName) ||
+          a.description?.includes(driverName)
+        ).sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+
+        // Group activities by date
+        const activityGroups = {};
+        driverActivities.forEach(a => {
+          const label = getDateGroupLabel(a.timestamp);
+          if (!activityGroups[label]) activityGroups[label] = [];
+          activityGroups[label].push(a);
+        });
+
+        // Currently driving
+        const currentVehicle = vehicles.find(v => v.currentDriver === driverName);
+
+        // Vehicles this driver has been associated with (current or last)
+        const associatedVehicles = vehicles.filter(v =>
+          v.currentDriver === driverName || v.lastDriver === driverName
+        );
+
+        // Fuel records across all vehicles for this driver
+        const fuelRecords = [];
+        (vehicles || []).forEach(v => {
+          const vehicleName = `${v.make} ${v.model}`;
+          (v.fuel?.records || []).forEach(r => {
+            if (r.driverName === driverName) {
+              fuelRecords.push({ ...r, vehicleName, vehicleId: v.id });
+            }
+          });
+        });
+        fuelRecords.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        // Summary stats
+        const totalFuelSpent = fuelRecords.reduce((sum, r) => sum + (r.amount || 0), 0);
+        const journeyCount = driverActivities.filter(a => a.type === 'driver_assigned').length;
+        const destinationCount = driverActivities.filter(a => a.type === 'destination_set').length;
+
+        return (
+          <div
+            style={{
+              position: 'fixed',
+              top: 0, left: 0, right: 0, bottom: 0,
+              background: '#f5f5f5',
+              zIndex: 100,
+              overflowY: 'auto',
+              WebkitOverflowScrolling: 'touch',
+            }}
+          >
+            {/* Header */}
+            <div
+              style={{
+                position: 'sticky',
+                top: 0,
+                zIndex: 101,
+                background: '#ffffff',
+                borderBottom: '1px solid #e0e0e0',
+                padding: mobile ? '12px 16px' : '16px 40px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+              }}
+            >
+              <button
+                onClick={() => setSelectedDriver(null)}
+                style={{
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  width: '34px', height: '34px',
+                  background: '#f0f0f0', border: 'none', borderRadius: '8px',
+                  cursor: 'pointer', flexShrink: 0,
+                  transition: 'background 0.15s',
+                }}
+                onMouseOver={(e) => { e.currentTarget.style.background = '#e0e0e0'; }}
+                onMouseOut={(e) => { e.currentTarget.style.background = '#f0f0f0'; }}
+              >
+                <ArrowLeft style={{ width: '18px', height: '18px' }} />
+              </button>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: '16px', fontWeight: '600' }}>{driverName}</div>
+                <div style={{ fontSize: '12px', color: '#888' }}>
+                  @{selectedDriver.username}
+                  <span style={{
+                    marginLeft: '8px',
+                    fontSize: '10px', fontWeight: '500', padding: '1px 7px', borderRadius: '10px',
+                    textTransform: 'capitalize',
+                    background: selectedDriver.role === 'passenger' ? '#f3e8ff' : '#e8f5e9',
+                    color: selectedDriver.role === 'passenger' ? '#7c3aed' : '#15803d',
+                  }}>{selectedDriver.role}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div style={{ padding: mobile ? '16px' : '32px 40px', maxWidth: '800px', margin: '0 auto' }}>
+
+              {/* Summary Stats */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: mobile ? 'repeat(2, 1fr)' : 'repeat(4, 1fr)',
+                gap: '12px',
+                marginBottom: '24px',
+              }}>
+                {[
+                  { label: 'Journeys', value: journeyCount, icon: Car, color: '#22c55e' },
+                  { label: 'Fuel Spend', value: `\u00A3${totalFuelSpent.toFixed(2)}`, icon: Fuel, color: '#f97316' },
+                  { label: 'Destinations', value: destinationCount, icon: MapPin, color: '#7c3aed' },
+                  { label: 'Total Activities', value: driverActivities.length, icon: Activity, color: '#0061bd' },
+                ].map((stat) => (
+                  <div
+                    key={stat.label}
+                    style={{
+                      background: '#ffffff',
+                      border: '1px solid #e0e0e0',
+                      borderRadius: '8px',
+                      padding: '16px',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <stat.icon style={{ width: '20px', height: '20px', color: stat.color, marginBottom: '6px' }} />
+                    <div style={{ fontSize: '22px', fontWeight: '700', color: '#111' }}>{stat.value}</div>
+                    <div style={{ fontSize: '12px', color: '#888', marginTop: '2px' }}>{stat.label}</div>
+                  </div>
+                ))}
+              </div>
+
+              {/* Currently Driving */}
+              <div style={{
+                background: '#ffffff',
+                border: '1px solid #e0e0e0',
+                borderRadius: '8px',
+                padding: mobile ? '16px' : '20px',
+                marginBottom: '16px',
+              }}>
+                <h3 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Car style={{ width: '16px', height: '16px', color: '#22c55e' }} />
+                  Currently Driving
+                </h3>
+                {currentVehicle ? (
+                  <div style={{
+                    display: 'flex', alignItems: 'center', gap: '12px',
+                    padding: '12px', background: '#f0fdf4', borderRadius: '6px', border: '1px solid #bbf7d0',
+                  }}>
+                    <div style={{
+                      width: '36px', height: '36px', borderRadius: '50%',
+                      background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    }}>
+                      <Car style={{ width: '16px', height: '16px', color: '#22c55e' }} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: '600' }}>{currentVehicle.make} {currentVehicle.model}</div>
+                      <div style={{ fontSize: '12px', color: '#666' }}>{currentVehicle.licensePlate}</div>
+                      {currentVehicle.destination && (
+                        <div style={{ fontSize: '12px', color: '#7c3aed', marginTop: '2px' }}>
+                          <MapPin style={{ width: '11px', height: '11px', display: 'inline', verticalAlign: '-1px', marginRight: '3px' }} />
+                          {currentVehicle.destination}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div style={{ fontSize: '13px', color: '#999', fontStyle: 'italic' }}>
+                    Not currently assigned to any vehicle
+                  </div>
+                )}
+                {associatedVehicles.length > 0 && !currentVehicle && (
+                  <div style={{ marginTop: '12px' }}>
+                    <div style={{ fontSize: '12px', color: '#888', marginBottom: '6px' }}>Last known vehicle:</div>
+                    {associatedVehicles.map(v => (
+                      <div key={v.id} style={{ fontSize: '13px', color: '#555' }}>
+                        {v.make} {v.model} ({v.licensePlate})
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* Fuel Records */}
+              {fuelRecords.length > 0 && (
+                <div style={{
+                  background: '#ffffff',
+                  border: '1px solid #e0e0e0',
+                  borderRadius: '8px',
+                  padding: mobile ? '16px' : '20px',
+                  marginBottom: '16px',
+                }}>
+                  <h3 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 12px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <Fuel style={{ width: '16px', height: '16px', color: '#f97316' }} />
+                    Fuel Records
+                    <span style={{ fontSize: '12px', fontWeight: '400', color: '#999', marginLeft: 'auto' }}>
+                      Total: {'\u00A3'}{totalFuelSpent.toFixed(2)}
+                    </span>
+                  </h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {fuelRecords.map((record) => (
+                      <div
+                        key={record.id}
+                        style={{
+                          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                          padding: '10px 12px', background: '#fff7ed', borderRadius: '6px',
+                          border: '1px solid #fed7aa',
+                        }}
+                      >
+                        <div>
+                          <div style={{ fontSize: '13px', fontWeight: '500' }}>{record.vehicleName}</div>
+                          <div style={{ fontSize: '11px', color: '#888' }}>{formatAbsoluteTime(record.date)}</div>
+                        </div>
+                        <div style={{ fontSize: '15px', fontWeight: '700', color: '#ea580c' }}>
+                          {'\u00A3'}{record.amount.toFixed(2)}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Activity Timeline */}
+              <div style={{
+                background: '#ffffff',
+                border: '1px solid #e0e0e0',
+                borderRadius: '8px',
+                padding: mobile ? '16px' : '20px',
+                marginBottom: '16px',
+              }}>
+                <h3 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Clock style={{ width: '16px', height: '16px', color: '#0061bd' }} />
+                  Activity Timeline
+                </h3>
+                {driverActivities.length === 0 ? (
+                  <div style={{ fontSize: '13px', color: '#999', fontStyle: 'italic', textAlign: 'center', padding: '24px 0' }}>
+                    No recorded activity for this person yet
+                  </div>
+                ) : (
+                  <div>
+                    {Object.entries(activityGroups).map(([dateLabel, acts]) => (
+                      <div key={dateLabel} style={{ marginBottom: '20px' }}>
+                        <div style={{
+                          fontSize: '12px', fontWeight: '600', color: '#888', textTransform: 'uppercase',
+                          letterSpacing: '0.5px', marginBottom: '10px',
+                          display: 'flex', alignItems: 'center', gap: '6px',
+                        }}>
+                          <Calendar style={{ width: '12px', height: '12px' }} />
+                          {dateLabel}
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                          {acts.map((act) => {
+                            const config = activityTypeConfig[act.type] || { color: '#888', label: act.type };
+                            return (
+                              <div
+                                key={act.id}
+                                style={{
+                                  display: 'flex', alignItems: 'flex-start', gap: '10px',
+                                  padding: '10px 12px', borderRadius: '6px',
+                                  border: '1px solid #f0f0f0', background: '#fafafa',
+                                }}
+                              >
+                                <div style={{
+                                  width: '8px', height: '8px', borderRadius: '50%',
+                                  background: config.color, flexShrink: 0, marginTop: '5px',
+                                }} />
+                                <div style={{ flex: 1, minWidth: 0 }}>
+                                  <div style={{ fontSize: '13px', fontWeight: '500', color: '#111' }}>
+                                    {act.description}
+                                  </div>
+                                  <div style={{ fontSize: '11px', color: '#999', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                                    <span>{config.label}</span>
+                                    {act.vehicleName && (
+                                      <span style={{ display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                        <Car style={{ width: '10px', height: '10px' }} />
+                                        {act.vehicleName}
+                                      </span>
+                                    )}
+                                    <span>{formatAbsoluteTime(act.timestamp)}</span>
+                                  </div>
+                                  {act.details?.destination && (
+                                    <div style={{ fontSize: '11px', color: '#7c3aed', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                      <MapPin style={{ width: '10px', height: '10px' }} />
+                                      {act.details.destination}
+                                    </div>
+                                  )}
+                                  {act.details?.parkedAt && (
+                                    <div style={{ fontSize: '11px', color: '#cc7700', marginTop: '3px', display: 'flex', alignItems: 'center', gap: '3px' }}>
+                                      <ParkingSquare style={{ width: '10px', height: '10px' }} />
+                                      {act.details.parkedAt}
+                                    </div>
+                                  )}
+                                </div>
+                                <div style={{ fontSize: '11px', color: '#bbb', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                  {formatRelativeTime(act.timestamp)}
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+            </div>
+          </div>
+        );
+      })()}
 
       <style>{`@keyframes spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }`}</style>
     </div>

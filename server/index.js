@@ -10,15 +10,24 @@ import { config } from './config.js';
 import { traccarService } from './traccarService.js';
 import { seedUsers, registerAuthRoutes, requireAuth, requireRole } from './auth.js';
 import { registerJourneyRoutes } from './journeys.js';
+import { registerVehicleRoutes } from './vehicles.js';
+import { registerMiscRoutes } from './misc.js';
 
 const app = express();
 const server = createServer(app);
 
-// CORS
+// CORS — allow configured origin plus any localhost port (for dev)
+const ALLOWED_ORIGINS = new Set(
+  [config.corsOrigin, process.env.CORS_ORIGIN_2].filter(Boolean)
+);
 app.use((req, res, next) => {
-  res.header('Access-Control-Allow-Origin', config.corsOrigin);
+  const origin = req.headers.origin || '';
+  const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?$/.test(origin);
+  if (isLocalhost || ALLOWED_ORIGINS.has(origin)) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
@@ -28,6 +37,8 @@ app.use(express.json({ limit: '20mb' }));
 // --- Auth routes ---
 registerAuthRoutes(app);
 registerJourneyRoutes(app);
+registerVehicleRoutes(app, requireAuth, requireRole);
+registerMiscRoutes(app, requireAuth);
 
 // --- REST endpoints ---
 
@@ -79,7 +90,7 @@ async function getMotToken() {
   return motTokenCache.token;
 }
 
-app.get('/api/mot-lookup', async (req, res) => {
+app.get('/api/mot-lookup', requireAuth, async (req, res) => {
   const { registration } = req.query;
   if (!registration) return res.status(400).json({ error: 'No registration provided' });
 
@@ -122,7 +133,7 @@ app.get('/api/mot-lookup', async (req, res) => {
 
 // --- DVLA Vehicle Lookup Proxy ---
 
-app.post('/api/vehicle-lookup', async (req, res) => {
+app.post('/api/vehicle-lookup', requireAuth, async (req, res) => {
   const { registration } = req.body;
   if (!registration) return res.status(400).json({ error: 'No registration provided' });
 
