@@ -20,6 +20,7 @@ const localImages = {
   'photo-1771875214196': require('../../assets/cars/photo-1771875214196.png'),
   'photo-1771875768816': require('../../assets/cars/photo-1771875768816.png'),
   'photo-1771875781106': require('../../assets/cars/photo-1771875781106.png'),
+  'photo-1773858208008': require('../../assets/cars/photo-1773858208008.png'),
 };
 
 /**

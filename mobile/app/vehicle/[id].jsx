@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, Image, ActivityIndicator, Alert, Platform,
@@ -10,6 +10,29 @@ import { useVehicleStore } from '../../src/store/vehicleStore';
 import { useAuthStore } from '../../src/store/authStore';
 import { getCarImage } from '../../src/config/carImages';
 import { SERVER_URL } from '../../src/config/api';
+import { useLayout } from '../../src/hooks/useLayout';
+
+const GOOGLE_MAPS_API_KEY = 'AIzaSyB1ut_fLXEtEfEXFKpGkmLDHtqddF_JiGE';
+
+function useReverseGeocode(position) {
+  const [address, setAddress] = useState(null);
+  useEffect(() => {
+    if (!position?.lat || !position?.lng) return;
+    fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${position.lat},${position.lng}&key=${GOOGLE_MAPS_API_KEY}`)
+      .then(r => r.json())
+      .then(data => {
+        if (data.results?.length) {
+          // Try to find a short address (postal code or neighborhood)
+          const postal = data.results.find(r => r.types?.includes('postal_code'));
+          const neighborhood = data.results.find(r => r.types?.includes('neighborhood') || r.types?.includes('sublocality'));
+          const short = postal?.formatted_address || neighborhood?.formatted_address || data.results[0]?.formatted_address;
+          setAddress(short || null);
+        }
+      })
+      .catch(() => {});
+  }, [position?.lat, position?.lng]);
+  return address;
+}
 
 function getExpiryStatus(dateStr) {
   if (!dateStr) return null;
@@ -33,14 +56,150 @@ function StatusCard({ title, status, sub }) {
   );
 }
 
+function InfoCardContent({ vehicle, editing, plate, setPlate, handleSavePlate, saving, setEditing, showMoreInfo, setShowMoreInfo, motStatus, taxStatus, insStatus, serviceStatus, tflStatus, tflRegistered, formatDate, locationAddress }) {
+  return (
+    <>
+      {/* Year / Color / Fuel */}
+      <View style={styles.metaRow}>
+        {vehicle.year ? <Text style={styles.metaText}>{vehicle.year}</Text> : null}
+        {vehicle.year && vehicle.color ? <Text style={styles.metaDot}>·</Text> : null}
+        {vehicle.color ? <Text style={styles.metaText}>{vehicle.color}</Text> : null}
+        {vehicle.color && vehicle.fuelType ? <Text style={styles.metaDot}>·</Text> : null}
+        {vehicle.fuelType ? <Text style={styles.metaText}>{vehicle.fuelType}</Text> : null}
+      </View>
+
+      {/* Plate edit row (admin only) */}
+      {editing && (
+        <View style={[styles.plateEditRow, { marginBottom: 16 }]}>
+          <TextInput
+            style={styles.plateInput}
+            value={plate}
+            onChangeText={t => setPlate(t.toUpperCase())}
+            autoCapitalize="characters"
+            autoCorrect={false}
+            placeholder="e.g. AB12 CDE"
+            placeholderTextColor="#bbb"
+          />
+          <TouchableOpacity style={styles.saveBtn} onPress={handleSavePlate} disabled={saving}>
+            {saving ? <ActivityIndicator size="small" color="#fff" /> : <Check size={18} color="#fff" />}
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.cancelBtn}
+            onPress={() => { setEditing(false); setPlate(vehicle.licensePlate); }}
+          >
+            <X size={18} color="#c4001a" />
+          </TouchableOpacity>
+        </View>
+      )}
+
+      <View style={styles.divider} />
+
+      {/* Driver + Location */}
+      <View style={styles.statusRow}>
+        {vehicle.currentDriver ? (
+          <View style={styles.statusItem}>
+            <View style={[styles.statusIcon, { backgroundColor: '#018a16' }]}>
+              <User size={16} color="#fff" />
+            </View>
+            <View>
+              <Text style={styles.statusLabel}>Driver</Text>
+              <Text style={styles.statusValue}>{vehicle.currentDriver}</Text>
+              <View style={styles.statusIndicator}>
+                <View style={[styles.dot, { backgroundColor: '#018a16' }]} />
+                <Text style={[styles.statusIndicatorText, { color: '#018a16' }]}>Active</Text>
+              </View>
+            </View>
+          </View>
+        ) : (
+          <View style={styles.statusItem}>
+            <View style={[styles.statusIcon, { backgroundColor: '#888' }]}>
+              <MapPin size={16} color="#fff" />
+            </View>
+            <View>
+              <Text style={styles.statusLabel}>Status</Text>
+              <Text style={styles.statusValue}>Parked</Text>
+              {vehicle.lastDriver ? (
+                <View style={styles.statusIndicator}>
+                  <View style={[styles.dot, { backgroundColor: '#888' }]} />
+                  <Text style={[styles.statusIndicatorText, { color: '#888' }]}>
+                    Parked by {vehicle.lastDriver}
+                  </Text>
+                </View>
+              ) : null}
+            </View>
+          </View>
+        )}
+
+        <View style={styles.statusItem}>
+          <View style={[styles.statusIcon, { backgroundColor: (vehicle.destination || vehicle.parkedAt) ? '#3B82F6' : '#e5e5e5' }]}>
+            <MapPin size={16} color="#fff" />
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.statusLabel}>Location</Text>
+            <Text style={styles.statusValue} numberOfLines={1}>
+              {vehicle.destination || vehicle.parkedAt || locationAddress || 'Unknown'}
+            </Text>
+            {vehicle.destination && (
+              <View style={styles.statusIndicator}>
+                <View style={[styles.dot, { backgroundColor: '#3B82F6' }]} />
+                <Text style={[styles.statusIndicatorText, { color: '#3B82F6' }]}>En route</Text>
+              </View>
+            )}
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.divider} />
+
+      {/* More Information toggle */}
+      <TouchableOpacity style={styles.moreInfoBtn} onPress={() => setShowMoreInfo(v => !v)} activeOpacity={0.7}>
+        <Text style={styles.moreInfoText}>More Information</Text>
+        {showMoreInfo ? <ChevronUp size={18} color="#555" /> : <ChevronDown size={18} color="#555" />}
+      </TouchableOpacity>
+
+      {showMoreInfo && (
+        <View style={styles.moreInfoGrid}>
+          <StatusCard
+            title="MOT"
+            status={motStatus}
+            sub={vehicle.mot?.expiryDate ? `Expires ${formatDate(vehicle.mot.expiryDate)}` : null}
+          />
+          <StatusCard
+            title="Road Tax"
+            status={taxStatus}
+            sub={vehicle.tax?.expiryDate ? `Due ${formatDate(vehicle.tax.expiryDate)}` : null}
+          />
+          <StatusCard
+            title="Insurance"
+            status={insStatus}
+            sub={vehicle.insurance?.expiryDate ? `Expires ${formatDate(vehicle.insurance.expiryDate)}` : vehicle.insurance?.provider || null}
+          />
+          <StatusCard
+            title="Service"
+            status={serviceStatus}
+            sub={vehicle.maintenance?.nextService ? `Next ${formatDate(vehicle.maintenance.nextService)}` : (vehicle.maintenance?.lastService ? `Last ${formatDate(vehicle.maintenance.lastService)}` : null)}
+          />
+          <StatusCard
+            title="Auto Pay"
+            status={tflStatus}
+            sub={tflRegistered && vehicle.tfl?.accountName ? vehicle.tfl.accountName : null}
+          />
+        </View>
+      )}
+    </>
+  );
+}
+
 export default function VehicleDetailScreen() {
   const { id } = useLocalSearchParams();
   const router = useRouter();
   const { vehicles, fetchVehicles } = useVehicleStore();
   const { token, user } = useAuthStore();
   const isAdmin = user?.role === 'admin';
+  const { isUnfolded } = useLayout();
 
   const vehicle = vehicles.find(v => v.id === id);
+  const locationAddress = useReverseGeocode(vehicle?.position);
   const [editing, setEditing] = useState(false);
   const [plate, setPlate] = useState(vehicle?.licensePlate || '');
   const [saving, setSaving] = useState(false);
@@ -114,10 +273,75 @@ export default function VehicleDetailScreen() {
 
   const formatDate = (d) => d ? new Date(d).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }) : null;
 
+  const infoCardProps = {
+    vehicle, editing, plate, setPlate, handleSavePlate, saving, setEditing,
+    showMoreInfo, setShowMoreInfo, motStatus, taxStatus, insStatus,
+    serviceStatus, tflStatus, tflRegistered, formatDate, locationAddress,
+  };
+
+  // ── Unfolded: side-by-side layout ──
+  if (isUnfolded) {
+    return (
+      <SafeAreaView style={styles.safe} edges={['top']}>
+        {/* Back button */}
+        <View style={styles.unfoldedBackRow}>
+          <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
+            <ChevronLeft size={22} color="#000" />
+            <Text style={styles.backText}>Fleet</Text>
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.unfoldedContainer}>
+          {/* Left column: car hero */}
+          <View style={styles.unfoldedHeroCol}>
+            <Text style={styles.heroVehicleNameUnfolded}>{vehicle.make} {vehicle.model}</Text>
+
+            {vehicle.licensePlate ? (
+              <View style={styles.plateAbove}>
+                <View style={styles.ukPlateSmall}>
+                  <View style={styles.gbStripSmall}>
+                    <Text style={styles.gbFlagSmall}>🇬🇧</Text>
+                    <Text style={styles.gbTextSmall}>GB</Text>
+                  </View>
+                  <Text style={styles.plateTextSmall}>{vehicle.licensePlate}</Text>
+                </View>
+              </View>
+            ) : null}
+
+            <View style={styles.carWrapperUnfolded}>
+              {carImage ? (
+                <Image
+                  source={carImage}
+                  style={styles.carImageUnfolded}
+                  resizeMode="contain"
+                />
+              ) : (
+                <View style={styles.carFallbackUnfolded} />
+              )}
+            </View>
+            <View style={styles.groundShadowUnfolded} />
+          </View>
+
+          {/* Right column: scrollable info */}
+          <ScrollView
+            style={styles.unfoldedInfoCol}
+            contentContainerStyle={{ paddingBottom: 48 }}
+            showsVerticalScrollIndicator={false}
+          >
+            <View style={styles.infoCardUnfolded}>
+              <InfoCardContent {...infoCardProps} />
+            </View>
+          </ScrollView>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // ── Phone layout (unchanged) ──
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
 
-      {/* ── Fixed hero — stays on screen while info scrolls ── */}
+      {/* Fixed hero — stays on screen while info scrolls */}
       <View style={styles.heroSection}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
           <ChevronLeft size={22} color="#000" />
@@ -153,7 +377,7 @@ export default function VehicleDetailScreen() {
         <View style={styles.groundShadow} />
       </View>
 
-      {/* ── Scrollable info card ── */}
+      {/* Scrollable info card */}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={{ paddingBottom: 48 }}
@@ -161,133 +385,7 @@ export default function VehicleDetailScreen() {
       >
         {/* Info card */}
         <View style={styles.infoCard}>
-          {/* Year · Color · Fuel */}
-          <View style={styles.metaRow}>
-            {vehicle.year ? <Text style={styles.metaText}>{vehicle.year}</Text> : null}
-            {vehicle.year && vehicle.color ? <Text style={styles.metaDot}>·</Text> : null}
-            {vehicle.color ? <Text style={styles.metaText}>{vehicle.color}</Text> : null}
-            {vehicle.color && vehicle.fuelType ? <Text style={styles.metaDot}>·</Text> : null}
-            {vehicle.fuelType ? <Text style={styles.metaText}>{vehicle.fuelType}</Text> : null}
-          </View>
-
-          {/* Plate edit row (admin only) */}
-          {editing && (
-            <View style={[styles.plateEditRow, { marginBottom: 16 }]}>
-              <TextInput
-                style={styles.plateInput}
-                value={plate}
-                onChangeText={t => setPlate(t.toUpperCase())}
-                autoCapitalize="characters"
-                autoCorrect={false}
-                placeholder="e.g. AB12 CDE"
-                placeholderTextColor="#bbb"
-              />
-              <TouchableOpacity style={styles.saveBtn} onPress={handleSavePlate} disabled={saving}>
-                {saving ? <ActivityIndicator size="small" color="#fff" /> : <Check size={18} color="#fff" />}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.cancelBtn}
-                onPress={() => { setEditing(false); setPlate(vehicle.licensePlate); }}
-              >
-                <X size={18} color="#c4001a" />
-              </TouchableOpacity>
-            </View>
-          )}
-
-          <View style={styles.divider} />
-
-          {/* Driver + Location */}
-          <View style={styles.statusRow}>
-            {vehicle.currentDriver ? (
-              <View style={styles.statusItem}>
-                <View style={[styles.statusIcon, { backgroundColor: '#018a16' }]}>
-                  <User size={16} color="#fff" />
-                </View>
-                <View>
-                  <Text style={styles.statusLabel}>Driver</Text>
-                  <Text style={styles.statusValue}>{vehicle.currentDriver}</Text>
-                  <View style={styles.statusIndicator}>
-                    <View style={[styles.dot, { backgroundColor: '#018a16' }]} />
-                    <Text style={[styles.statusIndicatorText, { color: '#018a16' }]}>Active</Text>
-                  </View>
-                </View>
-              </View>
-            ) : (
-              <View style={styles.statusItem}>
-                <View style={[styles.statusIcon, { backgroundColor: '#888' }]}>
-                  <MapPin size={16} color="#fff" />
-                </View>
-                <View>
-                  <Text style={styles.statusLabel}>Status</Text>
-                  <Text style={styles.statusValue}>Parked</Text>
-                  {vehicle.lastDriver ? (
-                    <View style={styles.statusIndicator}>
-                      <View style={[styles.dot, { backgroundColor: '#888' }]} />
-                      <Text style={[styles.statusIndicatorText, { color: '#888' }]}>
-                        Parked by {vehicle.lastDriver}
-                      </Text>
-                    </View>
-                  ) : null}
-                </View>
-              </View>
-            )}
-
-            <View style={styles.statusItem}>
-              <View style={[styles.statusIcon, { backgroundColor: (vehicle.destination || vehicle.parkedAt) ? '#3B82F6' : '#e5e5e5' }]}>
-                <MapPin size={16} color="#fff" />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={styles.statusLabel}>Location</Text>
-                <Text style={styles.statusValue} numberOfLines={1}>
-                  {vehicle.destination || vehicle.parkedAt || 'Unknown'}
-                </Text>
-                {vehicle.destination && (
-                  <View style={styles.statusIndicator}>
-                    <View style={[styles.dot, { backgroundColor: '#3B82F6' }]} />
-                    <Text style={[styles.statusIndicatorText, { color: '#3B82F6' }]}>En route</Text>
-                  </View>
-                )}
-              </View>
-            </View>
-          </View>
-
-          <View style={styles.divider} />
-
-          {/* More Information toggle */}
-          <TouchableOpacity style={styles.moreInfoBtn} onPress={() => setShowMoreInfo(v => !v)} activeOpacity={0.7}>
-            <Text style={styles.moreInfoText}>More Information</Text>
-            {showMoreInfo ? <ChevronUp size={18} color="#555" /> : <ChevronDown size={18} color="#555" />}
-          </TouchableOpacity>
-
-          {showMoreInfo && (
-            <View style={styles.moreInfoGrid}>
-              <StatusCard
-                title="MOT"
-                status={motStatus}
-                sub={vehicle.mot?.expiryDate ? `Expires ${formatDate(vehicle.mot.expiryDate)}` : null}
-              />
-              <StatusCard
-                title="Road Tax"
-                status={taxStatus}
-                sub={vehicle.tax?.expiryDate ? `Due ${formatDate(vehicle.tax.expiryDate)}` : null}
-              />
-              <StatusCard
-                title="Insurance"
-                status={insStatus}
-                sub={vehicle.insurance?.expiryDate ? `Expires ${formatDate(vehicle.insurance.expiryDate)}` : vehicle.insurance?.provider || null}
-              />
-              <StatusCard
-                title="Service"
-                status={serviceStatus}
-                sub={nextService ? `Next ${formatDate(nextService)}` : (vehicle.maintenance?.lastService ? `Last ${formatDate(vehicle.maintenance.lastService)}` : null)}
-              />
-              <StatusCard
-                title="Auto Pay"
-                status={tflStatus}
-                sub={tflRegistered && vehicle.tfl?.accountName ? vehicle.tfl.accountName : null}
-              />
-            </View>
-          )}
+          <InfoCardContent {...infoCardProps} />
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -557,5 +655,72 @@ const styles = StyleSheet.create({
   statusCardSub: {
     fontSize: 12,
     color: '#888',
+  },
+
+  /* ── Unfolded layout ── */
+  unfoldedBackRow: {
+    paddingTop: 16,
+    paddingBottom: 4,
+    backgroundColor: '#EEEFF2',
+  },
+  unfoldedContainer: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  unfoldedHeroCol: {
+    width: '42%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 12,
+    backgroundColor: '#EEEFF2',
+  },
+  heroVehicleNameUnfolded: {
+    textAlign: 'center',
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#000',
+    marginBottom: 6,
+    letterSpacing: -0.5,
+  },
+  carWrapperUnfolded: {
+    alignItems: 'center',
+    paddingHorizontal: 8,
+    marginTop: -20,
+  },
+  carImageUnfolded: {
+    width: 280,
+    height: 200,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 12 },
+    shadowOpacity: 0.22,
+    shadowRadius: 20,
+  },
+  carFallbackUnfolded: {
+    width: 260,
+    height: 180,
+  },
+  groundShadowUnfolded: {
+    width: 200,
+    height: 8,
+    borderRadius: 100,
+    backgroundColor: 'rgba(0,0,0,0.10)',
+    marginTop: -2,
+  },
+  unfoldedInfoCol: {
+    flex: 1,
+  },
+  infoCardUnfolded: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderBottomLeftRadius: 24,
+    paddingTop: 28,
+    paddingHorizontal: 24,
+    paddingBottom: 8,
+    minHeight: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: -4, height: 0 },
+    shadowOpacity: 0.06,
+    shadowRadius: 12,
+    elevation: 8,
   },
 });

@@ -1,5 +1,5 @@
-import { useCallback, useRef, useState } from 'react';
-import { GoogleMap, Marker, OverlayView } from '@react-google-maps/api';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { GoogleMap, Marker, OverlayView, Circle } from '@react-google-maps/api';
 import { VehicleMarker } from './VehicleMarker';
 import { VehicleRoute } from './VehicleRoute';
 import { useSavedLocationStore } from '../../../store';
@@ -96,6 +96,30 @@ export function LiveMap({
 }) {
   const { locations } = useSavedLocationStore();
   const mapRef = useRef(null);
+  const [userLocation, setUserLocation] = useState(null);
+
+  // Get user's current location
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {},
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+    const watchId = navigator.geolocation.watchPosition(
+      (pos) => setUserLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {},
+      { enableHighAccuracy: true }
+    );
+    return () => navigator.geolocation.clearWatch(watchId);
+  }, []);
+
+  const panToUser = useCallback(() => {
+    if (mapRef.current && userLocation) {
+      mapRef.current.panTo(userLocation);
+      mapRef.current.setZoom(15);
+    }
+  }, [userLocation]);
 
   // Filter vehicles based on filters
   const filteredVehicles = vehicles.filter((v) => {
@@ -132,6 +156,7 @@ export function LiveMap({
   }, [vehicles, locations]);
 
   return (
+    <div style={{ position: 'relative', width: '100%', height: '100%', minHeight: '600px' }}>
     <GoogleMap
       mapContainerStyle={containerStyle}
       center={defaultCenter}
@@ -161,6 +186,68 @@ export function LiveMap({
       {locations.map((loc) => (
         <LocationMarker key={loc.id} location={loc} />
       ))}
+
+      {/* User Location Blue Dot */}
+      {userLocation && (
+        <>
+          <Circle
+            center={userLocation}
+            radius={60}
+            options={{
+              fillColor: '#4285F4',
+              fillOpacity: 0.15,
+              strokeColor: '#4285F4',
+              strokeOpacity: 0.3,
+              strokeWeight: 1,
+            }}
+          />
+          <Marker
+            position={userLocation}
+            icon={{
+              path: window.google.maps.SymbolPath.CIRCLE,
+              scale: 8,
+              fillColor: '#4285F4',
+              fillOpacity: 1,
+              strokeColor: '#fff',
+              strokeWeight: 2.5,
+            }}
+            title="Your location"
+            zIndex={999}
+          />
+        </>
+      )}
     </GoogleMap>
+    {/* My Location button */}
+    {userLocation && (
+      <button
+        onClick={panToUser}
+        title="Go to my location"
+        style={{
+          position: 'absolute',
+          bottom: 24,
+          right: 24,
+          width: 44,
+          height: 44,
+          borderRadius: 22,
+          background: '#fff',
+          border: 'none',
+          boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10,
+        }}
+      >
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#333" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="4" />
+          <line x1="12" y1="2" x2="12" y2="6" />
+          <line x1="12" y1="18" x2="12" y2="22" />
+          <line x1="2" y1="12" x2="6" y2="12" />
+          <line x1="18" y1="12" x2="22" y2="12" />
+        </svg>
+      </button>
+    )}
+    </div>
   );
 }

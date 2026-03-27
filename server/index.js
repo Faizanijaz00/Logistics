@@ -12,6 +12,9 @@ import { seedUsers, registerAuthRoutes, requireAuth, requireRole } from './auth.
 import { registerJourneyRoutes } from './journeys.js';
 import { registerVehicleRoutes } from './vehicles.js';
 import { registerMiscRoutes } from './misc.js';
+import { tripsRouter } from './trips.js';
+import { registerPassengerRoutes } from './passengers.js';
+import { startTracking, stopTracking, getTrackingStatus } from './tracking.js';
 
 const app = express();
 const server = createServer(app);
@@ -34,11 +37,19 @@ app.use((req, res, next) => {
 
 app.use(express.json({ limit: '20mb' }));
 
+// Serve static files (car images etc.) from /public
+import { dirname } from 'path';
+import { fileURLToPath } from 'url';
+const __dirname2 = dirname(fileURLToPath(import.meta.url));
+app.use(express.static(join(__dirname2, '..', 'public')));
+
 // --- Auth routes ---
 registerAuthRoutes(app);
 registerJourneyRoutes(app);
 registerVehicleRoutes(app, requireAuth, requireRole);
 registerMiscRoutes(app, requireAuth);
+app.use(tripsRouter);
+registerPassengerRoutes(app);
 
 // --- REST endpoints ---
 
@@ -288,14 +299,26 @@ traccarService.onPositionUpdate((updates) => {
 
 // --- Start ---
 
+// Tracking status endpoint
+app.get('/api/tracking/status', requireAuth, async (req, res) => {
+  try {
+    const status = await getTrackingStatus();
+    res.json(status);
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 server.listen(config.port, async () => {
   console.log(`[Server] Running on port ${config.port}`);
   console.log(`[Server] WebSocket: ws://localhost:${config.port}/ws`);
   await seedUsers();
   traccarService.start();
+  startTracking();
 });
 
 process.on('SIGTERM', () => {
+  stopTracking();
   traccarService.stop();
   wss.close();
   server.close();

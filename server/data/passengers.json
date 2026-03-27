@@ -1,0 +1,58 @@
+[
+  {
+    "id": "pax-user-1771865058336-4v09",
+    "name": "Admin",
+    "isDriver": false,
+    "isVip": false,
+    "active": true
+  },
+  {
+    "id": "pax-user-1771865058390-5sun",
+    "name": "Faizan",
+    "isDriver": true,
+    "isVip": false,
+    "active": true
+  },
+  {
+    "id": "pax-user-1771866652220-z5g1",
+    "name": "Ali",
+    "isDriver": true,
+    "isVip": false,
+    "active": true
+  },
+  {
+    "id": "pax-user-1771866652322-nsv3",
+    "name": "Adam",
+    "isDriver": true,
+    "isVip": false,
+    "active": true
+  },
+  {
+    "id": "pax-user-1771866652426-5l6u",
+    "name": "Fivos",
+    "isDriver": true,
+    "isVip": false,
+    "active": true
+  },
+  {
+    "id": "pax-user-1771866652530-lb36",
+    "name": "Aris",
+    "isDriver": true,
+    "isVip": false,
+    "active": true
+  },
+  {
+    "id": "pax-user-1771866652634-0tth",
+    "name": "Panos",
+    "isDriver": true,
+    "isVip": false,
+    "active": true
+  },
+  {
+    "id": "pax-user-1771866652737-sx6r",
+    "name": "AR",
+    "isDriver": true,
+    "isVip": false,
+    "active": true
+  }
+]

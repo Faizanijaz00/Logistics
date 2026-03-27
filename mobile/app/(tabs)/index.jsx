@@ -5,6 +5,8 @@ import { Fuel, ReceiptText, AlertTriangle, LogOut, RefreshCw, MapPin, Navigation
 import { useAuthStore } from '../../src/store/authStore';
 import { useVehicleStore } from '../../src/store/vehicleStore';
 import { getCarImage } from '../../src/config/carImages';
+import { useLayout } from '../../src/hooks/useLayout';
+import { useEffect } from 'react';
 
 function UKPlate({ registration, small }) {
   if (!registration) return null;
@@ -103,21 +105,29 @@ const pickerStyles = StyleSheet.create({
 });
 
 export default function HomeScreen() {
-  const { user, logout } = useAuthStore();
-  const { vehicles } = useVehicleStore();
-  const [vehicle, setVehicle] = useState(null);
-  const [isDriving, setIsDriving] = useState(false);
+  const { user, logout, selectedVehicleId, isDriving, selectVehicle, stopDriving, switchVehicle } = useAuthStore();
+  const { vehicles, fetchVehicles } = useVehicleStore();
   const [showPicker, setShowPicker] = useState(false);
+  const { isUnfolded } = useLayout();
+
+  useEffect(() => { fetchVehicles(); }, []);
+
+  // Resolve the persisted vehicleId to the actual vehicle object
+  const vehicle = isDriving && selectedVehicleId
+    ? vehicles.find(v => v.id === selectedVehicleId) || null
+    : null;
 
   function handleSelectVehicle(v) {
-    setVehicle(v);
-    setIsDriving(true);
+    selectVehicle(v.id);
     setShowPicker(false);
   }
 
   function handleStopDriving() {
-    setIsDriving(false);
-    setVehicle(null);
+    stopDriving();
+  }
+
+  function handleSwitchCar() {
+    setShowPicker(true);
   }
 
   const availableVehicles = vehicles.filter(v => !v.currentDriver);
@@ -125,12 +135,12 @@ export default function HomeScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <ScrollView style={styles.scroll} contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, isUnfolded && styles.contentUnfolded]} showsVerticalScrollIndicator={false}>
 
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>Hello, {user?.name?.split(' ')[0] || user?.username}</Text>
+            <Text style={[styles.greeting, isUnfolded && styles.greetingUnfolded]}>Hello, {user?.name?.split(' ')[0] || user?.username}</Text>
             <Text style={styles.role}>{isDriving ? 'On a journey' : 'Ready to drive'}</Text>
           </View>
           <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
@@ -139,91 +149,175 @@ export default function HomeScreen() {
         </View>
 
         {isDriving && vehicle ? (
-          <>
-            {/* Vehicle Hero — floating, no card bg */}
-            <View style={styles.heroSection}>
-              <View style={styles.heroBadge}>
-                <View style={styles.liveDot} />
-                <Text style={styles.liveText}>ACTIVE</Text>
+          isUnfolded ? (
+            /* ── Unfolded driving layout: side-by-side ── */
+            <>
+              <View style={styles.unfoldedDrivingRow}>
+                {/* Left half: hero car */}
+                <View style={styles.unfoldedHeroCol}>
+                  <View style={styles.heroBadge}>
+                    <View style={styles.liveDot} />
+                    <Text style={styles.liveText}>ACTIVE</Text>
+                  </View>
+                  <Text style={styles.heroNameUnfolded}>{vehicle.make} {vehicle.model}</Text>
+                  <UKPlate registration={vehicle.licensePlate} />
+                  {carImage ? (
+                    <Image source={carImage} style={styles.heroImageUnfolded} resizeMode="contain" />
+                  ) : (
+                    <View style={styles.heroImageFallback}>
+                      <Car size={48} color="#ccc" />
+                    </View>
+                  )}
+                  <View style={styles.groundShadow} />
+                </View>
+
+                {/* Right half: stats + actions */}
+                <View style={styles.unfoldedInfoCol}>
+                  {/* Stats Row */}
+                  <View style={styles.statsRowUnfolded}>
+                    <View style={styles.statCard}>
+                      <Navigation size={16} color="#018a16" />
+                      <Text style={styles.statLabel}>Status</Text>
+                      <Text style={styles.statValue}>Driving</Text>
+                    </View>
+                    <View style={styles.statDivider} />
+                    <View style={styles.statCard}>
+                      <MapPin size={16} color="#3B82F6" />
+                      <Text style={styles.statLabel}>Destination</Text>
+                      <Text style={styles.statValue} numberOfLines={1}>{vehicle.destination || 'Not set'}</Text>
+                    </View>
+                    <View style={styles.statDivider} />
+                    <View style={styles.statCard}>
+                      <View style={[styles.fuelDot, { backgroundColor: (vehicle.fuel?.level ?? 0) > 50 ? '#018a16' : (vehicle.fuel?.level ?? 0) > 20 ? '#f97316' : '#c4001a' }]} />
+                      <Text style={styles.statLabel}>Fuel</Text>
+                      <Text style={styles.statValue}>{vehicle.fuel?.level != null ? `${vehicle.fuel.level}%` : '—'}</Text>
+                    </View>
+                  </View>
+
+                  {/* Action Grid */}
+                  <View style={styles.actionGrid}>
+                    <TouchableOpacity style={styles.actionTile} activeOpacity={0.7}>
+                      <View style={[styles.actionIcon, { backgroundColor: '#fff7ed' }]}>
+                        <Fuel size={20} color="#f97316" />
+                      </View>
+                      <Text style={styles.actionLabel}>Fuel Up</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.actionTile} activeOpacity={0.7}>
+                      <View style={[styles.actionIcon, { backgroundColor: '#faf5ff' }]}>
+                        <ReceiptText size={20} color="#7c3aed" />
+                      </View>
+                      <Text style={styles.actionLabel}>Add Ticket</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.actionTile} activeOpacity={0.7}>
+                      <View style={[styles.actionIcon, { backgroundColor: '#fef2f2' }]}>
+                        <AlertTriangle size={20} color="#dc2626" />
+                      </View>
+                      <Text style={styles.actionLabel}>Report Issue</Text>
+                    </TouchableOpacity>
+                    <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={handleSwitchCar}>
+                      <View style={[styles.actionIcon, { backgroundColor: '#f0f9ff' }]}>
+                        <RefreshCw size={20} color="#0284c7" />
+                      </View>
+                      <Text style={styles.actionLabel}>Switch Car</Text>
+                    </TouchableOpacity>
+                  </View>
+
+                  {/* Stop Driving */}
+                  <TouchableOpacity style={styles.stopBtn} activeOpacity={0.8} onPress={handleStopDriving}>
+                    <LogOut size={18} color="#c4001a" />
+                    <Text style={styles.stopBtnText}>Stop Driving — Park Vehicle</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </>
+          ) : (
+            /* ── Phone driving layout (unchanged) ── */
+            <>
+              {/* Vehicle Hero — floating, no card bg */}
+              <View style={styles.heroSection}>
+                <View style={styles.heroBadge}>
+                  <View style={styles.liveDot} />
+                  <Text style={styles.liveText}>ACTIVE</Text>
+                </View>
+
+                <Text style={styles.heroName}>{vehicle.make} {vehicle.model}</Text>
+                <UKPlate registration={vehicle.licensePlate} />
+
+                {carImage ? (
+                  <Image source={carImage} style={styles.heroImage} resizeMode="contain" />
+                ) : (
+                  <View style={styles.heroImageFallback}>
+                    <Car size={48} color="#ccc" />
+                  </View>
+                )}
+                <View style={styles.groundShadow} />
               </View>
 
-              <Text style={styles.heroName}>{vehicle.make} {vehicle.model}</Text>
-              <UKPlate registration={vehicle.licensePlate} />
-
-              {carImage ? (
-                <Image source={carImage} style={styles.heroImage} resizeMode="contain" />
-              ) : (
-                <View style={styles.heroImageFallback}>
-                  <Car size={48} color="#ccc" />
+              {/* Stats Row */}
+              <View style={styles.statsRow}>
+                <View style={styles.statCard}>
+                  <Navigation size={16} color="#018a16" />
+                  <Text style={styles.statLabel}>Status</Text>
+                  <Text style={styles.statValue}>Driving</Text>
                 </View>
-              )}
-              <View style={styles.groundShadow} />
-            </View>
-
-            {/* Stats Row */}
-            <View style={styles.statsRow}>
-              <View style={styles.statCard}>
-                <Navigation size={16} color="#018a16" />
-                <Text style={styles.statLabel}>Status</Text>
-                <Text style={styles.statValue}>Driving</Text>
+                <View style={styles.statDivider} />
+                <View style={styles.statCard}>
+                  <MapPin size={16} color="#3B82F6" />
+                  <Text style={styles.statLabel}>Destination</Text>
+                  <Text style={styles.statValue} numberOfLines={1}>{vehicle.destination || 'Not set'}</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statCard}>
+                  <View style={[styles.fuelDot, { backgroundColor: (vehicle.fuel?.level ?? 0) > 50 ? '#018a16' : (vehicle.fuel?.level ?? 0) > 20 ? '#f97316' : '#c4001a' }]} />
+                  <Text style={styles.statLabel}>Fuel</Text>
+                  <Text style={styles.statValue}>{vehicle.fuel?.level != null ? `${vehicle.fuel.level}%` : '—'}</Text>
+                </View>
               </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statCard}>
-                <MapPin size={16} color="#3B82F6" />
-                <Text style={styles.statLabel}>Destination</Text>
-                <Text style={styles.statValue} numberOfLines={1}>{vehicle.destination || 'Not set'}</Text>
-              </View>
-              <View style={styles.statDivider} />
-              <View style={styles.statCard}>
-                <View style={[styles.fuelDot, { backgroundColor: '#f97316' }]} />
-                <Text style={styles.statLabel}>Fuel</Text>
-                <Text style={styles.statValue}>{vehicle.fuelLevel || '—'}</Text>
-              </View>
-            </View>
 
-            {/* Action Grid */}
-            <View style={styles.actionGrid}>
-              <TouchableOpacity style={styles.actionTile} activeOpacity={0.7}>
-                <View style={[styles.actionIcon, { backgroundColor: '#fff7ed' }]}>
-                  <Fuel size={20} color="#f97316" />
-                </View>
-                <Text style={styles.actionLabel}>Fuel Up</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionTile} activeOpacity={0.7}>
-                <View style={[styles.actionIcon, { backgroundColor: '#faf5ff' }]}>
-                  <ReceiptText size={20} color="#7c3aed" />
-                </View>
-                <Text style={styles.actionLabel}>Add Ticket</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionTile} activeOpacity={0.7}>
-                <View style={[styles.actionIcon, { backgroundColor: '#fef2f2' }]}>
-                  <AlertTriangle size={20} color="#dc2626" />
-                </View>
-                <Text style={styles.actionLabel}>Report Issue</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={() => setShowPicker(true)}>
-                <View style={[styles.actionIcon, { backgroundColor: '#f0f9ff' }]}>
-                  <RefreshCw size={20} color="#0284c7" />
-                </View>
-                <Text style={styles.actionLabel}>Switch Car</Text>
-              </TouchableOpacity>
-            </View>
+              {/* Action Grid */}
+              <View style={styles.actionGrid}>
+                <TouchableOpacity style={styles.actionTile} activeOpacity={0.7}>
+                  <View style={[styles.actionIcon, { backgroundColor: '#fff7ed' }]}>
+                    <Fuel size={20} color="#f97316" />
+                  </View>
+                  <Text style={styles.actionLabel}>Fuel Up</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.actionTile} activeOpacity={0.7}>
+                  <View style={[styles.actionIcon, { backgroundColor: '#faf5ff' }]}>
+                    <ReceiptText size={20} color="#7c3aed" />
+                  </View>
+                  <Text style={styles.actionLabel}>Add Ticket</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.actionTile} activeOpacity={0.7}>
+                  <View style={[styles.actionIcon, { backgroundColor: '#fef2f2' }]}>
+                    <AlertTriangle size={20} color="#dc2626" />
+                  </View>
+                  <Text style={styles.actionLabel}>Report Issue</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={() => setShowPicker(true)}>
+                  <View style={[styles.actionIcon, { backgroundColor: '#f0f9ff' }]}>
+                    <RefreshCw size={20} color="#0284c7" />
+                  </View>
+                  <Text style={styles.actionLabel}>Switch Car</Text>
+                </TouchableOpacity>
+              </View>
 
-            {/* Stop Driving */}
-            <TouchableOpacity style={styles.stopBtn} activeOpacity={0.8} onPress={handleStopDriving}>
-              <LogOut size={18} color="#c4001a" />
-              <Text style={styles.stopBtnText}>Stop Driving — Park Vehicle</Text>
-            </TouchableOpacity>
-          </>
+              {/* Stop Driving */}
+              <TouchableOpacity style={styles.stopBtn} activeOpacity={0.8} onPress={handleStopDriving}>
+                <LogOut size={18} color="#c4001a" />
+                <Text style={styles.stopBtnText}>Stop Driving — Park Vehicle</Text>
+              </TouchableOpacity>
+            </>
+          )
         ) : (
           /* Not Driving */
-          <View style={styles.emptyState}>
-            <View style={styles.emptyCarBox}>
-              <Car size={40} color="#d1d5db" />
+          <View style={[styles.emptyState, isUnfolded && styles.emptyStateUnfolded]}>
+            <View style={[styles.emptyCarBox, isUnfolded && styles.emptyCarBoxUnfolded]}>
+              <Car size={isUnfolded ? 48 : 40} color="#d1d5db" />
             </View>
-            <Text style={styles.emptyTitle}>No vehicle selected</Text>
-            <Text style={styles.emptySubtitle}>Choose a vehicle to begin your journey</Text>
-            <TouchableOpacity style={styles.selectBtn} activeOpacity={0.85} onPress={() => setShowPicker(true)}>
+            <Text style={[styles.emptyTitle, isUnfolded && styles.emptyTitleUnfolded]}>No vehicle selected</Text>
+            <Text style={[styles.emptySubtitle, isUnfolded && styles.emptySubtitleUnfolded]}>Choose a vehicle to begin your journey</Text>
+            <TouchableOpacity style={[styles.selectBtn, isUnfolded && styles.selectBtnUnfolded]} activeOpacity={0.85} onPress={() => setShowPicker(true)}>
               <Navigation size={18} color="#fff" />
               <Text style={styles.selectBtnText}>Select Vehicle</Text>
             </TouchableOpacity>
@@ -262,6 +356,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#f5f5f5' },
   scroll: { flex: 1 },
   content: { padding: 20, paddingBottom: 40 },
+  contentUnfolded: { padding: 28, paddingBottom: 48 },
 
   header: {
     flexDirection: 'row',
@@ -270,6 +365,7 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   greeting: { fontSize: 24, fontWeight: '700', color: '#000' },
+  greetingUnfolded: { fontSize: 28 },
   role: { fontSize: 13, color: '#888', marginTop: 2 },
   logoutBtn: {
     width: 38, height: 38, borderRadius: 19,
@@ -361,13 +457,17 @@ const styles = StyleSheet.create({
 
   // Empty state
   emptyState: { alignItems: 'center', paddingTop: 60 },
+  emptyStateUnfolded: { paddingTop: 90, paddingHorizontal: 40 },
   emptyCarBox: {
     width: 90, height: 90, borderRadius: 45,
     backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center',
     marginBottom: 20, borderWidth: 1, borderColor: '#ebebeb',
   },
+  emptyCarBoxUnfolded: { width: 110, height: 110, borderRadius: 55, marginBottom: 28 },
   emptyTitle: { fontSize: 20, fontWeight: '700', color: '#111', marginBottom: 6 },
+  emptyTitleUnfolded: { fontSize: 24 },
   emptySubtitle: { fontSize: 14, color: '#aaa', marginBottom: 28, textAlign: 'center' },
+  emptySubtitleUnfolded: { fontSize: 16, marginBottom: 36 },
   selectBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -377,7 +477,46 @@ const styles = StyleSheet.create({
     paddingHorizontal: 32,
     paddingVertical: 15,
   },
+  selectBtnUnfolded: { paddingHorizontal: 44, paddingVertical: 18, borderRadius: 16 },
   selectBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+
+  // ── Unfolded driving layout ──
+  unfoldedDrivingRow: {
+    flexDirection: 'row',
+    gap: 20,
+  },
+  unfoldedHeroCol: {
+    flex: 1,
+    alignItems: 'center',
+  },
+  heroNameUnfolded: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#000',
+    marginBottom: 8,
+    textAlign: 'center',
+    letterSpacing: 1,
+    textTransform: 'uppercase',
+  },
+  heroImageUnfolded: {
+    width: '115%',
+    height: 200,
+    marginTop: -6,
+  },
+  unfoldedInfoCol: {
+    flex: 1,
+    justifyContent: 'center',
+  },
+  statsRowUnfolded: {
+    flexDirection: 'row',
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 14,
+    borderWidth: 1,
+    borderColor: '#ebebeb',
+    alignItems: 'center',
+  },
 
   // Modal
   modalSafe: { flex: 1, backgroundColor: '#f5f5f5' },

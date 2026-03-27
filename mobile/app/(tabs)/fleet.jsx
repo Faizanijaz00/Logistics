@@ -5,16 +5,17 @@ import { Car, ChevronRight, Navigation, Wrench } from 'lucide-react-native';
 import { useRouter } from 'expo-router';
 import { useVehicleStore } from '../../src/store/vehicleStore';
 import { getCarImage } from '../../src/config/carImages';
+import { useLayout } from '../../src/hooks/useLayout';
 
-function UKPlate({ registration }) {
+function UKPlate({ registration, small }) {
   if (!registration) return null;
   return (
     <View style={plateStyles.plate}>
       <View style={plateStyles.gbStrip}>
-        <Text style={plateStyles.gbFlag}>🇬🇧</Text>
-        <Text style={plateStyles.gbText}>GB</Text>
+        <Text style={[plateStyles.gbFlag, small && { fontSize: 7 }]}>🇬🇧</Text>
+        <Text style={[plateStyles.gbText, small && { fontSize: 5 }]}>GB</Text>
       </View>
-      <Text style={plateStyles.plateText}>{registration}</Text>
+      <Text style={[plateStyles.plateText, small && { fontSize: 10, paddingHorizontal: 6, paddingVertical: 1 }]}>{registration}</Text>
     </View>
   );
 }
@@ -86,6 +87,7 @@ const badgeStyles = StyleSheet.create({
   pText: { color: '#fff', fontSize: 10, fontWeight: '800' },
 });
 
+/* ── Phone layout row (unchanged) ── */
 function VehicleRow({ vehicle }) {
   const router = useRouter();
   const isMaintenance = vehicle.status === 'maintenance' || vehicle.status === 'out_of_order';
@@ -94,7 +96,10 @@ function VehicleRow({ vehicle }) {
 
   return (
     <TouchableOpacity
-      style={[styles.vehicleRow, isMaintenance && styles.vehicleRowMaintenance]}
+      style={[
+        styles.vehicleRow,
+        isMaintenance && styles.vehicleRowMaintenance,
+      ]}
       activeOpacity={0.6}
       onPress={() => router.push(`/vehicle/${vehicle.id}`)}>
       <View style={styles.imageBox}>
@@ -113,7 +118,7 @@ function VehicleRow({ vehicle }) {
         <Text style={styles.vehicleName}>{vehicle.make} {vehicle.model}</Text>
         <View style={styles.vehicleMeta}>
           <UKPlate registration={vehicle.licensePlate} />
-          {vehicle.color ? <Text style={styles.vehicleColor}>{vehicle.color}</Text> : null}
+          {vehicle.fuel?.level != null ? <Text style={styles.vehicleFuel}>{vehicle.fuel.level}%</Text> : null}
         </View>
       </View>
       <View style={styles.statusAndArrow}>
@@ -124,8 +129,134 @@ function VehicleRow({ vehicle }) {
   );
 }
 
+/* ── Unfolded floating card ── */
+function FloatingCarCard({ vehicle }) {
+  const router = useRouter();
+  const isMaintenance = vehicle.status === 'maintenance' || vehicle.status === 'out_of_order';
+  const isActive = vehicle.currentDriver || vehicle.status === 'active';
+  const carImage = getCarImage(vehicle.imageId);
+
+  const statusColor = isMaintenance ? '#ef4444' : isActive ? '#018a16' : '#ccc';
+
+  return (
+    <TouchableOpacity
+      style={floatStyles.card}
+      activeOpacity={0.7}
+      onPress={() => router.push(`/vehicle/${vehicle.id}`)}
+    >
+      {/* Floating car image area - no background */}
+      <View style={floatStyles.imageArea}>
+        {carImage ? (
+          <Image source={carImage} style={floatStyles.carImage} resizeMode="contain" />
+        ) : (
+          <View style={floatStyles.iconFallback}>
+            {isMaintenance
+              ? <Wrench size={28} color="#ef4444" />
+              : <Car size={28} color={isActive ? '#018a16' : '#888'} />}
+          </View>
+        )}
+        {/* Ground shadow under the car */}
+        <View style={floatStyles.groundShadow} />
+      </View>
+
+      {/* Card info section */}
+      <View style={floatStyles.infoSection}>
+        <Text style={floatStyles.carName} numberOfLines={1}>
+          {vehicle.make} {vehicle.model}
+        </Text>
+        <View style={floatStyles.plateRow}>
+          <UKPlate registration={vehicle.licensePlate} small />
+        </View>
+        <View style={floatStyles.statusRow}>
+          <View style={[floatStyles.statusDot, { backgroundColor: statusColor }]} />
+          <Text style={[floatStyles.statusLabel, { color: statusColor === '#ccc' ? '#999' : statusColor }]}>
+            {isMaintenance ? 'Maintenance' : isActive ? 'Active' : 'Parked'}
+          </Text>
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
+}
+
+const floatStyles = StyleSheet.create({
+  card: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: '#ebebeb',
+    overflow: 'visible',
+    alignItems: 'center',
+  },
+  imageArea: {
+    width: '100%',
+    height: 100,
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    paddingBottom: 6,
+    overflow: 'visible',
+  },
+  carImage: {
+    width: '88%',
+    height: 85,
+    zIndex: 2,
+  },
+  iconFallback: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#f5f5f5',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 2,
+  },
+  groundShadow: {
+    position: 'absolute',
+    bottom: 0,
+    width: '70%',
+    height: 10,
+    borderRadius: 50,
+    backgroundColor: 'rgba(0,0,0,0.08)',
+    zIndex: 1,
+  },
+  infoSection: {
+    width: '100%',
+    paddingHorizontal: 12,
+    paddingBottom: 14,
+    paddingTop: 4,
+    alignItems: 'center',
+    gap: 5,
+  },
+  carName: {
+    fontSize: 12,
+    fontWeight: '800',
+    color: '#000',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    textAlign: 'center',
+  },
+  plateRow: {
+    alignItems: 'center',
+  },
+  statusRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    marginTop: 2,
+  },
+  statusDot: {
+    width: 7,
+    height: 7,
+    borderRadius: 3.5,
+  },
+  statusLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+  },
+});
+
 export default function FleetScreen() {
   const { vehicles, loading, fetchVehicles } = useVehicleStore();
+  const { isUnfolded } = useLayout();
 
   useEffect(() => {
     fetchVehicles();
@@ -133,15 +264,25 @@ export default function FleetScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Fleet</Text>
+      <View style={[styles.header, isUnfolded && styles.headerUnfolded]}>
+        <Text style={[styles.title, isUnfolded && styles.titleUnfolded]}>Fleet</Text>
         <Text style={styles.count}>{vehicles.length} vehicles</Text>
       </View>
       {loading ? (
         <View style={styles.loader}>
           <ActivityIndicator size="large" color="#000" />
         </View>
+      ) : isUnfolded ? (
+        /* ── Unfolded: 3-column floating card grid ── */
+        <ScrollView style={styles.scrollUnfolded} contentContainerStyle={styles.floatGrid}>
+          {vehicles.map(v => (
+            <View key={v.id} style={styles.floatGridItem}>
+              <FloatingCarCard vehicle={v} />
+            </View>
+          ))}
+        </ScrollView>
       ) : (
+        /* ── Phone: original row list ── */
         <ScrollView style={styles.scroll} contentContainerStyle={{ paddingBottom: 20 }}>
           {vehicles.map(v => (
             <VehicleRow key={v.id} vehicle={v} />
@@ -162,10 +303,30 @@ const styles = StyleSheet.create({
     paddingTop: 16,
     paddingBottom: 12,
   },
+  headerUnfolded: {
+    paddingHorizontal: 28,
+    paddingTop: 20,
+    paddingBottom: 16,
+  },
   title: { fontSize: 28, fontWeight: '700', color: '#000' },
+  titleUnfolded: { fontSize: 32 },
   count: { fontSize: 13, color: '#888' },
   scroll: { flex: 1, paddingHorizontal: 20 },
+  scrollUnfolded: { flex: 1, paddingHorizontal: 28 },
   loader: { flex: 1, alignItems: 'center', justifyContent: 'center' },
+
+  /* ── Unfolded 3-column floating grid ── */
+  floatGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 14,
+    paddingBottom: 20,
+  },
+  floatGridItem: {
+    width: '31.5%',
+  },
+
+  /* ── Phone row styles ── */
   vehicleRow: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -200,7 +361,7 @@ const styles = StyleSheet.create({
   vehicleDetails: { flex: 1 },
   vehicleName: { fontSize: 16, fontWeight: '800', color: '#000', marginBottom: 4, letterSpacing: 0.5, textTransform: 'uppercase' },
   vehicleMeta: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  vehicleColor: { fontSize: 12, color: '#888', marginLeft: 6 },
+  vehicleFuel: { fontSize: 12, color: '#888', marginLeft: 6 },
   statusAndArrow: {
     flexDirection: 'row',
     alignItems: 'center',

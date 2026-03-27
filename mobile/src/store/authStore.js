@@ -10,6 +10,12 @@ export const useAuthStore = create(
       user: null,
       loading: false,
       error: null,
+      selectedVehicleId: null,
+      isDriving: false,
+
+      selectVehicle: (vehicleId) => set({ selectedVehicleId: vehicleId, isDriving: true }),
+      stopDriving: () => set({ selectedVehicleId: null, isDriving: false }),
+      switchVehicle: (vehicleId) => set({ selectedVehicleId: vehicleId, isDriving: true }),
 
       login: async (username, password) => {
         set({ loading: true, error: null });
@@ -32,7 +38,7 @@ export const useAuthStore = create(
         }
       },
 
-      logout: () => set({ token: null, user: null }),
+      logout: () => set({ token: null, user: null, selectedVehicleId: null, isDriving: false }),
 
       fetchMe: async () => {
         const { token } = get();
@@ -58,7 +64,7 @@ export const useAuthStore = create(
     {
       name: 'auth-storage',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({ token: state.token, user: state.user }),
+      partialize: (state) => ({ token: state.token, user: state.user, selectedVehicleId: state.selectedVehicleId, isDriving: state.isDriving }),
     }
   )
 );
