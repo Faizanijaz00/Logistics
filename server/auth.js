@@ -114,7 +114,7 @@ export function registerAuthRoutes(app) {
         if (rows && rows.length > 0) {
           const user = rows[0];
           const token = signToken(user);
-          return res.json({ token, user: sanitizeUser(user) });
+          return res.json({ token, user: { ...sanitizeUser(user), disabledTabs: user.disabled_tabs || user.disabledTabs || [] } });
         }
       } catch (err) {
         console.warn('[Auth] Supabase login failed, trying local:', err.message);
@@ -142,7 +142,7 @@ export function registerAuthRoutes(app) {
     if (supabaseAvailable) {
       try {
         const rows = await sb(`/rest/v1/users?id=eq.${encodeURIComponent(req.user.id)}&select=*`);
-        if (rows && rows.length > 0) return res.json({ user: sanitizeUser(rows[0]) });
+        if (rows && rows.length > 0) return res.json({ user: { ...sanitizeUser(rows[0]), disabledTabs: rows[0].disabled_tabs || rows[0].disabledTabs || [] } });
       } catch { supabaseAvailable = false; }
     }
     // Local fallback
@@ -181,7 +181,13 @@ export function registerAuthRoutes(app) {
     if (supabaseAvailable) {
       try {
         const users = await sb('/rest/v1/users?select=*');
-        if (users) return res.json(users.map(sanitizeUser));
+        if (users) {
+          // Merge disabledTabs from local storage
+          const localUsers = loadLocalUsers();
+          const localMap = {};
+          localUsers.forEach(u => { localMap[u.username] = u.disabledTabs || []; });
+          return res.json(users.map(u => ({ ...sanitizeUser(u), disabledTabs: localMap[u.username] || u.disabled_tabs || u.disabledTabs || [] })));
+        }
       } catch { supabaseAvailable = false; }
     }
     // Local fallback
