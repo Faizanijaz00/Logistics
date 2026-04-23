@@ -113,9 +113,16 @@ export default function HomeScreen() {
   useEffect(() => { fetchVehicles(); }, []);
 
   // Resolve the persisted vehicleId to the actual vehicle object
-  const vehicle = isDriving && selectedVehicleId
+  const vehicle = selectedVehicleId
     ? vehicles.find(v => v.id === selectedVehicleId) || null
     : null;
+
+  // If we just selected a vehicle but vehicles haven't loaded yet, retry
+  useEffect(() => {
+    if (isDriving && selectedVehicleId && !vehicle && vehicles.length === 0) {
+      fetchVehicles();
+    }
+  }, [isDriving, selectedVehicleId, vehicle, vehicles.length]);
 
   function handleSelectVehicle(v) {
     selectVehicle(v.id);
