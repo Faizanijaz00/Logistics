@@ -9,6 +9,7 @@ import JourneyPlannerPage from '../../journeys/JourneyPlannerPage';
 import TicketsPage from '../../tickets/TicketsPage';
 import { MyProfilePage } from '../../profile';
 import { AdminOverviewPage } from '../../admin/AdminOverviewPage';
+import { FinancePage } from '../../admin/FinancePage';
 
 function getPage(pathname) {
   switch (pathname) {
@@ -18,6 +19,7 @@ function getPage(pathname) {
     case '/journeys': return <JourneyPlannerPage />;
     case '/tickets': return <TicketsPage />;
     case '/admin':   return <AdminOverviewPage />;
+    case '/finance': return <FinancePage />;
     default:         return <MyProfilePage />;
   }
 }

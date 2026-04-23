@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { Menu, Map, Car, User, Users, Bell, AlertCircle, LogOut, ChevronDown, BarChart3, Route, ReceiptText, ArrowLeft } from 'lucide-react';
+import { Menu, Map, Car, User, Users, Bell, AlertCircle, LogOut, ChevronDown, BarChart3, Route, ReceiptText, ArrowLeft, Calendar } from 'lucide-react';
 import { useNotificationStore, useEmergencyStore, useAuthStore, useVehicleStore } from '../../../store';
 import { useIsMobile } from '../../../hooks/useIsMobile';
 
@@ -19,6 +19,7 @@ const adminNavItems = [
   { to: '/journeys', icon: Route, label: 'Journeys' },
   { to: '/tickets', icon: ReceiptText, label: 'Tickets' },
   { to: '/admin', icon: BarChart3, label: 'Admin' },
+  { to: '/finance', icon: Calendar, label: 'Finance' },
 ];
 
 export function ModernSidebar() {
