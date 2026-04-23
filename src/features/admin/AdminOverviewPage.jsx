@@ -470,12 +470,9 @@ export function AdminOverviewPage() {
                   }}
                 >
                   <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>{label}</span>
-                  <div
-                    role="button"
-                    tabIndex={0}
-                    onClick={async (e) => {
-                      e.stopPropagation();
-                      e.preventDefault();
+                  <button
+                    type="button"
+                    onClick={async () => {
                       const shouldDisable = allEnabled || mixed;
                       const updatedUsers = [...allUsers];
                       for (const u of nonAdminUsers) {
@@ -492,33 +489,18 @@ export function AdminOverviewPage() {
                       setAllUsers(updatedUsers);
                     }}
                     style={{
-                      position: 'relative',
-                      width: '44px',
-                      height: '24px',
-                      borderRadius: '12px',
-                      border: mixed ? '2px solid #f59e0b' : 'none',
+                      padding: '4px 12px',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      border: 'none',
+                      borderRadius: '20px',
                       cursor: 'pointer',
-                      background: allEnabled ? '#22c55e' : mixed ? '#fef3c7' : '#d1d5db',
-                      transition: 'background 0.2s ease',
-                      flexShrink: 0,
+                      background: allEnabled ? '#22c55e' : mixed ? '#f59e0b' : '#d1d5db',
+                      color: '#fff',
                     }}
-                    title={allEnabled ? 'Disable for all' : allDisabled ? 'Enable for all' : 'Mixed — click to disable all'}
                   >
-                    <div
-                      style={{
-                        position: 'absolute',
-                        top: mixed ? '0px' : '2px',
-                        left: allEnabled ? '22px' : mixed ? '11px' : '2px',
-                        width: '20px',
-                        height: '20px',
-                        borderRadius: '50%',
-                        background: '#fff',
-                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                        transition: 'left 0.2s ease',
-                        pointerEvents: 'none',
-                      }}
-                    />
-                  </div>
+                    {allEnabled ? 'ON' : allDisabled ? 'OFF' : 'MIXED'}
+                  </button>
                 </div>
               );
             })}
@@ -1451,12 +1433,10 @@ export function AdminOverviewPage() {
                         }}
                       >
                         <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>{label}</span>
-                        <div
-                          role="button"
-                          tabIndex={0}
+                        <button
+                          type="button"
                           onClick={async (e) => {
                             e.stopPropagation();
-                            e.preventDefault();
                             const newDisabled = isEnabled
                               ? [...currentDisabled, path]
                               : currentDisabled.filter(t => t !== path);
@@ -1467,33 +1447,18 @@ export function AdminOverviewPage() {
                             }
                           }}
                           style={{
-                            position: 'relative',
-                            width: '44px',
-                            height: '24px',
-                            borderRadius: '12px',
+                            padding: '4px 12px',
+                            fontSize: '12px',
+                            fontWeight: '600',
                             border: 'none',
+                            borderRadius: '20px',
                             cursor: 'pointer',
                             background: isEnabled ? '#22c55e' : '#d1d5db',
-                            transition: 'background 0.2s ease',
-                            flexShrink: 0,
+                            color: '#fff',
                           }}
-                          title={isEnabled ? 'Click to disable' : 'Click to enable'}
                         >
-                          <div
-                            style={{
-                              position: 'absolute',
-                              top: '2px',
-                              left: isEnabled ? '22px' : '2px',
-                              width: '20px',
-                              height: '20px',
-                              borderRadius: '50%',
-                              background: '#ffffff',
-                              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
-                              transition: 'left 0.2s ease',
-                              pointerEvents: 'none',
-                            }}
-                          />
-                        </div>
+                          {isEnabled ? 'ON' : 'OFF'}
+                        </button>
                       </div>
                     );
                   })}
