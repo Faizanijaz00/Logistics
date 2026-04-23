@@ -232,13 +232,24 @@ export function registerAuthRoutes(app) {
     // Never allow disabling the admin tab
     const filtered = disabledTabs.filter(t => t !== '/admin');
     try {
+      // First find the username — could be a Supabase ID or local ID
+      let username = null;
+      if (supabaseAvailable) {
+        try {
+          const rows = await sb(`/rest/v1/users?id=eq.${encodeURIComponent(id)}&select=username`);
+          if (rows && rows.length > 0) username = rows[0].username;
+        } catch {}
+      }
       const users = loadLocalUsers();
-      const idx = users.findIndex(u => u.id === id);
+      // Match by ID first, then by username (handles Supabase IDs)
+      let idx = users.findIndex(u => u.id === id);
+      if (idx === -1 && username) idx = users.findIndex(u => u.username === username);
       if (idx === -1) return res.status(404).json({ error: 'User not found' });
       users[idx].disabledTabs = filtered;
       saveLocalUsers(users);
       const u = users[idx];
-      res.json({ user: { id: u.id, username: u.username, name: u.name, role: u.role, selectedVehicleId: u.selectedVehicleId || null, disabledTabs: u.disabledTabs || [] } });
+      // Return with the original ID so frontend stays consistent
+      res.json({ user: { id: id, username: u.username, name: u.name, role: u.role, selectedVehicleId: u.selectedVehicleId || null, disabledTabs: u.disabledTabs || [] } });
     } catch (err) {
       console.error('[Auth] Update tabs error:', err.message);
       res.status(500).json({ error: 'Failed to update tab access' });
