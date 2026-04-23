@@ -19,18 +19,20 @@ import { startTracking, stopTracking, getTrackingStatus } from './tracking.js';
 const app = express();
 const server = createServer(app);
 
-// CORS — allow configured origin plus any localhost port (for dev)
+// CORS — allow all origins when CORS_ORIGIN is '*', otherwise whitelist
+const corsWildcard = config.corsOrigin === '*';
 const ALLOWED_ORIGINS = new Set(
   [config.corsOrigin, process.env.CORS_ORIGIN_2].filter(Boolean)
 );
 app.use((req, res, next) => {
   const origin = req.headers.origin || '';
   const isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1|10\.0\.2\.2)(:\d+)?$/.test(origin);
-  if (isLocalhost || ALLOWED_ORIGINS.has(origin)) {
-    res.header('Access-Control-Allow-Origin', origin);
+  if (corsWildcard || isLocalhost || ALLOWED_ORIGINS.has(origin)) {
+    res.header('Access-Control-Allow-Origin', origin || '*');
   }
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   res.header('Access-Control-Allow-Methods', 'GET, POST, PATCH, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Credentials', 'true');
   if (req.method === 'OPTIONS') return res.sendStatus(200);
   next();
 });
