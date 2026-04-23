@@ -607,6 +607,103 @@ export function AdminOverviewPage() {
           </div>
         </div>
 
+        {/* Section: Universal Tab Access */}
+        <div
+          style={{
+            background: '#ffffff',
+            borderRadius: '4px',
+            border: '1px solid #e0e0e0',
+            marginBottom: '24px',
+            padding: mobile ? '16px' : '24px',
+          }}
+        >
+          <h2 style={{ fontSize: '16px', fontWeight: '600', margin: '0 0 20px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <Eye style={{ width: '18px', height: '18px', color: '#0061bd' }} />
+            Universal Tab Access
+          </h2>
+          <p style={{ fontSize: '12px', color: '#888', margin: '0 0 16px 0' }}>
+            Toggle tabs on or off for all drivers at once. This overrides individual settings.
+          </p>
+          <div style={{
+            display: 'grid',
+            gridTemplateColumns: mobile ? '1fr 1fr' : 'repeat(4, 1fr)',
+            gap: '10px',
+          }}>
+            {[
+              { path: '/map', label: 'Map' },
+              { path: '/fleet', label: 'Fleet' },
+              { path: '/journeys', label: 'Journeys' },
+              { path: '/tickets', label: 'Tickets' },
+            ].map(({ path, label }) => {
+              const nonAdminUsers = allUsers.filter(u => u.role !== 'admin');
+              const allEnabled = nonAdminUsers.every(u => !(u.disabledTabs || []).includes(path));
+              const allDisabled = nonAdminUsers.every(u => (u.disabledTabs || []).includes(path));
+              const mixed = !allEnabled && !allDisabled;
+              return (
+                <div
+                  key={path}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '12px 14px',
+                    background: '#fafafa',
+                    borderRadius: '8px',
+                    border: '1px solid #f0f0f0',
+                  }}
+                >
+                  <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>{label}</span>
+                  <button
+                    onClick={async () => {
+                      const shouldDisable = allEnabled || mixed;
+                      const updatedUsers = [...allUsers];
+                      for (const u of nonAdminUsers) {
+                        const currentDisabled = u.disabledTabs || [];
+                        const newDisabled = shouldDisable
+                          ? [...new Set([...currentDisabled, path])]
+                          : currentDisabled.filter(t => t !== path);
+                        const result = await updateUserTabs(u.id, newDisabled);
+                        if (result.user) {
+                          const idx = updatedUsers.findIndex(x => x.id === u.id);
+                          if (idx !== -1) updatedUsers[idx] = { ...updatedUsers[idx], disabledTabs: result.user.disabledTabs };
+                        }
+                      }
+                      setAllUsers(updatedUsers);
+                    }}
+                    style={{
+                      position: 'relative',
+                      width: '44px',
+                      height: '24px',
+                      borderRadius: '12px',
+                      border: mixed ? '2px solid #f59e0b' : 'none',
+                      cursor: 'pointer',
+                      background: allEnabled ? '#22c55e' : mixed ? '#fef3c7' : '#d1d5db',
+                      transition: 'background 0.2s ease',
+                      padding: 0,
+                      flexShrink: 0,
+                    }}
+                    title={allEnabled ? 'Disable for all' : allDisabled ? 'Enable for all' : 'Mixed — click to disable all'}
+                  >
+                    <span
+                      style={{
+                        position: 'absolute',
+                        top: mixed ? '0px' : '2px',
+                        left: allEnabled ? '22px' : mixed ? '11px' : '2px',
+                        width: '20px',
+                        height: '20px',
+                        borderRadius: '50%',
+                        background: '#fff',
+                        boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                        transition: 'left 0.2s ease',
+                      }}
+                    />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
         {/* Section: Driver Management */}
         <div
           style={{
