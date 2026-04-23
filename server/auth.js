@@ -244,6 +244,18 @@ export function registerAuthRoutes(app) {
       // Match by ID first, then by username (handles Supabase IDs)
       let idx = users.findIndex(u => u.id === id);
       if (idx === -1 && username) idx = users.findIndex(u => u.username === username);
+      // If user exists in Supabase but not locally, create a local entry
+      if (idx === -1 && username) {
+        let supaUser = null;
+        try {
+          const rows = await sb(`/rest/v1/users?username=eq.${encodeURIComponent(username)}&select=*`);
+          if (rows && rows.length > 0) supaUser = rows[0];
+        } catch {}
+        if (supaUser) {
+          users.push({ id: supaUser.id, username: supaUser.username, name: supaUser.name, role: supaUser.role, password: supaUser.password_hash || '', selectedVehicleId: null, disabledTabs: [], createdAt: new Date().toISOString() });
+          idx = users.length - 1;
+        }
+      }
       if (idx === -1) return res.status(404).json({ error: 'User not found' });
       users[idx].disabledTabs = filtered;
       saveLocalUsers(users);

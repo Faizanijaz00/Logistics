@@ -16,7 +16,11 @@
     "name": "Faizan",
     "role": "driver",
     "selectedVehicleId": null,
-    "disabledTabs": [],
+    "disabledTabs": [
+      "/fleet",
+      "/map",
+      "/tickets"
+    ],
     "createdAt": "2026-02-23T16:44:18.390Z"
   },
   {
@@ -26,7 +30,10 @@
     "name": "Ali",
     "role": "driver",
     "selectedVehicleId": null,
-    "disabledTabs": [],
+    "disabledTabs": [
+      "/fleet",
+      "/map"
+    ],
     "createdAt": "2026-02-23T17:10:52.220Z"
   },
   {
@@ -36,7 +43,10 @@
     "name": "Adam",
     "role": "driver",
     "selectedVehicleId": null,
-    "disabledTabs": [],
+    "disabledTabs": [
+      "/fleet",
+      "/map"
+    ],
     "createdAt": "2026-02-23T17:10:52.322Z"
   },
   {
@@ -46,7 +56,10 @@
     "name": "Fivos",
     "role": "driver",
     "selectedVehicleId": null,
-    "disabledTabs": [],
+    "disabledTabs": [
+      "/fleet",
+      "/map"
+    ],
     "createdAt": "2026-02-23T17:10:52.426Z"
   },
   {
@@ -56,7 +69,10 @@
     "name": "Aris",
     "role": "driver",
     "selectedVehicleId": null,
-    "disabledTabs": [],
+    "disabledTabs": [
+      "/fleet",
+      "/map"
+    ],
     "createdAt": "2026-02-23T17:10:52.530Z"
   },
   {
@@ -66,7 +82,10 @@
     "name": "Panos",
     "role": "driver",
     "selectedVehicleId": null,
-    "disabledTabs": [],
+    "disabledTabs": [
+      "/fleet",
+      "/map"
+    ],
     "createdAt": "2026-02-23T17:10:52.634Z"
   },
   {
@@ -76,7 +95,22 @@
     "name": "AR",
     "role": "driver",
     "selectedVehicleId": null,
-    "disabledTabs": [],
+    "disabledTabs": [
+      "/fleet",
+      "/map"
+    ],
     "createdAt": "2026-02-23T17:10:52.737Z"
+  },
+  {
+    "id": "user-1773023679-f023",
+    "username": "hamza",
+    "name": "Hamza",
+    "role": "driver",
+    "password": "$2a$06$uMgQcRvVRfQ2uKMNixihQO.TXhqoiTignfJfnB.k1/y6fqAGSJ4UC",
+    "selectedVehicleId": null,
+    "disabledTabs": [
+      "/map"
+    ],
+    "createdAt": "2026-04-23T20:01:55.270Z"
   }
 ]
