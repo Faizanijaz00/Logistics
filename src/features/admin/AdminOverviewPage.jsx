@@ -439,7 +439,7 @@ export function AdminOverviewPage() {
             Universal Tab Access
           </h2>
           <p style={{ fontSize: '12px', color: '#888', margin: '0 0 16px 0' }}>
-            Toggle tabs on or off for all drivers at once. This overrides individual settings.
+            Set tab visibility for all drivers at once.
           </p>
           <div style={{
             display: 'grid',
@@ -453,9 +453,9 @@ export function AdminOverviewPage() {
               { path: '/tickets', label: 'Tickets' },
             ].map(({ path, label }) => {
               const nonAdminUsers = allUsers.filter(u => u.role !== 'admin');
-              const allEnabled = nonAdminUsers.every(u => !(u.disabledTabs || []).includes(path));
-              const allDisabled = nonAdminUsers.every(u => (u.disabledTabs || []).includes(path));
-              const mixed = !allEnabled && !allDisabled;
+              const allEnabled = nonAdminUsers.length > 0 && nonAdminUsers.every(u => !(u.disabledTabs || []).includes(path));
+              const allDisabled = nonAdminUsers.length > 0 && nonAdminUsers.every(u => (u.disabledTabs || []).includes(path));
+              const currentValue = allEnabled ? 'on' : allDisabled ? 'off' : 'mixed';
               return (
                 <div
                   key={path}
@@ -470,10 +470,12 @@ export function AdminOverviewPage() {
                   }}
                 >
                   <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>{label}</span>
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      const shouldDisable = allEnabled || mixed;
+                  <select
+                    value={currentValue}
+                    onChange={async (e) => {
+                      const val = e.target.value;
+                      if (val === 'mixed') return;
+                      const shouldDisable = val === 'off';
                       const updatedUsers = [...allUsers];
                       for (const u of nonAdminUsers) {
                         const currentDisabled = u.disabledTabs || [];
@@ -489,18 +491,21 @@ export function AdminOverviewPage() {
                       setAllUsers(updatedUsers);
                     }}
                     style={{
-                      padding: '4px 12px',
+                      padding: '4px 8px',
                       fontSize: '12px',
-                      fontWeight: '600',
-                      border: 'none',
-                      borderRadius: '20px',
+                      fontWeight: '500',
+                      border: '1px solid #ddd',
+                      borderRadius: '6px',
                       cursor: 'pointer',
-                      background: allEnabled ? '#22c55e' : mixed ? '#f59e0b' : '#d1d5db',
-                      color: '#fff',
+                      background: currentValue === 'on' ? '#f0fdf4' : currentValue === 'off' ? '#fef2f2' : '#fffbeb',
+                      color: currentValue === 'on' ? '#15803d' : currentValue === 'off' ? '#b91c1c' : '#92400e',
+                      outline: 'none',
                     }}
                   >
-                    {allEnabled ? 'ON' : allDisabled ? 'OFF' : 'MIXED'}
-                  </button>
+                    <option value="on">Visible</option>
+                    <option value="off">Hidden</option>
+                    {currentValue === 'mixed' && <option value="mixed">Mixed</option>}
+                  </select>
                 </div>
               );
             })}
@@ -1433,12 +1438,12 @@ export function AdminOverviewPage() {
                         }}
                       >
                         <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>{label}</span>
-                        <button
-                          type="button"
-                          onClick={async (e) => {
+                        <select
+                          value={isEnabled ? 'on' : 'off'}
+                          onChange={async (e) => {
                             e.stopPropagation();
-                            const newDisabled = isEnabled
-                              ? [...currentDisabled, path]
+                            const newDisabled = e.target.value === 'off'
+                              ? [...new Set([...currentDisabled, path])]
                               : currentDisabled.filter(t => t !== path);
                             const result = await updateUserTabs(selectedDriver.id, newDisabled);
                             if (result?.user) {
@@ -1447,18 +1452,20 @@ export function AdminOverviewPage() {
                             }
                           }}
                           style={{
-                            padding: '4px 12px',
+                            padding: '4px 8px',
                             fontSize: '12px',
-                            fontWeight: '600',
-                            border: 'none',
-                            borderRadius: '20px',
+                            fontWeight: '500',
+                            border: '1px solid #ddd',
+                            borderRadius: '6px',
                             cursor: 'pointer',
-                            background: isEnabled ? '#22c55e' : '#d1d5db',
-                            color: '#fff',
+                            background: isEnabled ? '#f0fdf4' : '#fef2f2',
+                            color: isEnabled ? '#15803d' : '#b91c1c',
+                            outline: 'none',
                           }}
                         >
-                          {isEnabled ? 'ON' : 'OFF'}
-                        </button>
+                          <option value="on">Visible</option>
+                          <option value="off">Hidden</option>
+                        </select>
                       </div>
                     );
                   })}
