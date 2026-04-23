@@ -1,6 +1,5 @@
 import { create } from 'zustand';
-
-const API = 'http://localhost:3001';
+import { SERVER_URL } from '../config/api';
 
 function getToken() {
   try {
@@ -36,7 +35,7 @@ export const useCarImageStore = create((set, get) => ({
     const token = getToken();
     if (!token) return;
     try {
-      const res = await fetch(`${API}/api/car-images`, {
+      const res = await fetch(`${SERVER_URL}/api/car-images`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) return;
@@ -65,7 +64,7 @@ export const useCarImageStore = create((set, get) => ({
     set((state) => ({ images: [...state.images, newImage] }));
     const token = getToken();
     if (token) {
-      await fetch(`${API}/api/car-images`, {
+      await fetch(`${SERVER_URL}/api/car-images`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(newImage),

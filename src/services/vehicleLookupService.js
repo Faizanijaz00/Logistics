@@ -1,7 +1,7 @@
 // Vehicle lookup service - fetches vehicle details from registration number
 // Proxied through the backend server to avoid CORS issues with DVLA API
 
-const SERVER_URL = 'http://localhost:3001';
+import { SERVER_URL } from '../config/api';
 
 function getToken() {
   try {

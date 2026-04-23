@@ -3,6 +3,7 @@ import { useVehicleStore, useCarImageStore, useAuthStore } from '../../store';
 import { Plus, Trash2, X, ChevronRight, Pencil, Image, Link, Search, Loader2, Upload } from 'lucide-react';
 import { lookupVehicle } from '../../services/vehicleLookupService';
 import { useIsMobile } from '../../hooks/useIsMobile';
+import { SERVER_URL } from '../../config/api';
 
 // Default fallback car image
 const DEFAULT_CAR_IMAGE = '/cars/merc.png';
@@ -447,7 +448,7 @@ function VehicleDetail({ vehicle, onClose, carImages, isAdmin, onUpdateVehicle }
         reader.readAsDataURL(file);
       });
       const authHeader = useAuthStore.getState().getAuthHeader();
-      const resp = await fetch('http://localhost:3001/api/upload-photo', {
+      const resp = await fetch(`${SERVER_URL}/api/upload-photo`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ imageData: dataUri }),
@@ -474,7 +475,7 @@ function VehicleDetail({ vehicle, onClose, carImages, isAdmin, onUpdateVehicle }
         reader.readAsDataURL(file);
       });
       const authHeader = useAuthStore.getState().getAuthHeader();
-      const resp = await fetch('http://localhost:3001/api/upload-doc', {
+      const resp = await fetch(`${SERVER_URL}/api/upload-doc`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', ...authHeader },
         body: JSON.stringify({ imageData: dataUri, filename: file.name }),
@@ -1318,7 +1319,7 @@ function ManageImagesModal({ onClose, images, onAddImage, onRemoveImage, onRenam
   // Upload single image to server — removes bg and saves as file
   const uploadToServer = async (dataUri) => {
     const authHeader = useAuthStore.getState().getAuthHeader();
-    const resp = await fetch('http://localhost:3001/api/upload-image', {
+    const resp = await fetch(`${SERVER_URL}/api/upload-image`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', ...authHeader },
       body: JSON.stringify({ imageData: dataUri }),

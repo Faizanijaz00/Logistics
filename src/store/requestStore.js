@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 import { useVehicleStore } from './vehicleStore';
 import { useNotificationStore } from './notificationStore';
-
-const API = 'http://localhost:3001';
+import { SERVER_URL } from '../config/api';
 
 function getToken() {
   try {
@@ -15,7 +14,7 @@ function getToken() {
 async function api(method, path, body) {
   const token = getToken();
   if (!token) return null;
-  const res = await fetch(`${API}${path}`, {
+  const res = await fetch(`${SERVER_URL}${path}`, {
     method,
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: body ? JSON.stringify(body) : undefined,

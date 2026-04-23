@@ -1,7 +1,6 @@
 import { create } from 'zustand';
 import { useActivityStore } from './activityStore';
-
-const API = 'http://localhost:3001';
+import { SERVER_URL } from '../config/api';
 
 function getToken() {
   try {
@@ -14,7 +13,7 @@ function getToken() {
 async function apiPatch(id, updates) {
   const token = getToken();
   if (!token) return;
-  await fetch(`${API}/api/vehicles/${id}`, {
+  await fetch(`${SERVER_URL}/api/vehicles/${id}`, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(updates),
@@ -24,7 +23,7 @@ async function apiPatch(id, updates) {
 async function apiPost(vehicle) {
   const token = getToken();
   if (!token) return null;
-  const res = await fetch(`${API}/api/vehicles`, {
+  const res = await fetch(`${SERVER_URL}/api/vehicles`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
     body: JSON.stringify(vehicle),
@@ -35,7 +34,7 @@ async function apiPost(vehicle) {
 async function apiDelete(id) {
   const token = getToken();
   if (!token) return;
-  await fetch(`${API}/api/vehicles/${id}`, {
+  await fetch(`${SERVER_URL}/api/vehicles/${id}`, {
     method: 'DELETE',
     headers: { Authorization: `Bearer ${token}` },
   }).catch(() => {});
@@ -63,7 +62,7 @@ export const useVehicleStore = create((set, get) => ({
     if (!token) return;
     set({ loading: true });
     try {
-      const res = await fetch(`${API}/api/vehicles`, {
+      const res = await fetch(`${SERVER_URL}/api/vehicles`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
