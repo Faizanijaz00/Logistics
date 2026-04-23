@@ -470,8 +470,12 @@ export function AdminOverviewPage() {
                   }}
                 >
                   <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>{label}</span>
-                  <button
-                    onClick={async () => {
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      e.preventDefault();
                       const shouldDisable = allEnabled || mixed;
                       const updatedUsers = [...allUsers];
                       for (const u of nonAdminUsers) {
@@ -480,7 +484,7 @@ export function AdminOverviewPage() {
                           ? [...new Set([...currentDisabled, path])]
                           : currentDisabled.filter(t => t !== path);
                         const result = await updateUserTabs(u.id, newDisabled);
-                        if (result.user) {
+                        if (result?.user) {
                           const idx = updatedUsers.findIndex(x => x.id === u.id);
                           if (idx !== -1) updatedUsers[idx] = { ...updatedUsers[idx], disabledTabs: result.user.disabledTabs };
                         }
@@ -496,12 +500,11 @@ export function AdminOverviewPage() {
                       cursor: 'pointer',
                       background: allEnabled ? '#22c55e' : mixed ? '#fef3c7' : '#d1d5db',
                       transition: 'background 0.2s ease',
-                      padding: 0,
                       flexShrink: 0,
                     }}
                     title={allEnabled ? 'Disable for all' : allDisabled ? 'Enable for all' : 'Mixed — click to disable all'}
                   >
-                    <span
+                    <div
                       style={{
                         position: 'absolute',
                         top: mixed ? '0px' : '2px',
@@ -512,9 +515,10 @@ export function AdminOverviewPage() {
                         background: '#fff',
                         boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
                         transition: 'left 0.2s ease',
+                        pointerEvents: 'none',
                       }}
                     />
-                  </button>
+                  </div>
                 </div>
               );
             })}
@@ -1447,13 +1451,17 @@ export function AdminOverviewPage() {
                         }}
                       >
                         <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>{label}</span>
-                        <button
-                          onClick={async () => {
+                        <div
+                          role="button"
+                          tabIndex={0}
+                          onClick={async (e) => {
+                            e.stopPropagation();
+                            e.preventDefault();
                             const newDisabled = isEnabled
                               ? [...currentDisabled, path]
                               : currentDisabled.filter(t => t !== path);
                             const result = await updateUserTabs(selectedDriver.id, newDisabled);
-                            if (result.user) {
+                            if (result?.user) {
                               setSelectedDriver({ ...selectedDriver, disabledTabs: result.user.disabledTabs });
                               setAllUsers(prev => prev.map(u => u.id === selectedDriver.id ? { ...u, disabledTabs: result.user.disabledTabs } : u));
                             }
@@ -1467,12 +1475,11 @@ export function AdminOverviewPage() {
                             cursor: 'pointer',
                             background: isEnabled ? '#22c55e' : '#d1d5db',
                             transition: 'background 0.2s ease',
-                            padding: 0,
                             flexShrink: 0,
                           }}
                           title={isEnabled ? 'Click to disable' : 'Click to enable'}
                         >
-                          <span
+                          <div
                             style={{
                               position: 'absolute',
                               top: '2px',
@@ -1483,9 +1490,10 @@ export function AdminOverviewPage() {
                               background: '#ffffff',
                               boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
                               transition: 'left 0.2s ease',
+                              pointerEvents: 'none',
                             }}
                           />
-                        </button>
+                        </div>
                       </div>
                     );
                   })}
