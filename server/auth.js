@@ -1,8 +1,24 @@
 import jwt from 'jsonwebtoken';
+import bcrypt from 'bcrypt';
+import { readFileSync, writeFileSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
 import { config } from './config.js';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const USERS_FILE = join(__dirname, 'data', 'users.json');
 
 const SUPABASE_URL = 'https://bwwfrdwpcxzlvprswzne.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3d2ZyZHdwY3h6bHZwcnN3em5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTY2MjIsImV4cCI6MjA4ODU3MjYyMn0.KYJYGHFo2WstiVFgEIuBv0P3i40OM4wcHmdkLcujVeo';
+
+let supabaseAvailable = true;
+
+function loadLocalUsers() {
+  try { return JSON.parse(readFileSync(USERS_FILE, 'utf8')); } catch { return []; }
+}
+function saveLocalUsers(users) {
+  writeFileSync(USERS_FILE, JSON.stringify(users, null, 2));
+}
 
 // --- Supabase REST helper ---
 
@@ -69,31 +85,52 @@ export async function seedUsers() {
   try {
     const users = await sb('/rest/v1/users?select=username');
     console.log(`[Auth] Supabase connected — ${users.length} user(s) loaded`);
+    supabaseAvailable = true;
   } catch (err) {
-    console.error('[Auth] Supabase connection failed:', err.message);
+    console.error('[Auth] Supabase connection failed, using local auth:', err.message);
+    supabaseAvailable = false;
+    const localUsers = loadLocalUsers();
+    console.log(`[Auth] Local fallback — ${localUsers.length} user(s) loaded`);
   }
 }
 
 // --- Route handlers ---
 
 export function registerAuthRoutes(app) {
-  // Login
+  // Login — tries Supabase first, falls back to local JSON
   app.post('/api/auth/login', async (req, res) => {
     const { username, password } = req.body;
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password required' });
     }
-    try {
-      const rows = await sb('/rest/v1/rpc/verify_user', {
-        method: 'POST',
-        body: JSON.stringify({ p_username: username, p_password: password }),
-      });
-      if (!rows || rows.length === 0) {
-        return res.status(401).json({ error: 'Invalid credentials' });
+
+    // Try Supabase first
+    if (supabaseAvailable) {
+      try {
+        const rows = await sb('/rest/v1/rpc/verify_user', {
+          method: 'POST',
+          body: JSON.stringify({ p_username: username, p_password: password }),
+        });
+        if (rows && rows.length > 0) {
+          const user = rows[0];
+          const token = signToken(user);
+          return res.json({ token, user: sanitizeUser(user) });
+        }
+      } catch (err) {
+        console.warn('[Auth] Supabase login failed, trying local:', err.message);
+        supabaseAvailable = false;
       }
-      const user = rows[0];
+    }
+
+    // Local fallback
+    try {
+      const users = loadLocalUsers();
+      const user = users.find(u => u.username === username);
+      if (!user) return res.status(401).json({ error: 'Invalid credentials' });
+      const match = await bcrypt.compare(password, user.password);
+      if (!match) return res.status(401).json({ error: 'Invalid credentials' });
       const token = signToken(user);
-      res.json({ token, user: sanitizeUser(user) });
+      res.json({ token, user: { id: user.id, username: user.username, name: user.name, role: user.role, selectedVehicleId: user.selectedVehicleId || null } });
     } catch (err) {
       console.error('[Auth] Login error:', err.message);
       res.status(500).json({ error: 'Login failed' });
@@ -102,13 +139,17 @@ export function registerAuthRoutes(app) {
 
   // Get current user
   app.get('/api/auth/me', requireAuth, async (req, res) => {
-    try {
-      const rows = await sb(`/rest/v1/users?id=eq.${encodeURIComponent(req.user.id)}&select=*`);
-      if (!rows || rows.length === 0) return res.status(404).json({ error: 'User not found' });
-      res.json({ user: sanitizeUser(rows[0]) });
-    } catch (err) {
-      res.status(500).json({ error: 'Failed to fetch user' });
+    if (supabaseAvailable) {
+      try {
+        const rows = await sb(`/rest/v1/users?id=eq.${encodeURIComponent(req.user.id)}&select=*`);
+        if (rows && rows.length > 0) return res.json({ user: sanitizeUser(rows[0]) });
+      } catch { supabaseAvailable = false; }
     }
+    // Local fallback
+    const users = loadLocalUsers();
+    const user = users.find(u => u.id === req.user.id);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json({ user: { id: user.id, username: user.username, name: user.name, role: user.role, selectedVehicleId: user.selectedVehicleId || null } });
   });
 
   // Select a vehicle (assigns to current user, clears previous driver)
@@ -137,12 +178,15 @@ export function registerAuthRoutes(app) {
 
   // Get all users
   app.get('/api/auth/users', requireAuth, async (req, res) => {
-    try {
-      const users = await sb('/rest/v1/users?select=*');
-      res.json(users.map(sanitizeUser));
-    } catch (err) {
-      res.status(500).json({ error: 'Failed to fetch users' });
+    if (supabaseAvailable) {
+      try {
+        const users = await sb('/rest/v1/users?select=*');
+        if (users) return res.json(users.map(sanitizeUser));
+      } catch { supabaseAvailable = false; }
     }
+    // Local fallback
+    const users = loadLocalUsers();
+    res.json(users.map(u => ({ id: u.id, username: u.username, name: u.name, role: u.role, selectedVehicleId: u.selectedVehicleId || null })));
   });
 
   // Create a new user (admin only)
