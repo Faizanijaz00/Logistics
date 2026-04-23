@@ -30,9 +30,10 @@ export function ModernSidebar() {
   const cachedUsers = useAuthStore((s) => s.cachedUsers);
   const isAdmin = user?.role === 'admin' || adminUser != null;
   const firstTabLabel = user?.role === 'admin' ? 'Home Page' : (user?.name || user?.username || 'Current Drive');
-  const navItems = (isAdmin ? adminNavItems : driverNavItems).map((item, i) =>
-    i === 0 ? { ...item, label: firstTabLabel } : item
-  );
+  const disabledTabs = user?.disabledTabs || [];
+  const navItems = (isAdmin ? adminNavItems : driverNavItems)
+    .filter(item => item.to === '/admin' || !disabledTabs.includes(item.to))
+    .map((item, i) => i === 0 ? { ...item, label: firstTabLabel } : item);
   const [showUserMenu, setShowUserMenu] = useState(false);
   const menuRef = useRef(null);
   const mobile = useIsMobile();

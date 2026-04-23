@@ -6,6 +6,7 @@
     "name": "Admin",
     "role": "admin",
     "selectedVehicleId": "v6",
+    "disabledTabs": [],
     "createdAt": "2026-02-23T16:44:18.336Z"
   },
   {
@@ -15,6 +16,7 @@
     "name": "Faizan",
     "role": "driver",
     "selectedVehicleId": null,
+    "disabledTabs": [],
     "createdAt": "2026-02-23T16:44:18.390Z"
   },
   {
@@ -24,6 +26,7 @@
     "name": "Ali",
     "role": "driver",
     "selectedVehicleId": null,
+    "disabledTabs": [],
     "createdAt": "2026-02-23T17:10:52.220Z"
   },
   {
@@ -33,6 +36,7 @@
     "name": "Adam",
     "role": "driver",
     "selectedVehicleId": null,
+    "disabledTabs": [],
     "createdAt": "2026-02-23T17:10:52.322Z"
   },
   {
@@ -42,6 +46,7 @@
     "name": "Fivos",
     "role": "driver",
     "selectedVehicleId": null,
+    "disabledTabs": [],
     "createdAt": "2026-02-23T17:10:52.426Z"
   },
   {
@@ -51,6 +56,7 @@
     "name": "Aris",
     "role": "driver",
     "selectedVehicleId": null,
+    "disabledTabs": [],
     "createdAt": "2026-02-23T17:10:52.530Z"
   },
   {
@@ -60,6 +66,7 @@
     "name": "Panos",
     "role": "driver",
     "selectedVehicleId": null,
+    "disabledTabs": [],
     "createdAt": "2026-02-23T17:10:52.634Z"
   },
   {
@@ -69,6 +76,7 @@
     "name": "AR",
     "role": "driver",
     "selectedVehicleId": null,
+    "disabledTabs": [],
     "createdAt": "2026-02-23T17:10:52.737Z"
   }
 ]

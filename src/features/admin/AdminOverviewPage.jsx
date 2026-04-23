@@ -75,7 +75,7 @@ export function AdminOverviewPage() {
   const navigate = useNavigate();
   const { vehicles } = useVehicleStore();
   const { activities } = useActivityStore();
-  const { fetchUsers, registerUser, deleteUser } = useAuthStore();
+  const { fetchUsers, registerUser, deleteUser, updateUserTabs } = useAuthStore();
   const { locations: savedLocations, addLocation: saveLocation } = useSavedLocationStore();
 
   // Fleet management state
@@ -2059,6 +2059,86 @@ export function AdminOverviewPage() {
                     ))}
                   </div>
                 )}
+              </div>
+
+              {/* Tab Access */}
+              <div style={{
+                background: '#ffffff',
+                border: '1px solid #e0e0e0',
+                borderRadius: '8px',
+                padding: mobile ? '16px' : '20px',
+                marginBottom: '16px',
+              }}>
+                <h3 style={{ fontSize: '14px', fontWeight: '600', margin: '0 0 16px 0', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <Eye style={{ width: '16px', height: '16px', color: '#0061bd' }} />
+                  Tab Access
+                </h3>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                  {[
+                    { path: '/map', label: 'Live Map' },
+                    { path: '/fleet', label: 'Fleet' },
+                    { path: '/journeys', label: 'Journeys' },
+                    { path: '/tickets', label: 'Tickets' },
+                  ].map(({ path, label }) => {
+                    const currentDisabled = selectedDriver.disabledTabs || [];
+                    const isEnabled = !currentDisabled.includes(path);
+                    return (
+                      <div
+                        key={path}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          padding: '10px 14px',
+                          background: '#fafafa',
+                          borderRadius: '6px',
+                          border: '1px solid #f0f0f0',
+                        }}
+                      >
+                        <span style={{ fontSize: '13px', fontWeight: '500', color: '#333' }}>{label}</span>
+                        <button
+                          onClick={async () => {
+                            const newDisabled = isEnabled
+                              ? [...currentDisabled, path]
+                              : currentDisabled.filter(t => t !== path);
+                            const result = await updateUserTabs(selectedDriver.id, newDisabled);
+                            if (result.user) {
+                              setSelectedDriver({ ...selectedDriver, disabledTabs: result.user.disabledTabs });
+                              setAllUsers(prev => prev.map(u => u.id === selectedDriver.id ? { ...u, disabledTabs: result.user.disabledTabs } : u));
+                            }
+                          }}
+                          style={{
+                            position: 'relative',
+                            width: '44px',
+                            height: '24px',
+                            borderRadius: '12px',
+                            border: 'none',
+                            cursor: 'pointer',
+                            background: isEnabled ? '#22c55e' : '#d1d5db',
+                            transition: 'background 0.2s ease',
+                            padding: 0,
+                            flexShrink: 0,
+                          }}
+                          title={isEnabled ? 'Click to disable' : 'Click to enable'}
+                        >
+                          <span
+                            style={{
+                              position: 'absolute',
+                              top: '2px',
+                              left: isEnabled ? '22px' : '2px',
+                              width: '20px',
+                              height: '20px',
+                              borderRadius: '50%',
+                              background: '#ffffff',
+                              boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                              transition: 'left 0.2s ease',
+                            }}
+                          />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Fuel Records */}

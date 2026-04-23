@@ -163,6 +163,29 @@ export const useAuthStore = create(
         }
       },
 
+      updateUserTabs: async (userId, disabledTabs) => {
+        const { token } = get();
+        if (!token) return { error: 'Not authenticated' };
+        try {
+          const resp = await fetch(`${SERVER_URL}/api/auth/users/${userId}/tabs`, {
+            method: 'PATCH',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ disabledTabs }),
+          });
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            return { error: err.error || 'Failed to update tabs' };
+          }
+          const data = await resp.json();
+          return { user: data.user };
+        } catch {
+          return { error: 'Cannot connect to server' };
+        }
+      },
+
       deleteUser: async (userId) => {
         const { token } = get();
         if (!token) return { error: 'Not authenticated' };

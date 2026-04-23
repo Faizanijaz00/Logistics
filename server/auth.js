@@ -130,7 +130,7 @@ export function registerAuthRoutes(app) {
       const match = await bcrypt.compare(password, user.password);
       if (!match) return res.status(401).json({ error: 'Invalid credentials' });
       const token = signToken(user);
-      res.json({ token, user: { id: user.id, username: user.username, name: user.name, role: user.role, selectedVehicleId: user.selectedVehicleId || null } });
+      res.json({ token, user: { id: user.id, username: user.username, name: user.name, role: user.role, selectedVehicleId: user.selectedVehicleId || null, disabledTabs: user.disabledTabs || [] } });
     } catch (err) {
       console.error('[Auth] Login error:', err.message);
       res.status(500).json({ error: 'Login failed' });
@@ -149,7 +149,7 @@ export function registerAuthRoutes(app) {
     const users = loadLocalUsers();
     const user = users.find(u => u.id === req.user.id);
     if (!user) return res.status(404).json({ error: 'User not found' });
-    res.json({ user: { id: user.id, username: user.username, name: user.name, role: user.role, selectedVehicleId: user.selectedVehicleId || null } });
+    res.json({ user: { id: user.id, username: user.username, name: user.name, role: user.role, selectedVehicleId: user.selectedVehicleId || null, disabledTabs: user.disabledTabs || [] } });
   });
 
   // Select a vehicle (assigns to current user, clears previous driver)
@@ -186,7 +186,7 @@ export function registerAuthRoutes(app) {
     }
     // Local fallback
     const users = loadLocalUsers();
-    res.json(users.map(u => ({ id: u.id, username: u.username, name: u.name, role: u.role, selectedVehicleId: u.selectedVehicleId || null })));
+    res.json(users.map(u => ({ id: u.id, username: u.username, name: u.name, role: u.role, selectedVehicleId: u.selectedVehicleId || null, disabledTabs: u.disabledTabs || [] })));
   });
 
   // Create a new user (admin only)
@@ -213,6 +213,29 @@ export function registerAuthRoutes(app) {
       }
       console.error('[Auth] Register error:', err.message);
       res.status(500).json({ error: 'Failed to create user' });
+    }
+  });
+
+  // Update user tab access (admin only)
+  app.patch('/api/auth/users/:id/tabs', requireAuth, requireRole('admin'), async (req, res) => {
+    const { id } = req.params;
+    const { disabledTabs } = req.body;
+    if (!Array.isArray(disabledTabs)) {
+      return res.status(400).json({ error: 'disabledTabs must be an array' });
+    }
+    // Never allow disabling the admin tab
+    const filtered = disabledTabs.filter(t => t !== '/admin');
+    try {
+      const users = loadLocalUsers();
+      const idx = users.findIndex(u => u.id === id);
+      if (idx === -1) return res.status(404).json({ error: 'User not found' });
+      users[idx].disabledTabs = filtered;
+      saveLocalUsers(users);
+      const u = users[idx];
+      res.json({ user: { id: u.id, username: u.username, name: u.name, role: u.role, selectedVehicleId: u.selectedVehicleId || null, disabledTabs: u.disabledTabs || [] } });
+    } catch (err) {
+      console.error('[Auth] Update tabs error:', err.message);
+      res.status(500).json({ error: 'Failed to update tab access' });
     }
   });
 
