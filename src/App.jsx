@@ -48,12 +48,7 @@ function App() {
     return <LoginPage />;
   }
 
-  // All users must pick a car or click "Not Driving"
-  if (!user.selectedVehicleId || !carSelectReady) {
-    return <CarSelectPage />;
-  }
-
-  // Authenticated + car selected → main app
+  // Authenticated → main app
   return (
     <BrowserRouter unstable_useTransitions={false}>
       <AppContent />
