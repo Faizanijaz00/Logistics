@@ -5,7 +5,7 @@ import { useLogisticsStore } from '../../../store/logisticsStore';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 
-const MAPBOX_TOKEN = 'REDACTED_USE_VITE_MAPBOX_TOKEN';
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 export default function CarCard({
   car,
