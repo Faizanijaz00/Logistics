@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Plus, Car, Home as HomeIcon, Users, ArrowRight, ArrowLeft, Star, Train } from 'lucide-react';
 import { useLogisticsStore } from '../../store/logisticsStore';
 import { useVehicleStore } from '../../store/vehicleStore';
@@ -121,6 +121,14 @@ export default function JourneyPlannerPage() {
   const [isPanelVisible, setIsPanelVisible] = useState(true);
   const [showStars, setShowStars] = useState(true);
   const [journeyDirection, setJourneyDirection] = useState('outbound');
+
+  // Refs for inputs that need focus on form open — preventScroll avoids page-jump on re-render
+  const carSelectRef = useRef(null);
+  const roomNameRef = useRef(null);
+  const tableNameRef = useRef(null);
+  useEffect(() => { if (isAddingCar && carSelectRef.current) carSelectRef.current.focus({ preventScroll: true }); }, [isAddingCar]);
+  useEffect(() => { if (isAddingRoom && roomNameRef.current) roomNameRef.current.focus({ preventScroll: true }); }, [isAddingRoom]);
+  useEffect(() => { if (isAddingTable && tableNameRef.current) tableNameRef.current.focus({ preventScroll: true }); }, [isAddingTable]);
 
   // Sync journey car destinations to fleet vehicles
   const syncCarToFleet = (car) => {
@@ -476,7 +484,7 @@ export default function JourneyPlannerPage() {
                     }
                   }}
                   style={{ ...inputStyle, minWidth: '200px' }}
-                  autoFocus
+                  ref={carSelectRef}
                 >
                   <option value="">Select a vehicle...</option>
                   {vehicles.map(v => (
@@ -510,7 +518,7 @@ export default function JourneyPlannerPage() {
           {activeTab === 'rooms' && isAddingRoom && (
             <div style={{ background: '#fff', border: '1px solid #e0e0e0', padding: '16px', marginBottom: '16px' }}>
               <form onSubmit={handleCreateRoom} style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <input type="text" value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} placeholder="Room name" style={inputStyle} autoFocus />
+                <input type="text" value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} placeholder="Room name" style={inputStyle} ref={roomNameRef} />
                 <label style={{ fontSize: '13px', color: '#666', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   Capacity:
                   <input type="number" min="1" max="20" value={newRoomCapacity} onChange={(e) => setNewRoomCapacity(parseInt(e.target.value) || 4)} style={{ ...inputStyle, width: '60px' }} />
@@ -542,7 +550,7 @@ export default function JourneyPlannerPage() {
           {activeTab === 'tables' && isAddingTable && (
             <div style={{ background: '#fff', border: '1px solid #e0e0e0', padding: '16px', marginBottom: '16px' }}>
               <form onSubmit={handleCreateTable} style={{ display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                <input type="text" value={newTableName} onChange={(e) => setNewTableName(e.target.value)} placeholder="Table name" style={inputStyle} autoFocus />
+                <input type="text" value={newTableName} onChange={(e) => setNewTableName(e.target.value)} placeholder="Table name" style={inputStyle} ref={tableNameRef} />
                 <label style={{ fontSize: '13px', color: '#666', display: 'flex', alignItems: 'center', gap: '4px' }}>
                   Capacity:
                   <input type="number" min="2" max="20" value={newTableCapacity} onChange={(e) => setNewTableCapacity(parseInt(e.target.value) || 4)} style={{ ...inputStyle, width: '60px' }} />
