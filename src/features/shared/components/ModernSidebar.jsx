@@ -8,7 +8,6 @@ const driverNavItems = [
   { to: '/', icon: User, label: 'Current Drive' },
   { to: '/map', icon: Map, label: 'Live Map' },
   { to: '/fleet', icon: Car, label: 'Fleet' },
-  { to: '/journeys', icon: Route, label: 'Journeys' },
   { to: '/tickets', icon: ReceiptText, label: 'Tickets' },
 ];
 
@@ -16,7 +15,6 @@ const adminNavItems = [
   { to: '/', icon: User, label: 'Current Drive' },
   { to: '/map', icon: Map, label: 'Live Map' },
   { to: '/fleet', icon: Car, label: 'Fleet' },
-  { to: '/journeys', icon: Route, label: 'Journeys' },
   { to: '/tickets', icon: ReceiptText, label: 'Tickets' },
   { to: '/admin', icon: BarChart3, label: 'Admin' },
   { to: '/finance', icon: Calendar, label: 'Finance' },

@@ -10,11 +10,12 @@ const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 const DEVICE_TO_VEHICLE = {
   'GLE': 'v1',           // MERCEDES GLE
   'V Class': 'v5',       // MERCEDES-BENZ V Class
-  // Add more as trackers get named in Vigitech:
-  // 'S Class': 'v6',
-  // 'Sprinter': 'v4',
-  // 'Range': 'v2',
-  // 'Insignia': 'v3',
+  'S Class': 'v6',       // MERCEDES-BENZ S Class
+  // Rename unnamed Vigitech devices to match these to activate tracking:
+  // 'Sprinter': 'v4',   // NISSAN Sprinter
+  // 'Range': 'v2',      // LAND ROVER Sport
+  // 'Insignia': 'v3',   // VAUXHALL Insignia
+  // 'Ibiza': 'v1774290886803', // SEAT Ibiza
 };
 
 let sessionCookie = null;
