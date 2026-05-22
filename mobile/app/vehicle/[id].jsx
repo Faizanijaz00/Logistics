@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  TextInput, Image, ActivityIndicator, Alert, Platform,
+  TextInput, Image, ActivityIndicator, Alert, Platform, Linking,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -94,14 +94,14 @@ function InfoCardContent({ vehicle, editing, plate, setPlate, handleSavePlate, s
 
       <View style={styles.divider} />
 
-      {/* Driver + Location */}
-      <View style={styles.statusRow}>
+      {/* Status (Driver/Parked) — appears ABOVE Location */}
+      <View style={styles.statusStack}>
         {vehicle.currentDriver ? (
           <View style={styles.statusItem}>
             <View style={[styles.statusIcon, { backgroundColor: '#018a16' }]}>
               <User size={16} color="#fff" />
             </View>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.statusLabel}>Driver</Text>
               <Text style={styles.statusValue}>{vehicle.currentDriver}</Text>
               <View style={styles.statusIndicator}>
@@ -113,9 +113,9 @@ function InfoCardContent({ vehicle, editing, plate, setPlate, handleSavePlate, s
         ) : (
           <View style={styles.statusItem}>
             <View style={[styles.statusIcon, { backgroundColor: '#888' }]}>
-              <MapPin size={16} color="#fff" />
+              <User size={16} color="#fff" />
             </View>
-            <View>
+            <View style={{ flex: 1 }}>
               <Text style={styles.statusLabel}>Status</Text>
               <Text style={styles.statusValue}>Parked</Text>
               {vehicle.lastDriver ? (
@@ -130,23 +130,39 @@ function InfoCardContent({ vehicle, editing, plate, setPlate, handleSavePlate, s
           </View>
         )}
 
-        <View style={styles.statusItem}>
+        {/* Location — clickable, opens native Maps with directions */}
+        <TouchableOpacity
+          style={styles.statusItem}
+          activeOpacity={vehicle.position?.lat ? 0.6 : 1}
+          onPress={() => {
+            const lat = vehicle.position?.lat;
+            const lng = vehicle.position?.lng;
+            if (lat == null || lng == null) return;
+            const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lng}`;
+            Linking.openURL(url).catch(() => {});
+          }}
+        >
           <View style={[styles.statusIcon, { backgroundColor: (vehicle.destination || vehicle.parkedAt) ? '#3B82F6' : '#e5e5e5' }]}>
             <MapPin size={16} color="#fff" />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.statusLabel}>Location</Text>
-            <Text style={styles.statusValue} numberOfLines={1}>
+            <Text style={[styles.statusValue, vehicle.position?.lat && styles.statusValueLink]} numberOfLines={1}>
               {vehicle.destination || vehicle.parkedAt || locationAddress || 'Unknown'}
             </Text>
-            {vehicle.destination && (
+            {vehicle.destination ? (
               <View style={styles.statusIndicator}>
                 <View style={[styles.dot, { backgroundColor: '#3B82F6' }]} />
                 <Text style={[styles.statusIndicatorText, { color: '#3B82F6' }]}>En route</Text>
               </View>
-            )}
+            ) : vehicle.position?.lat ? (
+              <View style={styles.statusIndicator}>
+                <View style={[styles.dot, { backgroundColor: '#3B82F6' }]} />
+                <Text style={[styles.statusIndicatorText, { color: '#3B82F6' }]}>Tap to get directions</Text>
+              </View>
+            ) : null}
           </View>
-        </View>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.divider} />
@@ -581,8 +597,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 20,
   },
+  statusStack: {
+    flexDirection: 'column',
+    gap: 16,
+  },
   statusItem: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'flex-start',
     gap: 10,
@@ -608,6 +627,10 @@ const styles = StyleSheet.create({
     fontSize: 15,
     fontWeight: '600',
     color: '#000',
+  },
+  statusValueLink: {
+    color: '#0284c7',
+    textDecorationLine: 'underline',
   },
   statusIndicator: {
     flexDirection: 'row',

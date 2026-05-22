@@ -1,11 +1,12 @@
 import { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, Modal } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, Modal, TextInput, Switch, ActivityIndicator, Alert, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Fuel, ReceiptText, AlertTriangle, LogOut, RefreshCw, MapPin, Navigation, X, Car, ChevronRight } from 'lucide-react-native';
+import { Fuel, ReceiptText, AlertTriangle, LogOut, RefreshCw, MapPin, Navigation, X, Car, ChevronRight, ChevronDown } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
 import { useVehicleStore } from '../../src/store/vehicleStore';
 import { getCarImage } from '../../src/config/carImages';
 import { useLayout } from '../../src/hooks/useLayout';
+import { SERVER_URL } from '../../src/config/api';
 import { useEffect } from 'react';
 
 function UKPlate({ registration, small }) {
@@ -115,12 +116,32 @@ const pickerStyles = StyleSheet.create({
 });
 
 export default function HomeScreen() {
-  const { user, logout, selectedVehicleId, isDriving, selectVehicle, stopDriving, switchVehicle } = useAuthStore();
+  const { user, token, logout, selectedVehicleId, isDriving, selectVehicle, stopDriving, switchVehicle } = useAuthStore();
   const { vehicles, fetchVehicles } = useVehicleStore();
   const [showPicker, setShowPicker] = useState(false);
+  const [showFuelModal, setShowFuelModal] = useState(false);
+  const [showTicketModal, setShowTicketModal] = useState(false);
+  const [showIssueModal, setShowIssueModal] = useState(false);
+  const [drivers, setDrivers] = useState([]);
   const { isUnfolded } = useLayout();
 
   useEffect(() => { fetchVehicles(); }, []);
+
+  // Fetch drivers list once (used by the Add Ticket modal)
+  useEffect(() => {
+    if (!token) return;
+    fetch(`${SERVER_URL}/api/auth/users`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then(r => r.ok ? r.json() : [])
+      .then(list => {
+        const filtered = (Array.isArray(list) ? list : []).filter(
+          u => u.role === 'driver' || u.role === 'admin'
+        );
+        setDrivers(filtered);
+      })
+      .catch(() => {});
+  }, [token]);
 
   // Resolve the persisted vehicleId to the actual vehicle object
   const vehicle = selectedVehicleId
@@ -213,19 +234,19 @@ export default function HomeScreen() {
 
                   {/* Action Grid */}
                   <View style={styles.actionGrid}>
-                    <TouchableOpacity style={styles.actionTile} activeOpacity={0.7}>
+                    <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={() => setShowFuelModal(true)}>
                       <View style={[styles.actionIcon, { backgroundColor: '#fff7ed' }]}>
                         <Fuel size={20} color="#f97316" />
                       </View>
                       <Text style={styles.actionLabel}>Fuel Up</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionTile} activeOpacity={0.7}>
+                    <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={() => setShowTicketModal(true)}>
                       <View style={[styles.actionIcon, { backgroundColor: '#faf5ff' }]}>
                         <ReceiptText size={20} color="#7c3aed" />
                       </View>
                       <Text style={styles.actionLabel}>Add Ticket</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionTile} activeOpacity={0.7}>
+                    <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={() => setShowIssueModal(true)}>
                       <View style={[styles.actionIcon, { backgroundColor: '#fef2f2' }]}>
                         <AlertTriangle size={20} color="#dc2626" />
                       </View>
@@ -293,19 +314,19 @@ export default function HomeScreen() {
 
               {/* Action Grid */}
               <View style={styles.actionGrid}>
-                <TouchableOpacity style={styles.actionTile} activeOpacity={0.7}>
+                <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={() => setShowFuelModal(true)}>
                   <View style={[styles.actionIcon, { backgroundColor: '#fff7ed' }]}>
                     <Fuel size={20} color="#f97316" />
                   </View>
                   <Text style={styles.actionLabel}>Fuel Up</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionTile} activeOpacity={0.7}>
+                <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={() => setShowTicketModal(true)}>
                   <View style={[styles.actionIcon, { backgroundColor: '#faf5ff' }]}>
                     <ReceiptText size={20} color="#7c3aed" />
                   </View>
                   <Text style={styles.actionLabel}>Add Ticket</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionTile} activeOpacity={0.7}>
+                <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={() => setShowIssueModal(true)}>
                   <View style={[styles.actionIcon, { backgroundColor: '#fef2f2' }]}>
                     <AlertTriangle size={20} color="#dc2626" />
                   </View>
@@ -365,7 +386,422 @@ export default function HomeScreen() {
           </ScrollView>
         </SafeAreaView>
       </Modal>
+
+      {/* Fuel Up Modal */}
+      <FuelUpModal
+        visible={showFuelModal}
+        onClose={() => setShowFuelModal(false)}
+        vehicle={vehicle}
+        user={user}
+        token={token}
+      />
+
+      {/* Add Ticket Modal */}
+      <AddTicketModal
+        visible={showTicketModal}
+        onClose={() => setShowTicketModal(false)}
+        vehicle={vehicle}
+        user={user}
+        token={token}
+        drivers={drivers}
+      />
+
+      {/* Report Issue Modal */}
+      <ReportIssueModal
+        visible={showIssueModal}
+        onClose={() => setShowIssueModal(false)}
+        vehicle={vehicle}
+        user={user}
+        token={token}
+      />
     </SafeAreaView>
+  );
+}
+
+// ── Fuel Up Modal ──────────────────────────────────────────────────────────────
+function FuelUpModal({ visible, onClose, vehicle, user, token }) {
+  const [amount, setAmount] = useState('');
+  const [usedFuelCard, setUsedFuelCard] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  const isMercedesGLE = vehicle?.id === 'v1';
+
+  useEffect(() => {
+    if (visible) {
+      setAmount('');
+      setUsedFuelCard(false);
+    }
+  }, [visible]);
+
+  async function handleSubmit() {
+    if (!vehicle) return;
+    const numeric = parseFloat(amount);
+    if (isNaN(numeric) || numeric <= 0) {
+      Alert.alert('Invalid amount', 'Please enter a valid amount.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const body = {
+        vehicleId: vehicle.id,
+        amount: numeric,
+        paidBy: user?.name || user?.username || '',
+      };
+      if (isMercedesGLE) body.usedFuelCard = usedFuelCard;
+
+      const resp = await fetch(`${SERVER_URL}/api/fuel-records`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to save fuel record');
+      }
+      onClose();
+      Alert.alert('Saved', `Fuel record of £${numeric.toFixed(2)} added.`);
+    } catch (e) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={styles.modalSafe}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <View style={styles.modalHeader}>
+            <View>
+              <Text style={styles.modalTitle}>Fuel Up</Text>
+              <Text style={styles.modalSubtitle}>{vehicle?.make} {vehicle?.model}</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <X size={18} color="#000" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
+            <Text style={styles.fieldLabel}>Amount paid</Text>
+            <View style={styles.amountRow}>
+              <Text style={styles.currency}>£</Text>
+              <TextInput
+                style={styles.amountInput}
+                value={amount}
+                onChangeText={setAmount}
+                keyboardType="decimal-pad"
+                placeholder="0.00"
+                placeholderTextColor="#bbb"
+                autoFocus
+              />
+            </View>
+
+            {isMercedesGLE && (
+              <View style={styles.toggleRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.toggleLabel}>Used fuel card</Text>
+                  <Text style={styles.toggleHint}>Mercedes GLE only</Text>
+                </View>
+                <Switch
+                  value={usedFuelCard}
+                  onValueChange={setUsedFuelCard}
+                  trackColor={{ false: '#ddd', true: '#018a16' }}
+                />
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}
+              onPress={handleSubmit}
+              disabled={submitting}
+              activeOpacity={0.85}
+            >
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save Fuel Record</Text>}
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+// ── Add Ticket Modal ───────────────────────────────────────────────────────────
+function AddTicketModal({ visible, onClose, vehicle, user, token, drivers }) {
+  const [reference, setReference] = useState('');
+  const [fineAmount, setFineAmount] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [reason, setReason] = useState('');
+  const [driverId, setDriverId] = useState(user?.id || null);
+  const [driverPickerOpen, setDriverPickerOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setReference('');
+      setFineAmount('');
+      setDate(new Date().toISOString().slice(0, 10));
+      setReason('');
+      setDriverId(user?.id || (drivers[0] && drivers[0].id) || null);
+      setDriverPickerOpen(false);
+    }
+  }, [visible]);
+
+  const selectedDriver = drivers.find(d => d.id === driverId) || {
+    id: user?.id, name: user?.name || user?.username,
+  };
+
+  async function handleSubmit() {
+    if (!vehicle) return;
+    if (!reference.trim()) {
+      Alert.alert('Missing reference', 'Please enter a ticket reference.');
+      return;
+    }
+    const numeric = parseFloat(fineAmount);
+    if (isNaN(numeric) || numeric <= 0) {
+      Alert.alert('Invalid amount', 'Please enter a valid fine amount.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const body = {
+        vehicleId: vehicle.id,
+        driverName: selectedDriver?.name || '',
+        driverId: selectedDriver?.id || null,
+        reference: reference.trim(),
+        amount: numeric,
+        date,
+        reason: reason.trim(),
+      };
+      const resp = await fetch(`${SERVER_URL}/api/tickets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to save ticket');
+      }
+      onClose();
+      Alert.alert('Saved', 'Ticket added.');
+    } catch (e) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={styles.modalSafe}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <View style={styles.modalHeader}>
+            <View>
+              <Text style={styles.modalTitle}>Add Ticket</Text>
+              <Text style={styles.modalSubtitle}>{vehicle?.make} {vehicle?.model}</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <X size={18} color="#000" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
+            <Text style={styles.fieldLabel}>Ticket reference</Text>
+            <TextInput
+              style={styles.textInput}
+              value={reference}
+              onChangeText={setReference}
+              placeholder="e.g. PCN12345678"
+              placeholderTextColor="#bbb"
+              autoCapitalize="characters"
+            />
+
+            <Text style={styles.fieldLabel}>Fine amount</Text>
+            <View style={styles.amountRow}>
+              <Text style={styles.currency}>£</Text>
+              <TextInput
+                style={styles.amountInput}
+                value={fineAmount}
+                onChangeText={setFineAmount}
+                keyboardType="decimal-pad"
+                placeholder="0.00"
+                placeholderTextColor="#bbb"
+              />
+            </View>
+
+            <Text style={styles.fieldLabel}>Date</Text>
+            <TextInput
+              style={styles.textInput}
+              value={date}
+              onChangeText={setDate}
+              placeholder="YYYY-MM-DD"
+              placeholderTextColor="#bbb"
+            />
+
+            <Text style={styles.fieldLabel}>Reason</Text>
+            <TextInput
+              style={[styles.textInput, styles.multiline]}
+              value={reason}
+              onChangeText={setReason}
+              placeholder="e.g. Parking violation"
+              placeholderTextColor="#bbb"
+              multiline
+            />
+
+            <Text style={styles.fieldLabel}>Driver</Text>
+            <TouchableOpacity
+              style={styles.dropdown}
+              onPress={() => setDriverPickerOpen(o => !o)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.dropdownText}>{selectedDriver?.name || 'Select driver'}</Text>
+              <ChevronDown size={18} color="#888" />
+            </TouchableOpacity>
+            {driverPickerOpen && (
+              <View style={styles.dropdownList}>
+                {drivers.length === 0 ? (
+                  <Text style={styles.dropdownEmpty}>No drivers available</Text>
+                ) : (
+                  drivers.map(d => (
+                    <TouchableOpacity
+                      key={d.id}
+                      style={styles.dropdownItem}
+                      onPress={() => { setDriverId(d.id); setDriverPickerOpen(false); }}
+                    >
+                      <Text style={styles.dropdownItemText}>{d.name}</Text>
+                      {d.id === driverId ? <Text style={styles.dropdownCheck}>✓</Text> : null}
+                    </TouchableOpacity>
+                  ))
+                )}
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}
+              onPress={handleSubmit}
+              disabled={submitting}
+              activeOpacity={0.85}
+            >
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save Ticket</Text>}
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+// ── Report Issue Modal ─────────────────────────────────────────────────────────
+function ReportIssueModal({ visible, onClose, vehicle, user, token }) {
+  const [description, setDescription] = useState('');
+  const [severity, setSeverity] = useState('low');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (visible) {
+      setDescription('');
+      setSeverity('low');
+    }
+  }, [visible]);
+
+  async function handleSubmit() {
+    if (!vehicle) return;
+    if (!description.trim()) {
+      Alert.alert('Missing description', 'Please describe the issue.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const body = {
+        vehicleId: vehicle.id,
+        reportedBy: user?.name || user?.username || '',
+        description: description.trim(),
+        severity,
+        createdAt: new Date().toISOString(),
+      };
+      const resp = await fetch(`${SERVER_URL}/api/issues`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to report issue');
+      }
+      onClose();
+      Alert.alert('Reported', 'Issue submitted.');
+    } catch (e) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  const SEVERITIES = [
+    { key: 'low', label: 'Low', color: '#018a16', bg: '#f0fdf4' },
+    { key: 'medium', label: 'Medium', color: '#d97706', bg: '#fffbeb' },
+    { key: 'high', label: 'High', color: '#c4001a', bg: '#fef2f2' },
+  ];
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={styles.modalSafe}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <View style={styles.modalHeader}>
+            <View>
+              <Text style={styles.modalTitle}>Report Issue</Text>
+              <Text style={styles.modalSubtitle}>{vehicle?.make} {vehicle?.model}</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <X size={18} color="#000" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
+            <Text style={styles.fieldLabel}>Description</Text>
+            <TextInput
+              style={[styles.textInput, styles.multilineTall]}
+              value={description}
+              onChangeText={setDescription}
+              placeholder="Describe the issue..."
+              placeholderTextColor="#bbb"
+              multiline
+              autoFocus
+            />
+
+            <Text style={styles.fieldLabel}>Severity</Text>
+            <View style={styles.severityRow}>
+              {SEVERITIES.map(s => {
+                const selected = severity === s.key;
+                return (
+                  <TouchableOpacity
+                    key={s.key}
+                    style={[
+                      styles.severityChip,
+                      selected && { backgroundColor: s.bg, borderColor: s.color },
+                    ]}
+                    onPress={() => setSeverity(s.key)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.severityChipText, selected && { color: s.color, fontWeight: '700' }]}>
+                      {s.label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <TouchableOpacity
+              style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}
+              onPress={handleSubmit}
+              disabled={submitting}
+              activeOpacity={0.85}
+            >
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Report Issue</Text>}
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </Modal>
   );
 }
 
@@ -550,4 +986,107 @@ const styles = StyleSheet.create({
   },
   modalList: { paddingHorizontal: 20, paddingBottom: 20 },
   noVehicles: { textAlign: 'center', color: '#999', marginTop: 40, fontSize: 15 },
+
+  // Modal form fields
+  fieldLabel: {
+    fontSize: 11, fontWeight: '700', color: '#888',
+    textTransform: 'uppercase', letterSpacing: 0.6,
+    marginTop: 14, marginBottom: 8,
+  },
+  textInput: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 15,
+    color: '#000',
+    borderWidth: 1,
+    borderColor: '#ebebeb',
+  },
+  multiline: { minHeight: 60, textAlignVertical: 'top' },
+  multilineTall: { minHeight: 120, textAlignVertical: 'top' },
+  amountRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    borderWidth: 1,
+    borderColor: '#ebebeb',
+  },
+  currency: { fontSize: 22, color: '#888', marginRight: 8, fontWeight: '500' },
+  amountInput: {
+    flex: 1,
+    paddingVertical: 12,
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#000',
+  },
+  toggleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginTop: 14,
+    borderWidth: 1,
+    borderColor: '#ebebeb',
+  },
+  toggleLabel: { fontSize: 15, fontWeight: '600', color: '#000' },
+  toggleHint: { fontSize: 11, color: '#888', marginTop: 2 },
+  primaryBtn: {
+    marginTop: 24,
+    backgroundColor: '#000',
+    borderRadius: 14,
+    paddingVertical: 16,
+    alignItems: 'center',
+  },
+  primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  dropdown: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 14,
+    borderWidth: 1,
+    borderColor: '#ebebeb',
+  },
+  dropdownText: { fontSize: 15, color: '#000', fontWeight: '500' },
+  dropdownList: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    marginTop: 6,
+    borderWidth: 1,
+    borderColor: '#ebebeb',
+    overflow: 'hidden',
+  },
+  dropdownItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f5f5f5',
+  },
+  dropdownItemText: { fontSize: 15, color: '#000' },
+  dropdownCheck: { fontSize: 16, color: '#018a16', fontWeight: '700' },
+  dropdownEmpty: { padding: 14, textAlign: 'center', color: '#999' },
+  severityRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  severityChip: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 12,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#ebebeb',
+  },
+  severityChipText: { fontSize: 14, fontWeight: '500', color: '#555' },
 });

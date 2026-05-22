@@ -196,32 +196,35 @@ function buildMapHTML(vehicles, userLocation) {
           '<button onclick="goToVehicle(\\'' + v.id + '\\')" style="margin-top:8px;padding:6px 14px;background:#000;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;">View</button>' +
           '</div>';
 
-        function placeMarker(icon) {
-          var marker = new google.maps.Marker({ position: pos, map: _map, title: v.title, icon: icon });
-          var info = new google.maps.InfoWindow({ content: infoContent });
-          marker.addListener('click', function() { info.open(_map, marker); });
-        }
-
         var circleIcon = {
           path: google.maps.SymbolPath.CIRCLE,
-          scale: 10,
+          scale: 11,
           fillColor: v.active ? '#018a16' : '#333333',
           fillOpacity: 1,
           strokeColor: '#ffffff',
           strokeWeight: 2.5,
         };
 
+        // Always place a marker immediately (circle fallback). If the car image
+        // loads, swap the icon. This guarantees every vehicle with a position
+        // shows SOMETHING on the map even if image loading fails or hangs.
+        var marker = new google.maps.Marker({ position: pos, map: _map, title: v.title, icon: circleIcon });
+        var info = new google.maps.InfoWindow({ content: infoContent });
+        marker.addListener('click', function() { info.open(_map, marker); });
+
         if (v.imageUri) {
           var img = new window.Image();
           img.onload = function() {
             var h = 50;
-            var w = Math.round(img.naturalWidth * (h / img.naturalHeight));
-            placeMarker({ url: v.imageUri, scaledSize: new google.maps.Size(w, h) });
+            var nh = img.naturalHeight || 1;
+            var nw = img.naturalWidth || 1;
+            var w = Math.round(nw * (h / nh));
+            marker.setIcon({ url: v.imageUri, scaledSize: new google.maps.Size(w, h) });
           };
-          img.onerror = function() { placeMarker(circleIcon); };
+          img.onerror = function() {
+            // Leave circle marker in place
+          };
           img.src = v.imageUri;
-        } else {
-          placeMarker(circleIcon);
         }
       });
 
@@ -278,10 +281,21 @@ export default function MapScreen() {
     return !isNaN(lat) && !isNaN(lng) && !(lat === 0 && lng === 0);
   });
 
-  // Memoize so the WebView source object stays stable between renders
+  // Debug: log every vehicle and whether it has a position
+  console.log(
+    '[Map] vehicles:', vehicles.length,
+    'withPos:', vehiclesWithPos.length,
+    vehicles.map(v => ({
+      id: v.id,
+      hasPos: !!(v.position?.lat && v.position?.lng),
+      imageId: v.imageId,
+    }))
+  );
+
+  // Only pass vehicles with valid positions to the map HTML
   const source = useMemo(
-    () => ({ html: buildMapHTML(vehicles, userLocation) }),
-    [vehicles, userLocation]
+    () => ({ html: buildMapHTML(vehiclesWithPos, userLocation) }),
+    [vehiclesWithPos, userLocation]
   );
 
   function handleMessage(event) {

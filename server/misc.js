@@ -1,5 +1,34 @@
 // Shared data routes — activities, tickets, parking, requests, notifications, emergencies, locations, logistics
 
+import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
+import { join, dirname } from 'path';
+import { fileURLToPath } from 'url';
+import { randomUUID } from 'crypto';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const DATA_DIR = join(__dirname, 'data');
+
+function ensureDataDir() {
+  if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
+}
+
+function loadJsonFile(name) {
+  ensureDataDir();
+  const filePath = join(DATA_DIR, name);
+  if (!existsSync(filePath)) return [];
+  try {
+    const raw = readFileSync(filePath, 'utf8');
+    return JSON.parse(raw || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function saveJsonFile(name, data) {
+  ensureDataDir();
+  writeFileSync(join(DATA_DIR, name), JSON.stringify(data, null, 2));
+}
+
 const SUPABASE_URL = 'https://bwwfrdwpcxzlvprswzne.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3d2ZyZHdwY3h6bHZwcnN3em5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTY2MjIsImV4cCI6MjA4ODU3MjYyMn0.KYJYGHFo2WstiVFgEIuBv0P3i40OM4wcHmdkLcujVeo';
 
@@ -108,6 +137,60 @@ export function registerMiscRoutes(app, requireAuth) {
         body: JSON.stringify(body),
       });
       res.json(Array.isArray(result) ? result[0] : result);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ── Fuel records (file-backed) ──────────────────────────────────────────────
+  app.get('/api/fuel-records', requireAuth, (req, res) => {
+    try {
+      const { vehicleId } = req.query;
+      const all = loadJsonFile('fuel_records.json');
+      const filtered = vehicleId ? all.filter(r => r.vehicleId === vehicleId) : all;
+      res.json(filtered);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post('/api/fuel-records', requireAuth, (req, res) => {
+    try {
+      const all = loadJsonFile('fuel_records.json');
+      const record = {
+        id: randomUUID(),
+        vehicleId: req.body.vehicleId || null,
+        amount: Number(req.body.amount) || 0,
+        paidBy: req.body.paidBy || req.user?.name || '',
+        usedFuelCard: !!req.body.usedFuelCard,
+        createdAt: new Date().toISOString(),
+      };
+      all.push(record);
+      saveJsonFile('fuel_records.json', all);
+      res.status(201).json(record);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ── Issues (file-backed) ────────────────────────────────────────────────────
+  app.get('/api/issues', requireAuth, (req, res) => {
+    try {
+      const { vehicleId } = req.query;
+      const all = loadJsonFile('issues.json');
+      const filtered = vehicleId ? all.filter(r => r.vehicleId === vehicleId) : all;
+      res.json(filtered);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.post('/api/issues', requireAuth, (req, res) => {
+    try {
+      const all = loadJsonFile('issues.json');
+      const issue = {
+        id: randomUUID(),
+        vehicleId: req.body.vehicleId || null,
+        reportedBy: req.body.reportedBy || req.user?.name || '',
+        description: req.body.description || '',
+        severity: req.body.severity || 'low',
+        createdAt: req.body.createdAt || new Date().toISOString(),
+      };
+      all.push(issue);
+      saveJsonFile('issues.json', all);
+      res.status(201).json(issue);
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 }
