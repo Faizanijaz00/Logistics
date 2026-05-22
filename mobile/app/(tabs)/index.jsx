@@ -57,11 +57,16 @@ const plateStyles = StyleSheet.create({
 
 function VehiclePickerRow({ vehicle, onSelect }) {
   const carImage = getCarImage(vehicle.imageId);
+  const inUse = !!vehicle.currentDriver;
   return (
-    <TouchableOpacity style={pickerStyles.row} activeOpacity={0.6} onPress={() => onSelect(vehicle)}>
+    <TouchableOpacity
+      style={[pickerStyles.row, inUse && pickerStyles.rowInUse]}
+      activeOpacity={0.6}
+      onPress={() => onSelect(vehicle)}
+    >
       <View style={pickerStyles.imageBox}>
         {carImage ? (
-          <Image source={carImage} style={pickerStyles.carImage} resizeMode="contain" />
+          <Image source={carImage} style={[pickerStyles.carImage, inUse && { opacity: 0.55 }]} resizeMode="contain" />
         ) : (
           <View style={pickerStyles.iconFallback}>
             <Car size={22} color="#888" />
@@ -74,6 +79,9 @@ function VehiclePickerRow({ vehicle, onSelect }) {
           <UKPlate registration={vehicle.licensePlate} small />
           {vehicle.color ? <Text style={pickerStyles.color}>{vehicle.color}</Text> : null}
         </View>
+        {inUse ? (
+          <Text style={pickerStyles.driverBadge}>In use by {vehicle.currentDriver}</Text>
+        ) : null}
       </View>
       <ChevronRight size={18} color="#ccc" />
     </TouchableOpacity>
@@ -91,6 +99,8 @@ const pickerStyles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#ebebeb',
   },
+  rowInUse: { backgroundColor: '#fafafa', borderColor: '#e2e2e2' },
+  driverBadge: { fontSize: 11, color: '#dc2626', fontWeight: '600', marginTop: 4 },
   imageBox: { width: 90, height: 58, marginRight: 14 },
   carImage: { width: '100%', height: '100%' },
   iconFallback: {
@@ -137,7 +147,7 @@ export default function HomeScreen() {
     setShowPicker(true);
   }
 
-  const availableVehicles = vehicles.filter(v => !v.currentDriver);
+  const availableVehicles = vehicles;
   const carImage = vehicle ? getCarImage(vehicle.imageId) : null;
 
   return (
@@ -338,7 +348,7 @@ export default function HomeScreen() {
           <View style={styles.modalHeader}>
             <View>
               <Text style={styles.modalTitle}>Select Vehicle</Text>
-              <Text style={styles.modalSubtitle}>{availableVehicles.length} available</Text>
+              <Text style={styles.modalSubtitle}>{availableVehicles.filter(v => !v.currentDriver).length} of {availableVehicles.length} available</Text>
             </View>
             <TouchableOpacity onPress={() => setShowPicker(false)} style={styles.closeBtn}>
               <X size={18} color="#000" />

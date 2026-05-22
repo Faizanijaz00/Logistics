@@ -13,9 +13,42 @@ export const useAuthStore = create(
       selectedVehicleId: null,
       isDriving: false,
 
-      selectVehicle: (vehicleId) => set({ selectedVehicleId: vehicleId, isDriving: true }),
-      stopDriving: () => set({ selectedVehicleId: null, isDriving: false }),
-      switchVehicle: (vehicleId) => set({ selectedVehicleId: vehicleId, isDriving: true }),
+      selectVehicle: async (vehicleId) => {
+        set({ selectedVehicleId: vehicleId, isDriving: true });
+        const { token } = get();
+        if (!token) return;
+        try {
+          await fetch(`${SERVER_URL}/api/auth/select-vehicle`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ vehicleId }),
+          });
+        } catch {}
+      },
+      stopDriving: async () => {
+        set({ selectedVehicleId: null, isDriving: false });
+        const { token } = get();
+        if (!token) return;
+        try {
+          await fetch(`${SERVER_URL}/api/auth/select-vehicle`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ vehicleId: null }),
+          });
+        } catch {}
+      },
+      switchVehicle: async (vehicleId) => {
+        set({ selectedVehicleId: vehicleId, isDriving: true });
+        const { token } = get();
+        if (!token) return;
+        try {
+          await fetch(`${SERVER_URL}/api/auth/select-vehicle`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ vehicleId }),
+          });
+        } catch {}
+      },
 
       login: async (username, password) => {
         set({ loading: true, error: null });

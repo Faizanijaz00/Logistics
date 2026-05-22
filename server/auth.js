@@ -156,14 +156,31 @@ export function registerAuthRoutes(app) {
   app.post('/api/auth/select-vehicle', requireAuth, async (req, res) => {
     const { vehicleId } = req.body;
     try {
-      // Clear this vehicle from whoever else has it
+      // Release any vehicle this user was previously driving (no driver should hold 2 cars)
+      await sb(`/rest/v1/vehicles?current_driver_id=eq.${encodeURIComponent(req.user.id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ current_driver: null, current_driver_id: null }),
+      });
+
       if (vehicleId) {
+        // Clear this vehicle from any OTHER user who had it selected
         await sb(`/rest/v1/users?selected_vehicle_id=eq.${encodeURIComponent(vehicleId)}&id=neq.${encodeURIComponent(req.user.id)}`, {
           method: 'PATCH',
           body: JSON.stringify({ selected_vehicle_id: null }),
         });
+
+        // Get the current user's name to set as the driver
+        const userRows = await sb(`/rest/v1/users?id=eq.${encodeURIComponent(req.user.id)}&select=name`);
+        const driverName = userRows?.[0]?.name || req.user.username;
+
+        // Claim the new vehicle
+        await sb(`/rest/v1/vehicles?id=eq.${encodeURIComponent(vehicleId)}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ current_driver: driverName, current_driver_id: req.user.id }),
+        });
       }
-      // Assign to current user
+
+      // Update the user's selected_vehicle_id
       const rows = await sb(`/rest/v1/users?id=eq.${encodeURIComponent(req.user.id)}`, {
         method: 'PATCH',
         headers: { 'Prefer': 'return=representation' },
