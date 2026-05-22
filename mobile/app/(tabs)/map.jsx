@@ -14,7 +14,7 @@ function getServerImageUrl(imageId) {
   return `${SERVER_URL}/cars/${imageId}.png`;
 }
 
-const GOOGLE_MAPS_API_KEY = 'AIzaSyB1ut_fLXEtEfEXFKpGkmLDHtqddF_JiGE';
+const GOOGLE_MAPS_API_KEY = 'AIzaSyDuU8_MsLU_Hp2V16iYFThCrKJv_Le2wuI';
 
 function buildMapHTML(vehicles, userLocation) {
   const markers = vehicles

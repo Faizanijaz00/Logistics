@@ -12,7 +12,7 @@ import { getCarImage } from '../../src/config/carImages';
 import { SERVER_URL } from '../../src/config/api';
 import { useLayout } from '../../src/hooks/useLayout';
 
-const GOOGLE_MAPS_API_KEY = 'AIzaSyB1ut_fLXEtEfEXFKpGkmLDHtqddF_JiGE';
+const GOOGLE_MAPS_API_KEY = 'AIzaSyDuU8_MsLU_Hp2V16iYFThCrKJv_Le2wuI';
 
 function useReverseGeocode(position) {
   const [address, setAddress] = useState(null);
