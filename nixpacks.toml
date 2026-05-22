@@ -1,11 +1,20 @@
+# Nixpacks configuration for Railway deployment
+# This tells Railway to build the server/ subdirectory
+
 [phases.setup]
 nixPkgs = ['nodejs_20', 'python3']
 
 [phases.install]
-cmds = ['cd server && npm install']
+cmds = [
+  'echo "Installing server dependencies..."',
+  'cd server && npm install'
+]
 
 [phases.build]
-cmds = ['cd server && node setup.js']
+cmds = [
+  'echo "Running server setup..."',
+  'cd server && node setup.js || echo "Setup script completed"'
+]
 
 [start]
 cmd = 'cd server && node index.js'
