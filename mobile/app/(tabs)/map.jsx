@@ -109,12 +109,29 @@ function buildMapHTML(vehicles, userLocation) {
   <script>
     var _map;
     var _userMarker;
+    var _markersById = {};
+    var _infoById = {};
 
     function goToVehicle(id) {
       if (window.ReactNativeWebView) {
         window.ReactNativeWebView.postMessage(id);
       }
     }
+
+    // Live position updates pushed from React Native every poll
+    window.updateMarkers = function(updates) {
+      if (!_map) return;
+      for (var i = 0; i < updates.length; i++) {
+        var u = updates[i];
+        var m = _markersById[u.id];
+        if (!m) continue;
+        m.setPosition({ lat: u.lat, lng: u.lng });
+        // Refresh info content (driver/destination may have changed)
+        var info = _infoById[u.id];
+        if (info && m._buildInfo) info.setContent(m._buildInfo(u));
+        m._state = Object.assign(m._state || {}, u);
+      }
+    };
 
     function panToUser(lat, lng) {
       if (_map && lat && lng) {
@@ -187,19 +204,25 @@ function buildMapHTML(vehicles, userLocation) {
         new UserLocationOverlay(userPos, _map);
       }
 
-      markers.forEach(function(v) {
-        var pos = { lat: v.lat, lng: v.lng };
-        bounds.extend(pos);
-
-        var driverLine = v.driver ? '<div style="font-size:12px;color:#444;margin-top:3px">Driver: ' + v.driver + '</div>' : '';
-        var destLine = v.destination ? '<div style="font-size:12px;color:#3B82F6;margin-top:3px">→ ' + v.destination + '</div>' : '';
-        var infoContent = '<div style="font-family:sans-serif;padding:4px 2px">' +
+      function buildInfoFor(v, state) {
+        var driver = (state && state.driver !== undefined) ? state.driver : v.driver;
+        var dest = (state && state.destination !== undefined) ? state.destination : v.destination;
+        var driverLine = driver ? '<div style="font-size:12px;color:#444;margin-top:3px">Driver: ' + driver + '</div>' : '';
+        var destLine = dest ? '<div style="font-size:12px;color:#3B82F6;margin-top:3px">→ ' + dest + '</div>' : '';
+        return '<div style="font-family:sans-serif;padding:4px 2px">' +
           '<strong>' + v.title + '</strong><br/>' +
           '<span style="font-family:monospace;font-size:13px">' + v.plate + '</span>' +
           driverLine +
           destLine +
           '<button onclick="goToVehicle(\\'' + v.id + '\\')" style="margin-top:8px;padding:6px 14px;background:#000;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;">View</button>' +
           '</div>';
+      }
+
+      markers.forEach(function(v) {
+        var pos = { lat: v.lat, lng: v.lng };
+        bounds.extend(pos);
+
+        var infoContent = buildInfoFor(v);
 
         var circleIcon = {
           path: google.maps.SymbolPath.CIRCLE,
@@ -216,6 +239,11 @@ function buildMapHTML(vehicles, userLocation) {
         var marker = new google.maps.Marker({ position: pos, map: _map, title: v.title, icon: circleIcon });
         var info = new google.maps.InfoWindow({ content: infoContent });
         marker.addListener('click', function() { info.open(_map, marker); });
+
+        // Register for live position updates
+        marker._buildInfo = function(state) { return buildInfoFor(v, state); };
+        _markersById[v.id] = marker;
+        _infoById[v.id] = info;
 
         if (v.imageUri) {
           var img = new window.Image();
@@ -256,6 +284,9 @@ export default function MapScreen() {
 
   useEffect(() => {
     fetchVehicles();
+    // Poll positions every 5s so the cars track live on the map
+    const interval = setInterval(() => { fetchVehicles(); }, 5000);
+    return () => clearInterval(interval);
   }, []);
 
   // Request location permissions and get current position
@@ -286,22 +317,32 @@ export default function MapScreen() {
     return !isNaN(lat) && !isNaN(lng) && !(lat === 0 && lng === 0);
   });
 
-  // Debug: log every vehicle and whether it has a position
-  console.log(
-    '[Map] vehicles:', vehicles.length,
-    'withPos:', vehiclesWithPos.length,
-    vehicles.map(v => ({
-      id: v.id,
-      hasPos: !!(v.position?.lat && v.position?.lng),
-      imageId: v.imageId,
-    }))
+  // Stable key — only the set of vehicle IDs that are on the map.
+  // Re-build the HTML only when vehicles get added/removed, NOT on every
+  // position update (those are injected via updateMarkers below).
+  const vehicleIdsKey = vehiclesWithPos.map(v => v.id).sort().join('|');
+  const initialMarkersRef = useRef(vehiclesWithPos);
+  useEffect(() => { initialMarkersRef.current = vehiclesWithPos; }, [vehicleIdsKey]);
+
+  const source = useMemo(
+    () => ({ html: buildMapHTML(initialMarkersRef.current, userLocation) }),
+    [vehicleIdsKey, userLocation]
   );
 
-  // Only pass vehicles with valid positions to the map HTML
-  const source = useMemo(
-    () => ({ html: buildMapHTML(vehiclesWithPos, userLocation) }),
-    [vehiclesWithPos, userLocation]
-  );
+  // Push position updates live without reloading the WebView
+  useEffect(() => {
+    if (!mapReady || !webViewRef.current) return;
+    const payload = vehiclesWithPos.map(v => ({
+      id: String(v.id),
+      lat: parseFloat(v.position.lat),
+      lng: parseFloat(v.position.lng),
+      active: v.status === 'active',
+      destination: v.destination ? String(v.destination) : '',
+      driver: v.currentDriver ? String(v.currentDriver) : '',
+    }));
+    const js = `if (window.updateMarkers) { updateMarkers(${JSON.stringify(payload)}); } true;`;
+    webViewRef.current.injectJavaScript(js);
+  }, [vehiclesWithPos, mapReady]);
 
   function handleMessage(event) {
     const vehicleId = event.nativeEvent.data;

@@ -316,4 +316,29 @@ export function registerMiscRoutes(app, requireAuth) {
       res.json({ ok: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
+
+  // Update a drive (admin: edit driver, vehicle, times, locations)
+  app.patch('/api/drives/:id', requireAuth, (req, res) => {
+    try {
+      const all = loadJsonFile('drives.json');
+      const idx = all.findIndex(d => d.id === req.params.id);
+      if (idx === -1) return res.status(404).json({ error: 'Drive not found' });
+      const allowed = [
+        'vehicleId', 'vehicleName', 'driverId', 'driverName',
+        'startedAt', 'startPosition', 'startAddress',
+        'endedAt', 'endPosition', 'endAddress',
+      ];
+      for (const key of allowed) {
+        if (req.body[key] !== undefined) all[idx][key] = req.body[key];
+      }
+      // Recompute duration if both timestamps exist
+      if (all[idx].startedAt && all[idx].endedAt) {
+        all[idx].durationMs = new Date(all[idx].endedAt) - new Date(all[idx].startedAt);
+      } else if (all[idx].endedAt === null) {
+        all[idx].durationMs = null;
+      }
+      saveJsonFile('drives.json', all);
+      res.json(all[idx]);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
 }

@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, Modal, TextInput, Switch, ActivityIndicator, Alert, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Fuel, ReceiptText, AlertTriangle, LogOut, RefreshCw, MapPin, Navigation, X, Car, ChevronRight, ChevronDown, ChevronUp, Users, Route, Plus, Trash2, CheckCircle2 } from 'lucide-react-native';
+import { Fuel, ReceiptText, AlertTriangle, LogOut, RefreshCw, MapPin, Navigation, X, Car, ChevronRight, ChevronDown, ChevronUp, Users, Route, Plus, Trash2, CheckCircle2, Clock } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
 import { useVehicleStore } from '../../src/store/vehicleStore';
 import { getCarImage } from '../../src/config/carImages';
@@ -984,12 +984,14 @@ function AdminHomeScreen() {
   const [trips, setTrips] = useState([]);
   const [issues, setIssues] = useState([]);
   const [fuelRecords, setFuelRecords] = useState([]);
+  const [drives, setDrives] = useState([]);
 
   const [open, setOpen] = useState({
     fleet: true,
     users: false,
     tickets: false,
     trips: false,
+    drives: false,
     issues: false,
     fuel: false,
   });
@@ -1046,6 +1048,13 @@ function AdminHomeScreen() {
     } catch {}
   }, [authedFetch]);
 
+  const loadDrives = useCallback(async () => {
+    try {
+      const data = await authedFetch('/api/drives');
+      setDrives(Array.isArray(data) ? data : (data?.drives || []));
+    } catch {}
+  }, [authedFetch]);
+
   useEffect(() => {
     if (!token) return;
     fetchVehicles();
@@ -1054,7 +1063,8 @@ function AdminHomeScreen() {
     loadTrips();
     loadIssues();
     loadFuelRecords();
-  }, [token, fetchVehicles, loadUsers, loadTickets, loadTrips, loadIssues, loadFuelRecords]);
+    loadDrives();
+  }, [token, fetchVehicles, loadUsers, loadTickets, loadTrips, loadIssues, loadFuelRecords, loadDrives]);
 
   const toggle = (key) => setOpen(o => ({ ...o, [key]: !o[key] }));
 
@@ -1132,6 +1142,23 @@ function AdminHomeScreen() {
             trips={trips}
             authedFetch={authedFetch}
             onChanged={loadTrips}
+          />
+        </AdminSection>
+
+        <AdminSection
+          title="Drives"
+          subtitle={`${drives.length} drive${drives.length === 1 ? '' : 's'} · ${drives.filter(d => !d.endedAt).length} ongoing`}
+          icon={<Clock size={20} color="#0061bd" />}
+          iconBg="#eff6ff"
+          open={open.drives}
+          onToggle={() => toggle('drives')}
+        >
+          <DrivesSection
+            drives={drives}
+            vehicles={vehicles}
+            users={users}
+            authedFetch={authedFetch}
+            onChanged={loadDrives}
           />
         </AdminSection>
 
@@ -2252,6 +2279,144 @@ function IssueViewModal({ visible, issue, vehicle, authedFetch, onClose, onChang
         </ScrollView>
       </SafeAreaView>
     </Modal>
+  );
+}
+
+// ── Drives section (admin: edit + delete) ─────────────────────────────────────
+function DrivesSection({ drives, vehicles, users, authedFetch, onChanged }) {
+  const [editing, setEditing] = useState(null);
+  const [driverName, setDriverName] = useState('');
+  const [vehicleId, setVehicleId] = useState('');
+  const [startedAt, setStartedAt] = useState('');
+  const [endedAt, setEndedAt] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  function formatDuration(ms) {
+    if (ms == null || ms < 0) return '—';
+    const m = Math.floor(ms / 60000);
+    const h = Math.floor(m / 60);
+    return h > 0 ? `${h}h ${m % 60}m` : `${m}m`;
+  }
+  function formatTs(iso) {
+    if (!iso) return '—';
+    const d = new Date(iso);
+    return d.toLocaleString('en-GB', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function openEdit(d) {
+    setEditing(d);
+    setDriverName(d.driverName || '');
+    setVehicleId(d.vehicleId || '');
+    setStartedAt(d.startedAt || '');
+    setEndedAt(d.endedAt || '');
+  }
+
+  async function save() {
+    if (!editing) return;
+    setBusy(true);
+    try {
+      const veh = vehicles.find(v => v.id === vehicleId);
+      await authedFetch(`/api/drives/${editing.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({
+          driverName: driverName || null,
+          vehicleId: vehicleId || null,
+          vehicleName: veh ? `${veh.make} ${veh.model}` : (editing.vehicleName || ''),
+          startedAt: startedAt || editing.startedAt,
+          endedAt: endedAt || null,
+        }),
+      });
+      setEditing(null);
+      onChanged?.();
+    } catch (e) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function remove(d) {
+    confirmDelete(`drive (${d.vehicleName || 'vehicle'})`, async () => {
+      try {
+        await authedFetch(`/api/drives/${d.id}`, { method: 'DELETE' });
+        onChanged?.();
+      } catch (e) {
+        Alert.alert('Error', e.message);
+      }
+    });
+  }
+
+  const sorted = [...drives].sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || ''));
+  if (sorted.length === 0) return <Text style={adminStyles.emptyText}>No drives recorded.</Text>;
+
+  return (
+    <>
+      {sorted.slice(0, 100).map(d => (
+        <View key={d.id} style={adminStyles.row}>
+          <TouchableOpacity style={{ flexDirection: 'row', flex: 1, alignItems: 'center' }} onPress={() => openEdit(d)} activeOpacity={0.7}>
+            <View style={[adminStyles.avatar, { backgroundColor: d.endedAt ? '#eff6ff' : '#dcfce7' }]}>
+              <Clock size={18} color={d.endedAt ? '#0061bd' : '#018a16'} />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={adminStyles.rowTitle}>{d.vehicleName || 'Vehicle'} · {d.driverName || 'Unknown'}</Text>
+              <Text style={adminStyles.rowMeta}>
+                {formatTs(d.startedAt)} {d.endedAt ? `→ ${formatTs(d.endedAt)} · ${formatDuration(d.durationMs)}` : '· ONGOING'}
+              </Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => remove(d)} style={{ padding: 8 }}>
+            <Trash2 size={16} color="#c4001a" />
+          </TouchableOpacity>
+        </View>
+      ))}
+
+      <Modal visible={!!editing} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setEditing(null)}>
+        <SafeAreaView style={styles.modalSafe}>
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+            <View style={styles.modalHeader}>
+              <View>
+                <Text style={styles.modalTitle}>Edit Drive</Text>
+                <Text style={styles.modalSubtitle}>{editing?.vehicleName || ''}</Text>
+              </View>
+              <TouchableOpacity onPress={() => setEditing(null)} style={styles.closeBtn}>
+                <X size={18} color="#000" />
+              </TouchableOpacity>
+            </View>
+            <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
+              <FormField label="Driver name" value={driverName} onChange={setDriverName} />
+              <Text style={styles.fieldLabel}>Vehicle</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4, marginBottom: 14 }}>
+                {vehicles.map(v => {
+                  const selected = v.id === vehicleId;
+                  return (
+                    <TouchableOpacity
+                      key={v.id}
+                      style={[adminStyles.chip, selected && adminStyles.chipSelected]}
+                      onPress={() => setVehicleId(v.id)}
+                      activeOpacity={0.7}
+                    >
+                      <Text style={[adminStyles.chipText, selected && adminStyles.chipTextSelected]}>
+                        {v.make} {v.model}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </ScrollView>
+              <FormField label="Started at (ISO)" value={startedAt} onChange={setStartedAt} placeholder="2026-01-01T10:00:00.000Z" />
+              <FormField label="Ended at (ISO, leave blank for ongoing)" value={endedAt} onChange={setEndedAt} placeholder="" />
+              <TouchableOpacity
+                style={[styles.primaryBtn, busy && { opacity: 0.6 }]}
+                onPress={save}
+                disabled={busy}
+                activeOpacity={0.85}
+              >
+                {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save changes</Text>}
+              </TouchableOpacity>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </Modal>
+    </>
   );
 }
 
