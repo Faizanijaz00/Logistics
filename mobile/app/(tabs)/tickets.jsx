@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ReceiptText, Car, User, Calendar } from 'lucide-react-native';
+import { ReceiptText, Car, User, Calendar, AlertCircle, Clock } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
 import { useVehicleStore } from '../../src/store/vehicleStore';
 import { SERVER_URL } from '../../src/config/api';
@@ -108,6 +108,9 @@ export default function TicketsScreen() {
             const dateStr = t.date || t.createdAt || t.created_at;
             const reason = t.notes || t.reason || '';
             const paid = t.paid || t.status === 'Paid';
+            const appealing = t.appealing || 'undecided';
+            const appealDeadline = t.appeal_deadline || t.appealDeadline;
+            const paymentDeadline = t.payment_deadline || t.paymentDeadline;
             return (
               <View key={t.id} style={[styles.card, paid && styles.cardPaid]}>
                 <View style={styles.cardHeader}>
@@ -130,8 +133,36 @@ export default function TicketsScreen() {
 
                 <View style={styles.row}>
                   <Calendar size={14} color="#666" />
-                  <Text style={styles.rowText}>{formatDate(dateStr)}</Text>
+                  <Text style={styles.rowText}>Issued: {formatDate(dateStr)}</Text>
                 </View>
+
+                {appealing && appealing !== 'undecided' ? (
+                  <View style={styles.row}>
+                    <AlertCircle size={14} color={appealing === 'yes' ? '#0061bd' : '#888'} />
+                    <Text style={[styles.rowText, { color: appealing === 'yes' ? '#0061bd' : '#666', fontWeight: '600' }]}>
+                      Appeal: {appealing === 'yes' ? 'Yes' : 'No'}
+                    </Text>
+                  </View>
+                ) : (
+                  <View style={styles.row}>
+                    <AlertCircle size={14} color="#f59e0b" />
+                    <Text style={[styles.rowText, { color: '#92400e' }]}>Appeal: Undecided</Text>
+                  </View>
+                )}
+
+                {appealing !== 'no' && appealDeadline ? (
+                  <View style={styles.row}>
+                    <Clock size={14} color="#0061bd" />
+                    <Text style={styles.rowText}>Appeal by: {formatDate(appealDeadline)}</Text>
+                  </View>
+                ) : null}
+
+                {appealing !== 'yes' && paymentDeadline ? (
+                  <View style={styles.row}>
+                    <Clock size={14} color="#c4001a" />
+                    <Text style={styles.rowText}>Pay by: {formatDate(paymentDeadline)}</Text>
+                  </View>
+                ) : null}
 
                 {reason ? <Text style={styles.reason} numberOfLines={3}>{reason}</Text> : null}
               </View>

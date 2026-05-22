@@ -554,6 +554,9 @@ function AddTicketModal({ visible, onClose, vehicle, user, token, drivers }) {
   const [reason, setReason] = useState('');
   const [driverId, setDriverId] = useState(user?.id || null);
   const [driverPickerOpen, setDriverPickerOpen] = useState(false);
+  const [appealing, setAppealing] = useState('undecided'); // 'yes' | 'no' | 'undecided'
+  const [appealDeadline, setAppealDeadline] = useState('');
+  const [paymentDeadline, setPaymentDeadline] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -564,6 +567,9 @@ function AddTicketModal({ visible, onClose, vehicle, user, token, drivers }) {
       setReason('');
       setDriverId(user?.id || (drivers[0] && drivers[0].id) || null);
       setDriverPickerOpen(false);
+      setAppealing('undecided');
+      setAppealDeadline('');
+      setPaymentDeadline('');
     }
   }, [visible]);
 
@@ -597,6 +603,9 @@ function AddTicketModal({ visible, onClose, vehicle, user, token, drivers }) {
         notes: reason.trim(),
         status: 'Issued',
         paid: false,
+        appealing,
+        appeal_deadline: appealDeadline || null,
+        payment_deadline: paymentDeadline || null,
         // also store the friendly fields for backward-compat reads
         vehicleId: vehicle.id,
         driverName: isUnknown ? 'Unknown' : (selectedDriver?.name || ''),
@@ -604,6 +613,8 @@ function AddTicketModal({ visible, onClose, vehicle, user, token, drivers }) {
         reference: reference.trim(),
         amount: numeric,
         reason: reason.trim(),
+        appealDeadline: appealDeadline || null,
+        paymentDeadline: paymentDeadline || null,
       };
       const resp = await fetch(`${SERVER_URL}/api/tickets`, {
         method: 'POST',
@@ -710,6 +721,48 @@ function AddTicketModal({ visible, onClose, vehicle, user, token, drivers }) {
                 ))}
               </View>
             )}
+
+            <Text style={styles.fieldLabel}>Are we appealing?</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+              {['yes', 'no', 'undecided'].map(opt => (
+                <TouchableOpacity
+                  key={opt}
+                  onPress={() => setAppealing(opt)}
+                  style={[styles.severityChip, appealing === opt && styles.severityChipActive]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.severityChipText, appealing === opt && styles.severityChipTextActive]}>
+                    {opt === 'yes' ? 'Yes' : opt === 'no' ? 'No' : 'Undecided'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {appealing !== 'no' ? (
+              <>
+                <Text style={styles.fieldLabel}>Appeal deadline</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={appealDeadline}
+                  onChangeText={setAppealDeadline}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#bbb"
+                />
+              </>
+            ) : null}
+
+            {appealing !== 'yes' ? (
+              <>
+                <Text style={styles.fieldLabel}>Payment deadline</Text>
+                <TextInput
+                  style={styles.textInput}
+                  value={paymentDeadline}
+                  onChangeText={setPaymentDeadline}
+                  placeholder="YYYY-MM-DD"
+                  placeholderTextColor="#bbb"
+                />
+              </>
+            ) : null}
 
             <TouchableOpacity
               style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}
@@ -1735,6 +1788,10 @@ function TicketEditModal({ visible, ticket, vehicles, currentUser, authedFetch, 
   const [date, setDate] = useState(ticket?.date || new Date().toISOString().slice(0, 10));
   const [reason, setReason] = useState(ticket?.reason || ticket?.notes || '');
   const [vehicleId, setVehicleId] = useState(ticket?.vehicleId || ticket?.vehicle_id || vehicles[0]?.id || '');
+  const [appealing, setAppealing] = useState(ticket?.appealing || 'undecided');
+  const [appealDeadline, setAppealDeadline] = useState(ticket?.appeal_deadline || ticket?.appealDeadline || '');
+  const [paymentDeadline, setPaymentDeadline] = useState(ticket?.payment_deadline || ticket?.paymentDeadline || '');
+  const [paid, setPaid] = useState(!!(ticket?.paid || ticket?.status === 'Paid'));
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -1746,6 +1803,15 @@ function TicketEditModal({ visible, ticket, vehicles, currentUser, authedFetch, 
     setSubmitting(true);
     setError('');
     try {
+      const appealFields = {
+        appealing,
+        appeal_deadline: appealDeadline || null,
+        payment_deadline: paymentDeadline || null,
+        appealDeadline: appealDeadline || null,
+        paymentDeadline: paymentDeadline || null,
+        paid,
+        status: paid ? 'Paid' : 'Issued',
+      };
       if (isNew) {
         const body = {
           id: `ticket-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
@@ -1761,6 +1827,7 @@ function TicketEditModal({ visible, ticket, vehicles, currentUser, authedFetch, 
           date,
           reason: reason.trim(),
           notes: reason.trim(),
+          ...appealFields,
         };
         await authedFetch('/api/tickets', { method: 'POST', body: JSON.stringify(body) });
       } else {
@@ -1774,6 +1841,7 @@ function TicketEditModal({ visible, ticket, vehicles, currentUser, authedFetch, 
           notes: reason.trim(),
           vehicleId,
           vehicle_id: vehicleId,
+          ...appealFields,
         };
         await authedFetch(`/api/tickets/${ticket.id}`, { method: 'PATCH', body: JSON.stringify(body) });
       }
@@ -1823,6 +1891,34 @@ function TicketEditModal({ visible, ticket, vehicles, currentUser, authedFetch, 
                 );
               })}
             </ScrollView>
+
+            <Text style={styles.fieldLabel}>Appealing?</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+              {['yes', 'no', 'undecided'].map(opt => (
+                <TouchableOpacity
+                  key={opt}
+                  onPress={() => setAppealing(opt)}
+                  style={[styles.severityChip, appealing === opt && styles.severityChipActive]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.severityChipText, appealing === opt && styles.severityChipTextActive]}>
+                    {opt === 'yes' ? 'Yes' : opt === 'no' ? 'No' : 'Undecided'}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {appealing !== 'no' ? (
+              <FormField label="Appeal deadline" value={appealDeadline} onChange={setAppealDeadline} placeholder="YYYY-MM-DD" />
+            ) : null}
+            {appealing !== 'yes' ? (
+              <FormField label="Payment deadline" value={paymentDeadline} onChange={setPaymentDeadline} placeholder="YYYY-MM-DD" />
+            ) : null}
+
+            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+              <Text style={styles.fieldLabel}>Paid</Text>
+              <Switch value={paid} onValueChange={setPaid} />
+            </View>
 
             <TouchableOpacity
               style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}
