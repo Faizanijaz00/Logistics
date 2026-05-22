@@ -4,7 +4,9 @@
   "type": "module",
   "scripts": {
     "start": "node index.js",
-    "dev": "node --watch index.js"
+    "dev": "node --watch index.js",
+    "setup": "node setup.js",
+    "postinstall": "node setup.js"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

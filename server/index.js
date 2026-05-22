@@ -56,10 +56,17 @@ registerPassengerRoutes(app);
 // --- REST endpoints ---
 
 app.get('/api/health', (req, res) => {
+  const devices = traccarService.getDevices();
+  const uptime = process.uptime();
+
   res.json({
     status: 'ok',
-    traccarConnected: traccarService.getDevices().length > 0,
-    deviceCount: traccarService.getDevices().length,
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(uptime),
+    traccarConnected: devices.length > 0,
+    deviceCount: devices.length,
+    environment: config.nodeEnv,
+    version: '1.0.0',
   });
 });
 

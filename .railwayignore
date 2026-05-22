@@ -1,0 +1,11 @@
+# Ignore frontend and mobile app (only deploy backend)
+mobile/
+src/
+public/
+node_modules/
+*.md
+.git/
+.github/
+
+# Keep server directory
+!server/
