@@ -7,7 +7,6 @@ import { useVehicleStore } from '../../src/store/vehicleStore';
 import { getCarImage } from '../../src/config/carImages';
 import { useLayout } from '../../src/hooks/useLayout';
 import { SERVER_URL } from '../../src/config/api';
-import { useEffect } from 'react';
 
 function UKPlate({ registration, small }) {
   if (!registration) return null;
