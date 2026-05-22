@@ -25,14 +25,20 @@ export const useAuthStore = create(
       },
 
       _startDrive: async (vehicleId, vehicleName) => {
-        const { token, _getCurrentPosition } = get();
+        const { token, user, _getCurrentPosition } = get();
         if (!token) return;
         try {
           const startPosition = await _getCurrentPosition();
           const resp = await fetch(`${SERVER_URL}/api/drives/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ vehicleId, vehicleName, startPosition }),
+            body: JSON.stringify({
+              vehicleId,
+              vehicleName,
+              startPosition,
+              driverId: user?.id || null,
+              driverName: user?.name || user?.username || 'Unknown',
+            }),
           });
           if (resp.ok) {
             const data = await resp.json();

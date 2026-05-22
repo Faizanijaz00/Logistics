@@ -1110,6 +1110,8 @@ function AdminHomeScreen() {
             records={fuelRecords}
             vehicles={vehicles}
             users={users}
+            token={token}
+            onChange={loadFuelRecords}
           />
         </AdminSection>
       </ScrollView>
@@ -2158,15 +2160,65 @@ function IssueViewModal({ visible, issue, vehicle, authedFetch, onClose, onChang
 }
 
 // ── Fuel records (read-only) ───────────────────────────────────────────────────
-function FuelRecordsSection({ records, vehicles, users }) {
+function FuelRecordsSection({ records, vehicles, users, token, onChange }) {
+  const [editing, setEditing] = useState(null); // record being edited
+  const [editAmount, setEditAmount] = useState('');
+  const [editPaidBy, setEditPaidBy] = useState('');
+  const [editUsedCard, setEditUsedCard] = useState(false);
+  const [busy, setBusy] = useState(false);
+
   function vehicleLabel(id) {
     if (!id) return 'Unknown vehicle';
     const v = vehicles.find(x => x.id === id);
     return v ? `${v.make} ${v.model}` : id;
   }
-
   function driverLabel(r) {
     return r.paidBy || (users.find(u => u.id === r.driverId)?.name) || 'Unknown';
+  }
+
+  function openEdit(r) {
+    setEditing(r);
+    setEditAmount(String(r.amount || ''));
+    setEditPaidBy(r.paidBy || '');
+    setEditUsedCard(!!r.usedFuelCard);
+  }
+
+  async function save() {
+    if (!editing) return;
+    setBusy(true);
+    try {
+      const resp = await fetch(`${SERVER_URL}/api/fuel-records/${editing.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          amount: Number(editAmount) || 0,
+          paidBy: editPaidBy,
+          usedFuelCard: editUsedCard,
+        }),
+      });
+      if (!resp.ok) throw new Error('Failed to update');
+      setEditing(null);
+      onChange?.();
+    } catch (e) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  function remove(r) {
+    confirmDelete(`fuel record (£${Number(r.amount).toFixed(2)})`, async () => {
+      try {
+        const resp = await fetch(`${SERVER_URL}/api/fuel-records/${r.id}`, {
+          method: 'DELETE',
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!resp.ok) throw new Error('Failed to delete');
+        onChange?.();
+      } catch (e) {
+        Alert.alert('Error', e.message);
+      }
+    });
   }
 
   const sorted = [...records].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
@@ -2175,20 +2227,58 @@ function FuelRecordsSection({ records, vehicles, users }) {
     return <Text style={adminStyles.emptyText}>No fuel records yet.</Text>;
   }
 
-  return sorted.slice(0, 50).map(r => (
-    <View key={r.id} style={adminStyles.row}>
-      <View style={[adminStyles.avatar, { backgroundColor: '#fff7ed' }]}>
-        <Fuel size={18} color="#f97316" />
-      </View>
-      <View style={{ flex: 1, marginLeft: 12 }}>
-        <Text style={adminStyles.rowTitle}>£{Number(r.amount || 0).toFixed(2)} · {vehicleLabel(r.vehicleId)}</Text>
-        <Text style={adminStyles.rowMeta}>
-          {driverLabel(r)} · {(r.createdAt || '').slice(0, 10)}
-          {r.usedFuelCard ? ' · Fuel card' : ''}
-        </Text>
-      </View>
-    </View>
-  ));
+  return (
+    <>
+      {sorted.slice(0, 50).map(r => (
+        <View key={r.id} style={adminStyles.row}>
+          <TouchableOpacity style={{ flexDirection: 'row', flex: 1, alignItems: 'center' }} onPress={() => openEdit(r)} activeOpacity={0.7}>
+            <View style={[adminStyles.avatar, { backgroundColor: '#fff7ed' }]}>
+              <Fuel size={18} color="#f97316" />
+            </View>
+            <View style={{ flex: 1, marginLeft: 12 }}>
+              <Text style={adminStyles.rowTitle}>£{Number(r.amount || 0).toFixed(2)} · {vehicleLabel(r.vehicleId)}</Text>
+              <Text style={adminStyles.rowMeta}>
+                {driverLabel(r)} · {(r.createdAt || '').slice(0, 10)}
+                {r.usedFuelCard ? ' · Fuel card' : ''}
+              </Text>
+            </View>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => remove(r)} style={{ padding: 8 }}>
+            <Trash2 size={16} color="#c4001a" />
+          </TouchableOpacity>
+        </View>
+      ))}
+
+      <Modal visible={!!editing} animationType="slide" transparent onRequestClose={() => setEditing(null)}>
+        <View style={styles.modalBackdrop}>
+          <View style={styles.modalSheet}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Edit Fuel Record</Text>
+              <TouchableOpacity onPress={() => setEditing(null)} style={styles.closeBtn}>
+                <X size={18} color="#000" />
+              </TouchableOpacity>
+            </View>
+            <View style={{ padding: 18 }}>
+              <FormField label="Amount (£)" value={editAmount} onChange={setEditAmount} keyboardType="decimal-pad" />
+              <FormField label="Paid by" value={editPaidBy} onChange={setEditPaidBy} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
+                <Text style={styles.fieldLabel}>Used fuel card</Text>
+                <Switch value={editUsedCard} onValueChange={setEditUsedCard} />
+              </View>
+              <TouchableOpacity
+                style={[styles.primaryBtn, busy && { opacity: 0.6 }]}
+                onPress={save}
+                disabled={busy}
+                activeOpacity={0.85}
+              >
+                {busy ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save changes</Text>}
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </>
+  );
 }
 
 // ── Shared form field ──────────────────────────────────────────────────────────

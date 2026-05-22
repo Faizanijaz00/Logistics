@@ -167,6 +167,30 @@ export function registerMiscRoutes(app, requireAuth) {
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
+  app.patch('/api/fuel-records/:id', requireAuth, (req, res) => {
+    try {
+      const all = loadJsonFile('fuel_records.json');
+      const idx = all.findIndex(r => r.id === req.params.id);
+      if (idx === -1) return res.status(404).json({ error: 'Fuel record not found' });
+      const allowed = ['vehicleId', 'amount', 'paidBy', 'usedFuelCard'];
+      for (const key of allowed) {
+        if (req.body[key] !== undefined) all[idx][key] = key === 'amount' ? Number(req.body[key]) : req.body[key];
+      }
+      saveJsonFile('fuel_records.json', all);
+      res.json(all[idx]);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete('/api/fuel-records/:id', requireAuth, (req, res) => {
+    try {
+      const all = loadJsonFile('fuel_records.json');
+      const next = all.filter(r => r.id !== req.params.id);
+      if (next.length === all.length) return res.status(404).json({ error: 'Fuel record not found' });
+      saveJsonFile('fuel_records.json', next);
+      res.json({ ok: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
   // ── Issues (file-backed) ────────────────────────────────────────────────────
   app.get('/api/issues', requireAuth, (req, res) => {
     try {
@@ -244,12 +268,14 @@ export function registerMiscRoutes(app, requireAuth) {
     try {
       const all = loadJsonFile('drives.json');
       const startPos = req.body.startPosition || null; // { lat, lng } or null
+      // JWT has { id, username, role } but not `name` — trust the client-sent
+      // driverName first, fall back to anything we can get from req.user.
       const drive = {
         id: randomUUID(),
         vehicleId: req.body.vehicleId || null,
         vehicleName: req.body.vehicleName || '',
-        driverId: req.user?.id || req.body.driverId || null,
-        driverName: req.user?.name || req.body.driverName || '',
+        driverId: req.body.driverId || req.user?.id || null,
+        driverName: req.body.driverName || req.user?.name || req.user?.username || 'Unknown',
         startedAt: new Date().toISOString(),
         startPosition: startPos,
         startAddress: req.body.startAddress || null,

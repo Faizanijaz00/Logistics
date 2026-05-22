@@ -7,14 +7,10 @@ import { LocateFixed } from 'lucide-react-native';
 import { useVehicleStore } from '../../src/store/vehicleStore';
 import { SERVER_URL } from '../../src/config/api';
 import { useLayout } from '../../src/hooks/useLayout';
-import { getCarImage } from '../../src/config/carImages';
-
-// Resolve a bundled car image (same as Fleet page) into a URI the WebView can load
-function getLocalImageUri(imageId) {
-  const asset = getCarImage(imageId);
-  if (!asset) return null;
-  const resolved = Image.resolveAssetSource(asset);
-  return resolved?.uri || null;
+// Resolve to the server-hosted image URL (server now ships images in server/public/cars/)
+function getCarImageUrl(imageId) {
+  if (!imageId) return null;
+  return `${SERVER_URL}/cars/${imageId}.png`;
 }
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -25,7 +21,7 @@ function buildMapHTML(vehicles, userLocation) {
       const lat = parseFloat(v.position?.lat);
       const lng = parseFloat(v.position?.lng);
       if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) return null;
-      const imageUri = getLocalImageUri(v.imageId);
+      const imageUri = getCarImageUrl(v.imageId);
       return {
         id: String(v.id),
         lat,

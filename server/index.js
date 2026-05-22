@@ -43,6 +43,8 @@ app.use(express.json({ limit: '20mb' }));
 import { dirname } from 'path';
 import { fileURLToPath } from 'url';
 const __dirname2 = dirname(fileURLToPath(import.meta.url));
+// Serve from server/public first (Railway-friendly), then fall back to repo root /public (local dev)
+app.use(express.static(join(__dirname2, 'public')));
 app.use(express.static(join(__dirname2, '..', 'public')));
 
 // --- Auth routes ---
