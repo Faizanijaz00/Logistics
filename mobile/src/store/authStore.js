@@ -42,16 +42,37 @@ export const useAuthStore = create(
       },
 
       _endDrive: async () => {
-        const { token, activeDriveId, _getCurrentPosition } = get();
-        if (!token || !activeDriveId) return;
+        const { token, activeDriveId, user, _getCurrentPosition } = get();
+        if (!token) return;
+        const endPosition = await _getCurrentPosition();
+        let driveIds = [];
+        if (activeDriveId) driveIds.push(activeDriveId);
+
+        // Recovery: if no activeDriveId in state (or as a safety net),
+        // also stop ANY ongoing drives owned by this user on the server.
         try {
-          const endPosition = await _getCurrentPosition();
-          await fetch(`${SERVER_URL}/api/drives/${activeDriveId}/stop`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ endPosition }),
-          });
+          if (user?.id) {
+            const r = await fetch(`${SERVER_URL}/api/drives?driverId=${encodeURIComponent(user.id)}`, {
+              headers: { Authorization: `Bearer ${token}` },
+            });
+            if (r.ok) {
+              const list = await r.json();
+              for (const d of (Array.isArray(list) ? list : [])) {
+                if (!d.endedAt && d.id && !driveIds.includes(d.id)) driveIds.push(d.id);
+              }
+            }
+          }
         } catch {}
+
+        for (const id of driveIds) {
+          try {
+            await fetch(`${SERVER_URL}/api/drives/${id}/stop`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ endPosition }),
+            });
+          } catch {}
+        }
         set({ activeDriveId: null });
       },
 

@@ -55,12 +55,14 @@ const plateStyles = StyleSheet.create({
   plateTextSmall: { fontSize: 11, paddingHorizontal: 6, letterSpacing: 1.5 },
 });
 
-function VehiclePickerRow({ vehicle, onSelect }) {
+function VehiclePickerRow({ vehicle, onSelect, currentUser }) {
   const carImage = getCarImage(vehicle.imageId);
-  const inUse = !!vehicle.currentDriver;
+  const driverId = vehicle.currentDriverId || vehicle.current_driver_id;
+  const isMine = driverId && currentUser?.id && driverId === currentUser.id;
+  const inUse = !!vehicle.currentDriver && !isMine;
   return (
     <TouchableOpacity
-      style={[pickerStyles.row, inUse && pickerStyles.rowInUse]}
+      style={[pickerStyles.row, inUse && pickerStyles.rowInUse, isMine && pickerStyles.rowMine]}
       activeOpacity={0.6}
       onPress={() => onSelect(vehicle)}
     >
@@ -79,7 +81,9 @@ function VehiclePickerRow({ vehicle, onSelect }) {
           <UKPlate registration={vehicle.licensePlate} small />
           {vehicle.color ? <Text style={pickerStyles.color}>{vehicle.color}</Text> : null}
         </View>
-        {inUse ? (
+        {isMine ? (
+          <Text style={pickerStyles.mineBadge}>Currently driving</Text>
+        ) : inUse ? (
           <Text style={pickerStyles.driverBadge}>In use by {vehicle.currentDriver}</Text>
         ) : null}
       </View>
@@ -100,7 +104,9 @@ const pickerStyles = StyleSheet.create({
     borderColor: '#ebebeb',
   },
   rowInUse: { backgroundColor: '#fafafa', borderColor: '#e2e2e2' },
+  rowMine: { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' },
   driverBadge: { fontSize: 11, color: '#dc2626', fontWeight: '600', marginTop: 4 },
+  mineBadge: { fontSize: 11, color: '#018a16', fontWeight: '700', marginTop: 4 },
   imageBox: { width: 90, height: 58, marginRight: 14 },
   carImage: { width: '100%', height: '100%' },
   iconFallback: {
@@ -386,7 +392,7 @@ function DriverHomeScreen() {
               <Text style={styles.noVehicles}>No vehicles available</Text>
             ) : (
               availableVehicles.map(v => (
-                <VehiclePickerRow key={v.id} vehicle={v} onSelect={handleSelectVehicle} />
+                <VehiclePickerRow key={v.id} vehicle={v} onSelect={handleSelectVehicle} currentUser={user} />
               ))
             )}
           </ScrollView>
