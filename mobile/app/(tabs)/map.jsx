@@ -34,6 +34,8 @@ function buildMapHTML(vehicles, userLocation) {
         plate: String(v.licensePlate || ''),
         active: v.status === 'active',
         imageUri,
+        destination: v.destination ? String(v.destination) : '',
+        driver: v.currentDriver ? String(v.currentDriver) : '',
       };
     })
     .filter(Boolean);
@@ -193,9 +195,13 @@ function buildMapHTML(vehicles, userLocation) {
         var pos = { lat: v.lat, lng: v.lng };
         bounds.extend(pos);
 
+        var driverLine = v.driver ? '<div style="font-size:12px;color:#444;margin-top:3px">Driver: ' + v.driver + '</div>' : '';
+        var destLine = v.destination ? '<div style="font-size:12px;color:#3B82F6;margin-top:3px">→ ' + v.destination + '</div>' : '';
         var infoContent = '<div style="font-family:sans-serif;padding:4px 2px">' +
           '<strong>' + v.title + '</strong><br/>' +
-          '<span style="font-family:monospace;font-size:13px">' + v.plate + '</span><br/>' +
+          '<span style="font-family:monospace;font-size:13px">' + v.plate + '</span>' +
+          driverLine +
+          destLine +
           '<button onclick="goToVehicle(\\'' + v.id + '\\')" style="margin-top:8px;padding:6px 14px;background:#000;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;">View</button>' +
           '</div>';
 

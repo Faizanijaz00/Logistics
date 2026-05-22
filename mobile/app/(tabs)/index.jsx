@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, Modal, TextInput, Switch, ActivityIndicator, Alert, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Fuel, ReceiptText, AlertTriangle, LogOut, RefreshCw, MapPin, Navigation, X, Car, ChevronRight, ChevronDown, ChevronUp, Users, Route, Plus, Trash2, CheckCircle2 } from 'lucide-react-native';
@@ -128,6 +128,7 @@ function DriverHomeScreen() {
   const [showFuelModal, setShowFuelModal] = useState(false);
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [showIssueModal, setShowIssueModal] = useState(false);
+  const [showDestModal, setShowDestModal] = useState(false);
   const [drivers, setDrivers] = useState([]);
   const { isUnfolded } = useLayout();
 
@@ -225,16 +226,16 @@ function DriverHomeScreen() {
                       <Text style={styles.statValue}>Driving</Text>
                     </View>
                     <View style={styles.statDivider} />
-                    <View style={styles.statCard}>
+                    <TouchableOpacity style={styles.statCard} activeOpacity={0.6} onPress={() => setShowDestModal(true)}>
                       <MapPin size={16} color="#3B82F6" />
                       <Text style={styles.statLabel}>Destination</Text>
-                      <Text style={styles.statValue} numberOfLines={1}>{vehicle.destination || 'Not set'}</Text>
-                    </View>
+                      <Text style={styles.statValue} numberOfLines={1}>{vehicle.destination || 'Tap to set'}</Text>
+                    </TouchableOpacity>
                     <View style={styles.statDivider} />
                     <View style={styles.statCard}>
                       <View style={[styles.fuelDot, { backgroundColor: (vehicle.fuel?.level ?? 0) > 50 ? '#018a16' : (vehicle.fuel?.level ?? 0) > 20 ? '#f97316' : '#c4001a' }]} />
                       <Text style={styles.statLabel}>Fuel</Text>
-                      <Text style={styles.statValue}>{vehicle.fuel?.level != null ? `${vehicle.fuel.level}%` : '—'}</Text>
+                      <Text style={styles.statValue}>{vehicle.fuel?.level != null ? `${Math.round(vehicle.fuel.level)}%` : '—'}</Text>
                     </View>
                   </View>
 
@@ -305,16 +306,16 @@ function DriverHomeScreen() {
                   <Text style={styles.statValue}>Driving</Text>
                 </View>
                 <View style={styles.statDivider} />
-                <View style={styles.statCard}>
+                <TouchableOpacity style={styles.statCard} activeOpacity={0.6} onPress={() => setShowDestModal(true)}>
                   <MapPin size={16} color="#3B82F6" />
                   <Text style={styles.statLabel}>Destination</Text>
-                  <Text style={styles.statValue} numberOfLines={1}>{vehicle.destination || 'Not set'}</Text>
-                </View>
+                  <Text style={styles.statValue} numberOfLines={1}>{vehicle.destination || 'Tap to set'}</Text>
+                </TouchableOpacity>
                 <View style={styles.statDivider} />
                 <View style={styles.statCard}>
                   <View style={[styles.fuelDot, { backgroundColor: (vehicle.fuel?.level ?? 0) > 50 ? '#018a16' : (vehicle.fuel?.level ?? 0) > 20 ? '#f97316' : '#c4001a' }]} />
                   <Text style={styles.statLabel}>Fuel</Text>
-                  <Text style={styles.statValue}>{vehicle.fuel?.level != null ? `${vehicle.fuel.level}%` : '—'}</Text>
+                  <Text style={styles.statValue}>{vehicle.fuel?.level != null ? `${Math.round(vehicle.fuel.level)}%` : '—'}</Text>
                 </View>
               </View>
 
@@ -419,6 +420,15 @@ function DriverHomeScreen() {
         vehicle={vehicle}
         user={user}
         token={token}
+      />
+
+      {/* Destination Modal */}
+      <DestinationModal
+        visible={showDestModal}
+        onClose={() => setShowDestModal(false)}
+        vehicle={vehicle}
+        token={token}
+        onSaved={() => fetchVehicles()}
       />
     </SafeAreaView>
   );
@@ -822,6 +832,82 @@ function ReportIssueModal({ visible, onClose, vehicle, user, token }) {
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
+    </Modal>
+  );
+}
+
+// ── Destination Modal ─────────────────────────────────────────────────────────
+function DestinationModal({ visible, onClose, vehicle, token, onSaved }) {
+  const [text, setText] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (visible) setText(vehicle?.destination || '');
+  }, [visible, vehicle?.destination]);
+
+  async function save(dest) {
+    if (!vehicle) return;
+    setSubmitting(true);
+    try {
+      const resp = await fetch(`${SERVER_URL}/api/vehicles/${vehicle.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ destination: dest }),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to update destination');
+      }
+      onSaved?.();
+      onClose();
+    } catch (e) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={styles.modalBackdrop}>
+        <View style={styles.modalSheet}>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Set Destination</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <X size={18} color="#000" />
+            </TouchableOpacity>
+          </View>
+          <View style={{ padding: 18 }}>
+            <Text style={styles.fieldLabel}>Where are you heading?</Text>
+            <TextInput
+              style={styles.textInput}
+              value={text}
+              onChangeText={setText}
+              placeholder="e.g. Heathrow Terminal 5"
+              placeholderTextColor="#aaa"
+              autoCorrect={false}
+            />
+            <TouchableOpacity
+              style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}
+              onPress={() => save(text.trim())}
+              disabled={submitting}
+              activeOpacity={0.85}
+            >
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save destination</Text>}
+            </TouchableOpacity>
+            {vehicle?.destination ? (
+              <TouchableOpacity
+                style={[styles.secondaryBtn, submitting && { opacity: 0.6 }]}
+                onPress={() => save('')}
+                disabled={submitting}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.secondaryBtnText}>Clear destination</Text>
+              </TouchableOpacity>
+            ) : null}
+          </View>
+        </View>
+      </View>
     </Modal>
   );
 }

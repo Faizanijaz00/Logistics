@@ -118,7 +118,7 @@ function VehicleRow({ vehicle }) {
         <Text style={styles.vehicleName}>{vehicle.make} {vehicle.model}</Text>
         <View style={styles.vehicleMeta}>
           <UKPlate registration={vehicle.licensePlate} />
-          {vehicle.fuel?.level != null ? <Text style={styles.vehicleFuel}>{vehicle.fuel.level}%</Text> : null}
+          {vehicle.fuel?.level != null ? <Text style={styles.vehicleFuel}>{Math.round(vehicle.fuel.level)}%</Text> : null}
         </View>
       </View>
       <View style={styles.statusAndArrow}>

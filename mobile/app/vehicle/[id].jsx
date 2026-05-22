@@ -148,7 +148,9 @@ function InfoCardContent({ vehicle, editing, plate, setPlate, handleSavePlate, s
           <View style={{ flex: 1 }}>
             <Text style={styles.statusLabel}>Location</Text>
             <Text style={[styles.statusValue, vehicle.position?.lat && styles.statusValueLink]} numberOfLines={1}>
-              {vehicle.destination || vehicle.parkedAt || locationAddress || 'Unknown'}
+              {vehicle.position?.lat != null && vehicle.position?.lng != null
+                ? `${vehicle.position.lat.toFixed(6)}, ${vehicle.position.lng.toFixed(6)}`
+                : 'Unknown'}
             </Text>
             {vehicle.destination ? (
               <View style={styles.statusIndicator}>
