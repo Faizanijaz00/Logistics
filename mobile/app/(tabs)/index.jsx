@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, Modal, TextInput, Switch, ActivityIndicator, Alert, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Fuel, ReceiptText, AlertTriangle, LogOut, RefreshCw, MapPin, Navigation, X, Car, ChevronRight, ChevronDown } from 'lucide-react-native';
+import { Fuel, ReceiptText, AlertTriangle, LogOut, RefreshCw, MapPin, Navigation, X, Car, ChevronRight, ChevronDown, ChevronUp, Users, Route, Plus, Trash2, CheckCircle2 } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
 import { useVehicleStore } from '../../src/store/vehicleStore';
 import { getCarImage } from '../../src/config/carImages';
@@ -116,6 +116,12 @@ const pickerStyles = StyleSheet.create({
 });
 
 export default function HomeScreen() {
+  const role = useAuthStore(s => s.user?.role);
+  if (role === 'admin') return <AdminHomeScreen />;
+  return <DriverHomeScreen />;
+}
+
+function DriverHomeScreen() {
   const { user, token, logout, selectedVehicleId, isDriving, selectVehicle, stopDriving, switchVehicle } = useAuthStore();
   const { vehicles, fetchVehicles } = useVehicleStore();
   const [showPicker, setShowPicker] = useState(false);
@@ -156,7 +162,7 @@ export default function HomeScreen() {
   }, [isDriving, selectedVehicleId, vehicle, vehicles.length]);
 
   function handleSelectVehicle(v) {
-    selectVehicle(v.id);
+    selectVehicle(v.id, `${v.make} ${v.model}`);
     setShowPicker(false);
   }
 
@@ -546,9 +552,10 @@ function AddTicketModal({ visible, onClose, vehicle, user, token, drivers }) {
     }
   }, [visible]);
 
-  const selectedDriver = drivers.find(d => d.id === driverId) || {
-    id: user?.id, name: user?.name || user?.username,
-  };
+  const selectedDriver =
+    driverId === '__unknown__'
+      ? { id: null, name: 'Unknown' }
+      : drivers.find(d => d.id === driverId) || { id: user?.id, name: user?.name || user?.username };
 
   async function handleSubmit() {
     if (!vehicle) return;
@@ -563,13 +570,24 @@ function AddTicketModal({ visible, onClose, vehicle, user, token, drivers }) {
     }
     setSubmitting(true);
     try {
+      const isUnknown = !selectedDriver?.id || driverId === '__unknown__';
       const body = {
+        // Supabase snake_case columns
+        vehicle_id: vehicle.id,
+        driver_id: isUnknown ? null : selectedDriver?.id,
+        driver_name: isUnknown ? 'Unknown' : (selectedDriver?.name || ''),
+        pcn: reference.trim(),
+        outstanding: numeric,
+        date,
+        notes: reason.trim(),
+        status: 'Issued',
+        paid: false,
+        // also store the friendly fields for backward-compat reads
         vehicleId: vehicle.id,
-        driverName: selectedDriver?.name || '',
-        driverId: selectedDriver?.id || null,
+        driverName: isUnknown ? 'Unknown' : (selectedDriver?.name || ''),
+        driverId: isUnknown ? null : (selectedDriver?.id || null),
         reference: reference.trim(),
         amount: numeric,
-        date,
         reason: reason.trim(),
       };
       const resp = await fetch(`${SERVER_URL}/api/tickets`, {
@@ -658,20 +676,23 @@ function AddTicketModal({ visible, onClose, vehicle, user, token, drivers }) {
             </TouchableOpacity>
             {driverPickerOpen && (
               <View style={styles.dropdownList}>
-                {drivers.length === 0 ? (
-                  <Text style={styles.dropdownEmpty}>No drivers available</Text>
-                ) : (
-                  drivers.map(d => (
-                    <TouchableOpacity
-                      key={d.id}
-                      style={styles.dropdownItem}
-                      onPress={() => { setDriverId(d.id); setDriverPickerOpen(false); }}
-                    >
-                      <Text style={styles.dropdownItemText}>{d.name}</Text>
-                      {d.id === driverId ? <Text style={styles.dropdownCheck}>✓</Text> : null}
-                    </TouchableOpacity>
-                  ))
-                )}
+                <TouchableOpacity
+                  style={styles.dropdownItem}
+                  onPress={() => { setDriverId('__unknown__'); setDriverPickerOpen(false); }}
+                >
+                  <Text style={[styles.dropdownItemText, { fontStyle: 'italic', color: '#666' }]}>Unknown</Text>
+                  {driverId === '__unknown__' ? <Text style={styles.dropdownCheck}>✓</Text> : null}
+                </TouchableOpacity>
+                {drivers.map(d => (
+                  <TouchableOpacity
+                    key={d.id}
+                    style={styles.dropdownItem}
+                    onPress={() => { setDriverId(d.id); setDriverPickerOpen(false); }}
+                  >
+                    <Text style={styles.dropdownItemText}>{d.name}</Text>
+                    {d.id === driverId ? <Text style={styles.dropdownCheck}>✓</Text> : null}
+                  </TouchableOpacity>
+                ))}
               </View>
             )}
 
@@ -804,6 +825,1430 @@ function ReportIssueModal({ visible, onClose, vehicle, user, token }) {
     </Modal>
   );
 }
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// ADMIN HOME SCREEN
+// ═══════════════════════════════════════════════════════════════════════════════
+
+function AdminHomeScreen() {
+  const { user, token, logout } = useAuthStore();
+  const { vehicles, fetchVehicles } = useVehicleStore();
+  const { isUnfolded } = useLayout();
+
+  const [users, setUsers] = useState([]);
+  const [tickets, setTickets] = useState([]);
+  const [trips, setTrips] = useState([]);
+  const [issues, setIssues] = useState([]);
+  const [fuelRecords, setFuelRecords] = useState([]);
+
+  const [open, setOpen] = useState({
+    fleet: true,
+    users: false,
+    tickets: false,
+    trips: false,
+    issues: false,
+    fuel: false,
+  });
+
+  const authedFetch = useCallback(async (path, options = {}) => {
+    const res = await fetch(`${SERVER_URL}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${token}`,
+        ...(options.headers || {}),
+      },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Request failed (${res.status})`);
+    }
+    if (res.status === 204) return null;
+    return res.json().catch(() => null);
+  }, [token]);
+
+  const loadUsers = useCallback(async () => {
+    try {
+      const data = await authedFetch('/api/auth/users');
+      setUsers(Array.isArray(data) ? data : (data?.users || []));
+    } catch {}
+  }, [authedFetch]);
+
+  const loadTickets = useCallback(async () => {
+    try {
+      const data = await authedFetch('/api/tickets');
+      setTickets(Array.isArray(data) ? data : (data?.tickets || []));
+    } catch {}
+  }, [authedFetch]);
+
+  const loadTrips = useCallback(async () => {
+    try {
+      const data = await authedFetch('/api/trips');
+      setTrips(Array.isArray(data) ? data : (data?.trips || []));
+    } catch {}
+  }, [authedFetch]);
+
+  const loadIssues = useCallback(async () => {
+    try {
+      const data = await authedFetch('/api/issues');
+      setIssues(Array.isArray(data) ? data : (data?.issues || []));
+    } catch {}
+  }, [authedFetch]);
+
+  const loadFuelRecords = useCallback(async () => {
+    try {
+      const data = await authedFetch('/api/fuel-records');
+      setFuelRecords(Array.isArray(data) ? data : (data?.records || []));
+    } catch {}
+  }, [authedFetch]);
+
+  useEffect(() => {
+    if (!token) return;
+    fetchVehicles();
+    loadUsers();
+    loadTickets();
+    loadTrips();
+    loadIssues();
+    loadFuelRecords();
+  }, [token, fetchVehicles, loadUsers, loadTickets, loadTrips, loadIssues, loadFuelRecords]);
+
+  const toggle = (key) => setOpen(o => ({ ...o, [key]: !o[key] }));
+
+  return (
+    <SafeAreaView style={styles.safe}>
+      <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, isUnfolded && styles.contentUnfolded]} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <View>
+            <Text style={[styles.greeting, isUnfolded && styles.greetingUnfolded]}>Hello, {user?.name?.split(' ')[0] || user?.username}</Text>
+            <Text style={styles.role}>Admin dashboard</Text>
+          </View>
+          <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
+            <LogOut size={16} color="#c4001a" />
+          </TouchableOpacity>
+        </View>
+
+        <AdminSection
+          title="Fleet Management"
+          subtitle={`${vehicles.length} vehicle${vehicles.length === 1 ? '' : 's'}`}
+          icon={<Car size={20} color="#0284c7" />}
+          iconBg="#f0f9ff"
+          open={open.fleet}
+          onToggle={() => toggle('fleet')}
+        >
+          <FleetSection
+            vehicles={vehicles}
+            authedFetch={authedFetch}
+            onChanged={fetchVehicles}
+          />
+        </AdminSection>
+
+        <AdminSection
+          title="Driver / User Management"
+          subtitle={`${users.length} user${users.length === 1 ? '' : 's'}`}
+          icon={<Users size={20} color="#7c3aed" />}
+          iconBg="#faf5ff"
+          open={open.users}
+          onToggle={() => toggle('users')}
+        >
+          <UsersSection
+            users={users}
+            currentUserId={user?.id}
+            authedFetch={authedFetch}
+            onChanged={loadUsers}
+          />
+        </AdminSection>
+
+        <AdminSection
+          title="Tickets"
+          subtitle={`${tickets.length} ticket${tickets.length === 1 ? '' : 's'}`}
+          icon={<ReceiptText size={20} color="#7c3aed" />}
+          iconBg="#faf5ff"
+          open={open.tickets}
+          onToggle={() => toggle('tickets')}
+        >
+          <TicketsSection
+            tickets={tickets}
+            vehicles={vehicles}
+            users={users}
+            currentUser={user}
+            authedFetch={authedFetch}
+            onChanged={loadTickets}
+          />
+        </AdminSection>
+
+        <AdminSection
+          title="Journeys"
+          subtitle={`${trips.length} trip${trips.length === 1 ? '' : 's'}`}
+          icon={<Route size={20} color="#018a16" />}
+          iconBg="#f0fdf4"
+          open={open.trips}
+          onToggle={() => toggle('trips')}
+        >
+          <TripsSection
+            trips={trips}
+            authedFetch={authedFetch}
+            onChanged={loadTrips}
+          />
+        </AdminSection>
+
+        <AdminSection
+          title="Issues"
+          subtitle={`${issues.filter(i => !i.resolved).length} open`}
+          icon={<AlertTriangle size={20} color="#dc2626" />}
+          iconBg="#fef2f2"
+          open={open.issues}
+          onToggle={() => toggle('issues')}
+        >
+          <IssuesSection
+            issues={issues}
+            vehicles={vehicles}
+            authedFetch={authedFetch}
+            onChanged={loadIssues}
+          />
+        </AdminSection>
+
+        <AdminSection
+          title="Fuel Records"
+          subtitle={`${fuelRecords.length} record${fuelRecords.length === 1 ? '' : 's'}`}
+          icon={<Fuel size={20} color="#f97316" />}
+          iconBg="#fff7ed"
+          open={open.fuel}
+          onToggle={() => toggle('fuel')}
+        >
+          <FuelRecordsSection
+            records={fuelRecords}
+            vehicles={vehicles}
+            users={users}
+          />
+        </AdminSection>
+      </ScrollView>
+    </SafeAreaView>
+  );
+}
+
+// ── Collapsible section shell ──────────────────────────────────────────────────
+function AdminSection({ title, subtitle, icon, iconBg, open, onToggle, children }) {
+  return (
+    <View style={adminStyles.section}>
+      <TouchableOpacity style={adminStyles.sectionHeader} onPress={onToggle} activeOpacity={0.7}>
+        <View style={[adminStyles.sectionIcon, { backgroundColor: iconBg || '#f5f5f5' }]}>
+          {icon}
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={adminStyles.sectionTitle}>{title}</Text>
+          {subtitle ? <Text style={adminStyles.sectionSubtitle}>{subtitle}</Text> : null}
+        </View>
+        {open ? <ChevronUp size={20} color="#888" /> : <ChevronDown size={20} color="#888" />}
+      </TouchableOpacity>
+      {open ? <View style={adminStyles.sectionBody}>{children}</View> : null}
+    </View>
+  );
+}
+
+// ── Inline error banner ────────────────────────────────────────────────────────
+function InlineError({ message }) {
+  if (!message) return null;
+  return (
+    <View style={adminStyles.errorBanner}>
+      <Text style={adminStyles.errorText}>{message}</Text>
+    </View>
+  );
+}
+
+// ── Confirm helper ─────────────────────────────────────────────────────────────
+function confirmDelete(label, onConfirm) {
+  Alert.alert('Delete', `Delete ${label}? This cannot be undone.`, [
+    { text: 'Cancel', style: 'cancel' },
+    { text: 'Delete', style: 'destructive', onPress: onConfirm },
+  ]);
+}
+
+// ── Fleet ──────────────────────────────────────────────────────────────────────
+function FleetSection({ vehicles, authedFetch, onChanged }) {
+  const [editing, setEditing] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState(null);
+
+  async function handleDelete(v) {
+    confirmDelete(`${v.make} ${v.model}`, async () => {
+      setBusyId(v.id);
+      setError('');
+      try {
+        await authedFetch(`/api/vehicles/${v.id}`, { method: 'DELETE' });
+        await onChanged();
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        setBusyId(null);
+      }
+    });
+  }
+
+  return (
+    <>
+      <View style={adminStyles.actionRow}>
+        <TouchableOpacity style={adminStyles.addBtn} onPress={() => setAdding(true)} activeOpacity={0.8}>
+          <Plus size={16} color="#fff" />
+          <Text style={adminStyles.addBtnText}>Add Vehicle</Text>
+        </TouchableOpacity>
+      </View>
+      <InlineError message={error} />
+      {vehicles.length === 0 ? (
+        <Text style={adminStyles.emptyText}>No vehicles yet.</Text>
+      ) : (
+        vehicles.map(v => {
+          const carImage = getCarImage(v.imageId);
+          return (
+            <View key={v.id} style={adminStyles.row}>
+              <TouchableOpacity
+                style={adminStyles.rowMain}
+                activeOpacity={0.7}
+                onPress={() => setEditing(v)}
+              >
+                <View style={adminStyles.vehicleImage}>
+                  {carImage ? (
+                    <Image source={carImage} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
+                  ) : (
+                    <Car size={22} color="#888" />
+                  )}
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={adminStyles.rowTitle}>{v.make} {v.model}</Text>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
+                    <UKPlate registration={v.licensePlate} small />
+                    {v.color ? <Text style={adminStyles.rowMeta}>{v.color}</Text> : null}
+                  </View>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={adminStyles.iconBtn}
+                onPress={() => handleDelete(v)}
+                disabled={busyId === v.id}
+              >
+                {busyId === v.id ? <ActivityIndicator size="small" color="#c4001a" /> : <Trash2 size={16} color="#c4001a" />}
+              </TouchableOpacity>
+            </View>
+          );
+        })
+      )}
+
+      {editing && (
+        <VehicleEditModal
+          visible
+          vehicle={editing}
+          authedFetch={authedFetch}
+          onClose={() => setEditing(null)}
+          onSaved={async () => { setEditing(null); await onChanged(); }}
+        />
+      )}
+      {adding && (
+        <VehicleEditModal
+          visible
+          vehicle={null}
+          authedFetch={authedFetch}
+          onClose={() => setAdding(false)}
+          onSaved={async () => { setAdding(false); await onChanged(); }}
+        />
+      )}
+    </>
+  );
+}
+
+function VehicleEditModal({ visible, vehicle, authedFetch, onClose, onSaved }) {
+  const isNew = !vehicle;
+  const [form, setForm] = useState({
+    licensePlate: vehicle?.licensePlate || '',
+    make: vehicle?.make || '',
+    model: vehicle?.model || '',
+    year: vehicle?.year ? String(vehicle.year) : '',
+    color: vehicle?.color || '',
+    capacity: vehicle?.capacity ? String(vehicle.capacity) : '',
+    fuelType: vehicle?.fuelType || '',
+    insuranceExpiry: vehicle?.insurance?.expiry || '',
+    taxExpiry: vehicle?.tax?.expiry || '',
+    motExpiry: vehicle?.mot?.expiry || '',
+  });
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  function set(key, value) {
+    setForm(f => ({ ...f, [key]: value }));
+  }
+
+  async function handleSave() {
+    setSubmitting(true);
+    setError('');
+    try {
+      const body = {
+        licensePlate: form.licensePlate.trim() || null,
+        make: form.make.trim() || null,
+        model: form.model.trim() || null,
+        year: form.year ? Number(form.year) : null,
+        color: form.color.trim() || null,
+        capacity: form.capacity ? Number(form.capacity) : null,
+        fuelType: form.fuelType.trim() || null,
+        insurance: { ...(vehicle?.insurance || {}), expiry: form.insuranceExpiry.trim() || null },
+        tax: { ...(vehicle?.tax || {}), expiry: form.taxExpiry.trim() || null },
+        mot: { ...(vehicle?.mot || {}), expiry: form.motExpiry.trim() || null },
+      };
+      if (isNew) {
+        await authedFetch('/api/vehicles', { method: 'POST', body: JSON.stringify(body) });
+      } else {
+        await authedFetch(`/api/vehicles/${vehicle.id}`, { method: 'PATCH', body: JSON.stringify(body) });
+      }
+      await onSaved();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={styles.modalSafe}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <View style={styles.modalHeader}>
+            <View>
+              <Text style={styles.modalTitle}>{isNew ? 'Add Vehicle' : 'Edit Vehicle'}</Text>
+              <Text style={styles.modalSubtitle}>{vehicle ? `${vehicle.make} ${vehicle.model}` : 'New vehicle'}</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <X size={18} color="#000" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
+            <InlineError message={error} />
+
+            <FormField label="License plate" value={form.licensePlate} onChange={v => set('licensePlate', v)} autoCapitalize="characters" />
+            <FormField label="Make" value={form.make} onChange={v => set('make', v)} />
+            <FormField label="Model" value={form.model} onChange={v => set('model', v)} />
+            <FormField label="Year" value={form.year} onChange={v => set('year', v)} keyboardType="number-pad" />
+            <FormField label="Color" value={form.color} onChange={v => set('color', v)} />
+            <FormField label="Capacity (seats)" value={form.capacity} onChange={v => set('capacity', v)} keyboardType="number-pad" />
+            <FormField label="Fuel type" value={form.fuelType} onChange={v => set('fuelType', v)} placeholder="Petrol / Diesel / EV" />
+            <FormField label="Insurance expiry" value={form.insuranceExpiry} onChange={v => set('insuranceExpiry', v)} placeholder="YYYY-MM-DD" />
+            <FormField label="Tax expiry" value={form.taxExpiry} onChange={v => set('taxExpiry', v)} placeholder="YYYY-MM-DD" />
+            <FormField label="MOT expiry" value={form.motExpiry} onChange={v => set('motExpiry', v)} placeholder="YYYY-MM-DD" />
+
+            <TouchableOpacity
+              style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}
+              onPress={handleSave}
+              disabled={submitting}
+              activeOpacity={0.85}
+            >
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>{isNew ? 'Create Vehicle' : 'Save Changes'}</Text>}
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+// ── Users ──────────────────────────────────────────────────────────────────────
+function UsersSection({ users, currentUserId, authedFetch, onChanged }) {
+  const [editing, setEditing] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState(null);
+
+  async function handleDelete(u) {
+    if (u.id === currentUserId) {
+      Alert.alert('Cannot delete', 'You cannot delete yourself.');
+      return;
+    }
+    confirmDelete(u.name || u.username, async () => {
+      setBusyId(u.id);
+      setError('');
+      try {
+        await authedFetch(`/api/auth/users/${u.id}`, { method: 'DELETE' });
+        await onChanged();
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        setBusyId(null);
+      }
+    });
+  }
+
+  return (
+    <>
+      <View style={adminStyles.actionRow}>
+        <TouchableOpacity style={adminStyles.addBtn} onPress={() => setAdding(true)} activeOpacity={0.8}>
+          <Plus size={16} color="#fff" />
+          <Text style={adminStyles.addBtnText}>Add Driver</Text>
+        </TouchableOpacity>
+      </View>
+      <InlineError message={error} />
+      {users.length === 0 ? (
+        <Text style={adminStyles.emptyText}>No users yet.</Text>
+      ) : (
+        users.map(u => (
+          <View key={u.id} style={adminStyles.row}>
+            <TouchableOpacity style={adminStyles.rowMain} activeOpacity={0.7} onPress={() => setEditing(u)}>
+              <View style={[adminStyles.avatar, { backgroundColor: u.role === 'admin' ? '#fef2f2' : '#f0f9ff' }]}>
+                <Text style={[adminStyles.avatarText, { color: u.role === 'admin' ? '#c4001a' : '#0284c7' }]}>
+                  {(u.name || u.username || '?').slice(0, 1).toUpperCase()}
+                </Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={adminStyles.rowTitle}>{u.name || u.username}</Text>
+                <Text style={adminStyles.rowMeta}>{u.username} · {u.role}</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={adminStyles.iconBtn}
+              onPress={() => handleDelete(u)}
+              disabled={busyId === u.id}
+            >
+              {busyId === u.id ? <ActivityIndicator size="small" color="#c4001a" /> : <Trash2 size={16} color="#c4001a" />}
+            </TouchableOpacity>
+          </View>
+        ))
+      )}
+
+      {editing && (
+        <UserEditModal
+          visible
+          user={editing}
+          authedFetch={authedFetch}
+          onClose={() => setEditing(null)}
+          onSaved={async () => { setEditing(null); await onChanged(); }}
+        />
+      )}
+      {adding && (
+        <UserCreateModal
+          visible
+          authedFetch={authedFetch}
+          onClose={() => setAdding(false)}
+          onSaved={async () => { setAdding(false); await onChanged(); }}
+        />
+      )}
+    </>
+  );
+}
+
+const TAB_OPTIONS = [
+  { value: '/', label: 'Home' },
+  { value: '/fleet', label: 'Fleet' },
+  { value: '/journeys', label: 'Journeys' },
+  { value: '/tickets', label: 'Tickets' },
+  { value: '/map', label: 'Map' },
+];
+
+function UserEditModal({ visible, user, authedFetch, onClose, onSaved }) {
+  const [name, setName] = useState(user.name || '');
+  const [role, setRole] = useState(user.role || 'driver');
+  const [disabledTabs, setDisabledTabs] = useState(user.disabledTabs || []);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  function toggleTab(value) {
+    setDisabledTabs(prev =>
+      prev.includes(value) ? prev.filter(v => v !== value) : [...prev, value]
+    );
+  }
+
+  async function handleSave() {
+    setSubmitting(true);
+    setError('');
+    try {
+      await authedFetch(`/api/auth/users/${user.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ name: name.trim(), role }),
+      });
+      await authedFetch(`/api/auth/users/${user.id}/tabs`, {
+        method: 'PATCH',
+        body: JSON.stringify({ disabledTabs }),
+      });
+      await onSaved();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={styles.modalSafe}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <View style={styles.modalHeader}>
+            <View>
+              <Text style={styles.modalTitle}>Edit User</Text>
+              <Text style={styles.modalSubtitle}>{user.username}</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <X size={18} color="#000" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
+            <InlineError message={error} />
+            <FormField label="Name" value={name} onChange={setName} />
+
+            <Text style={styles.fieldLabel}>Role</Text>
+            <View style={styles.severityRow}>
+              {['driver', 'admin'].map(r => {
+                const selected = role === r;
+                return (
+                  <TouchableOpacity
+                    key={r}
+                    style={[styles.severityChip, selected && { backgroundColor: '#f0f9ff', borderColor: '#0284c7' }]}
+                    onPress={() => setRole(r)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.severityChipText, selected && { color: '#0284c7', fontWeight: '700' }]}>
+                      {r === 'admin' ? 'Admin' : 'Driver'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <Text style={styles.fieldLabel}>Tab access</Text>
+            <Text style={adminStyles.tabHint}>Tap to disable a tab for this user.</Text>
+            {TAB_OPTIONS.map(t => {
+              const disabled = disabledTabs.includes(t.value);
+              return (
+                <TouchableOpacity
+                  key={t.value}
+                  style={[adminStyles.tabRow, disabled && adminStyles.tabRowDisabled]}
+                  onPress={() => toggleTab(t.value)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[adminStyles.tabRowLabel, disabled && { color: '#c4001a' }]}>{t.label}</Text>
+                  <Text style={[adminStyles.tabRowState, disabled && { color: '#c4001a' }]}>
+                    {disabled ? 'Disabled' : 'Enabled'}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+
+            <TouchableOpacity
+              style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}
+              onPress={handleSave}
+              disabled={submitting}
+              activeOpacity={0.85}
+            >
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save Changes</Text>}
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+function UserCreateModal({ visible, authedFetch, onClose, onSaved }) {
+  const [name, setName] = useState('');
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [role, setRole] = useState('driver');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSave() {
+    if (!name.trim() || !username.trim() || !password.trim()) {
+      setError('Name, username, and password are required.');
+      return;
+    }
+    setSubmitting(true);
+    setError('');
+    try {
+      await authedFetch('/api/auth/register', {
+        method: 'POST',
+        body: JSON.stringify({
+          name: name.trim(),
+          username: username.trim(),
+          password,
+          role,
+        }),
+      });
+      await onSaved();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={styles.modalSafe}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <View style={styles.modalHeader}>
+            <View>
+              <Text style={styles.modalTitle}>Add Driver</Text>
+              <Text style={styles.modalSubtitle}>New user account</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <X size={18} color="#000" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
+            <InlineError message={error} />
+            <FormField label="Full name" value={name} onChange={setName} />
+            <FormField label="Username" value={username} onChange={setUsername} autoCapitalize="none" />
+            <FormField label="Password" value={password} onChange={setPassword} secureTextEntry />
+
+            <Text style={styles.fieldLabel}>Role</Text>
+            <View style={styles.severityRow}>
+              {['driver', 'admin'].map(r => {
+                const selected = role === r;
+                return (
+                  <TouchableOpacity
+                    key={r}
+                    style={[styles.severityChip, selected && { backgroundColor: '#f0f9ff', borderColor: '#0284c7' }]}
+                    onPress={() => setRole(r)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[styles.severityChipText, selected && { color: '#0284c7', fontWeight: '700' }]}>
+                      {r === 'admin' ? 'Admin' : 'Driver'}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+
+            <TouchableOpacity
+              style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}
+              onPress={handleSave}
+              disabled={submitting}
+              activeOpacity={0.85}
+            >
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Create User</Text>}
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+// ── Tickets ────────────────────────────────────────────────────────────────────
+function TicketsSection({ tickets, vehicles, users, currentUser, authedFetch, onChanged }) {
+  const [editing, setEditing] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState(null);
+
+  async function handleDelete(t) {
+    confirmDelete(`ticket ${t.reference || t.pcn || t.id}`, async () => {
+      setBusyId(t.id);
+      setError('');
+      try {
+        await authedFetch(`/api/tickets/${t.id}`, { method: 'DELETE' });
+        await onChanged();
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        setBusyId(null);
+      }
+    });
+  }
+
+  function vehicleLabel(t) {
+    const id = t.vehicleId || t.vehicle_id;
+    if (!id) return 'Unknown vehicle';
+    const v = vehicles.find(x => x.id === id);
+    return v ? `${v.make} ${v.model}` : id;
+  }
+
+  function driverLabel(t) {
+    if (t.driverName) return t.driverName;
+    const id = t.driverId || t.driver_id;
+    if (!id) return 'Unknown';
+    const u = users.find(x => x.id === id);
+    return u?.name || u?.username || id;
+  }
+
+  function ticketAmount(t) {
+    const v = t.amount ?? t.outstanding ?? 0;
+    return Number(v).toFixed(2);
+  }
+
+  function ticketRef(t) {
+    return t.reference || t.pcn || t.id;
+  }
+
+  return (
+    <>
+      <View style={adminStyles.actionRow}>
+        <TouchableOpacity style={adminStyles.addBtn} onPress={() => setAdding(true)} activeOpacity={0.8}>
+          <Plus size={16} color="#fff" />
+          <Text style={adminStyles.addBtnText}>Add Ticket</Text>
+        </TouchableOpacity>
+      </View>
+      <InlineError message={error} />
+      {tickets.length === 0 ? (
+        <Text style={adminStyles.emptyText}>No tickets yet.</Text>
+      ) : (
+        tickets.map(t => (
+          <View key={t.id} style={adminStyles.row}>
+            <TouchableOpacity style={adminStyles.rowMain} activeOpacity={0.7} onPress={() => setEditing(t)}>
+              <View style={[adminStyles.avatar, { backgroundColor: '#faf5ff' }]}>
+                <ReceiptText size={18} color="#7c3aed" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={adminStyles.rowTitle}>{ticketRef(t)} · £{ticketAmount(t)}</Text>
+                <Text style={adminStyles.rowMeta}>{vehicleLabel(t)} · {driverLabel(t)} · {t.date || '—'}</Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={adminStyles.iconBtn}
+              onPress={() => handleDelete(t)}
+              disabled={busyId === t.id}
+            >
+              {busyId === t.id ? <ActivityIndicator size="small" color="#c4001a" /> : <Trash2 size={16} color="#c4001a" />}
+            </TouchableOpacity>
+          </View>
+        ))
+      )}
+
+      {editing && (
+        <TicketEditModal
+          visible
+          ticket={editing}
+          vehicles={vehicles}
+          authedFetch={authedFetch}
+          onClose={() => setEditing(null)}
+          onSaved={async () => { setEditing(null); await onChanged(); }}
+        />
+      )}
+      {adding && (
+        <TicketEditModal
+          visible
+          ticket={null}
+          vehicles={vehicles}
+          currentUser={currentUser}
+          authedFetch={authedFetch}
+          onClose={() => setAdding(false)}
+          onSaved={async () => { setAdding(false); await onChanged(); }}
+        />
+      )}
+    </>
+  );
+}
+
+function TicketEditModal({ visible, ticket, vehicles, currentUser, authedFetch, onClose, onSaved }) {
+  const isNew = !ticket;
+  const [reference, setReference] = useState(ticket?.reference || ticket?.pcn || '');
+  const [amount, setAmount] = useState(
+    ticket?.amount != null ? String(ticket.amount) :
+    ticket?.outstanding != null ? String(ticket.outstanding) : ''
+  );
+  const [date, setDate] = useState(ticket?.date || new Date().toISOString().slice(0, 10));
+  const [reason, setReason] = useState(ticket?.reason || ticket?.notes || '');
+  const [vehicleId, setVehicleId] = useState(ticket?.vehicleId || ticket?.vehicle_id || vehicles[0]?.id || '');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSave() {
+    if (!reference.trim()) { setError('Reference required.'); return; }
+    const num = parseFloat(amount);
+    if (isNaN(num) || num < 0) { setError('Valid amount required.'); return; }
+
+    setSubmitting(true);
+    setError('');
+    try {
+      if (isNew) {
+        const body = {
+          id: `ticket-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+          vehicleId,
+          vehicle_id: vehicleId,
+          driverName: currentUser?.name || currentUser?.username || '',
+          driverId: currentUser?.id || null,
+          driver_id: currentUser?.id || null,
+          reference: reference.trim(),
+          pcn: reference.trim(),
+          amount: num,
+          outstanding: num,
+          date,
+          reason: reason.trim(),
+          notes: reason.trim(),
+        };
+        await authedFetch('/api/tickets', { method: 'POST', body: JSON.stringify(body) });
+      } else {
+        const body = {
+          reference: reference.trim(),
+          pcn: reference.trim(),
+          amount: num,
+          outstanding: num,
+          date,
+          reason: reason.trim(),
+          notes: reason.trim(),
+          vehicleId,
+          vehicle_id: vehicleId,
+        };
+        await authedFetch(`/api/tickets/${ticket.id}`, { method: 'PATCH', body: JSON.stringify(body) });
+      }
+      await onSaved();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={styles.modalSafe}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <View style={styles.modalHeader}>
+            <View>
+              <Text style={styles.modalTitle}>{isNew ? 'Add Ticket' : 'Edit Ticket'}</Text>
+              <Text style={styles.modalSubtitle}>{isNew ? 'New ticket' : reference || ticket.id}</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <X size={18} color="#000" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
+            <InlineError message={error} />
+            <FormField label="Reference" value={reference} onChange={setReference} autoCapitalize="characters" />
+            <FormField label="Amount (£)" value={amount} onChange={setAmount} keyboardType="decimal-pad" />
+            <FormField label="Date" value={date} onChange={setDate} placeholder="YYYY-MM-DD" />
+            <FormField label="Reason" value={reason} onChange={setReason} multiline />
+
+            <Text style={styles.fieldLabel}>Vehicle</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
+              {vehicles.map(v => {
+                const selected = v.id === vehicleId;
+                return (
+                  <TouchableOpacity
+                    key={v.id}
+                    style={[adminStyles.chip, selected && adminStyles.chipSelected]}
+                    onPress={() => setVehicleId(v.id)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[adminStyles.chipText, selected && adminStyles.chipTextSelected]}>
+                      {v.make} {v.model}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}
+              onPress={handleSave}
+              disabled={submitting}
+              activeOpacity={0.85}
+            >
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>{isNew ? 'Create Ticket' : 'Save Changes'}</Text>}
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+// ── Trips ──────────────────────────────────────────────────────────────────────
+function TripsSection({ trips, authedFetch, onChanged }) {
+  const [editing, setEditing] = useState(null);
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState(null);
+
+  async function handleDelete(t) {
+    confirmDelete(t.name, async () => {
+      setBusyId(t.id);
+      setError('');
+      try {
+        await authedFetch(`/api/trips/${t.id}`, { method: 'DELETE' });
+        await onChanged();
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        setBusyId(null);
+      }
+    });
+  }
+
+  return (
+    <>
+      <View style={adminStyles.actionRow}>
+        <TouchableOpacity style={adminStyles.addBtn} onPress={() => setAdding(true)} activeOpacity={0.8}>
+          <Plus size={16} color="#fff" />
+          <Text style={adminStyles.addBtnText}>Add Trip</Text>
+        </TouchableOpacity>
+      </View>
+      <InlineError message={error} />
+      {trips.length === 0 ? (
+        <Text style={adminStyles.emptyText}>No trips yet.</Text>
+      ) : (
+        trips.map(t => (
+          <View key={t.id} style={adminStyles.row}>
+            <TouchableOpacity style={adminStyles.rowMain} activeOpacity={0.7} onPress={() => setEditing(t)}>
+              <View style={[adminStyles.avatar, { backgroundColor: '#f0fdf4' }]}>
+                <Route size={18} color="#018a16" />
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={adminStyles.rowTitle}>{t.name}</Text>
+                <Text style={adminStyles.rowMeta}>
+                  {t.date || 'No date'} · {(t.vehicles || []).length} vehicle{(t.vehicles || []).length === 1 ? '' : 's'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={adminStyles.iconBtn}
+              onPress={() => handleDelete(t)}
+              disabled={busyId === t.id}
+            >
+              {busyId === t.id ? <ActivityIndicator size="small" color="#c4001a" /> : <Trash2 size={16} color="#c4001a" />}
+            </TouchableOpacity>
+          </View>
+        ))
+      )}
+
+      {editing && (
+        <TripEditModal
+          visible
+          trip={editing}
+          authedFetch={authedFetch}
+          onClose={() => setEditing(null)}
+          onSaved={async () => { setEditing(null); await onChanged(); }}
+        />
+      )}
+      {adding && (
+        <TripEditModal
+          visible
+          trip={null}
+          authedFetch={authedFetch}
+          onClose={() => setAdding(false)}
+          onSaved={async () => { setAdding(false); await onChanged(); }}
+        />
+      )}
+    </>
+  );
+}
+
+function TripEditModal({ visible, trip, authedFetch, onClose, onSaved }) {
+  const isNew = !trip;
+  const [name, setName] = useState(trip?.name || '');
+  const [date, setDate] = useState(trip?.date || new Date().toISOString().slice(0, 10));
+  const [description, setDescription] = useState(trip?.description || '');
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function handleSave() {
+    if (!name.trim()) { setError('Name required.'); return; }
+    setSubmitting(true);
+    setError('');
+    try {
+      const body = { name: name.trim(), date: date.trim() || null, description: description.trim() };
+      if (isNew) {
+        await authedFetch('/api/trips', { method: 'POST', body: JSON.stringify(body) });
+      } else {
+        await authedFetch(`/api/trips/${trip.id}`, { method: 'PUT', body: JSON.stringify(body) });
+      }
+      await onSaved();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={styles.modalSafe}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <View style={styles.modalHeader}>
+            <View>
+              <Text style={styles.modalTitle}>{isNew ? 'Add Trip' : 'Edit Trip'}</Text>
+              <Text style={styles.modalSubtitle}>{isNew ? 'New journey' : trip.name}</Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <X size={18} color="#000" />
+            </TouchableOpacity>
+          </View>
+          <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
+            <InlineError message={error} />
+            <FormField label="Name" value={name} onChange={setName} />
+            <FormField label="Date" value={date} onChange={setDate} placeholder="YYYY-MM-DD" />
+            <FormField label="Description" value={description} onChange={setDescription} multiline />
+
+            <TouchableOpacity
+              style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}
+              onPress={handleSave}
+              disabled={submitting}
+              activeOpacity={0.85}
+            >
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>{isNew ? 'Create Trip' : 'Save Changes'}</Text>}
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+// ── Issues ─────────────────────────────────────────────────────────────────────
+function IssuesSection({ issues, vehicles, authedFetch, onChanged }) {
+  const [error, setError] = useState('');
+  const [busyId, setBusyId] = useState(null);
+  const [viewing, setViewing] = useState(null);
+
+  function vehicleLabel(id) {
+    if (!id) return 'Unknown vehicle';
+    const v = vehicles.find(x => x.id === id);
+    return v ? `${v.make} ${v.model}` : id;
+  }
+
+  async function resolve(issue) {
+    setBusyId(issue.id);
+    setError('');
+    try {
+      await authedFetch(`/api/issues/${issue.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ resolved: true }),
+      });
+      await onChanged();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function handleDelete(issue) {
+    confirmDelete('issue', async () => {
+      setBusyId(issue.id);
+      setError('');
+      try {
+        await authedFetch(`/api/issues/${issue.id}`, { method: 'DELETE' });
+        await onChanged();
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        setBusyId(null);
+      }
+    });
+  }
+
+  const sorted = [...issues].sort((a, b) => {
+    if (!!a.resolved !== !!b.resolved) return a.resolved ? 1 : -1;
+    return (b.createdAt || '').localeCompare(a.createdAt || '');
+  });
+
+  return (
+    <>
+      <InlineError message={error} />
+      {sorted.length === 0 ? (
+        <Text style={adminStyles.emptyText}>No issues reported.</Text>
+      ) : (
+        sorted.map(i => {
+          const severityColor =
+            i.severity === 'high' ? '#c4001a' :
+            i.severity === 'medium' ? '#d97706' : '#018a16';
+          const severityBg =
+            i.severity === 'high' ? '#fef2f2' :
+            i.severity === 'medium' ? '#fffbeb' : '#f0fdf4';
+          return (
+            <View key={i.id} style={[adminStyles.row, i.resolved && { opacity: 0.55 }]}>
+              <TouchableOpacity style={adminStyles.rowMain} activeOpacity={0.7} onPress={() => setViewing(i)}>
+                <View style={[adminStyles.avatar, { backgroundColor: severityBg }]}>
+                  <AlertTriangle size={18} color={severityColor} />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={adminStyles.rowTitle} numberOfLines={1}>
+                    {i.description || 'No description'}
+                  </Text>
+                  <Text style={adminStyles.rowMeta}>
+                    {vehicleLabel(i.vehicleId)} · {i.reportedBy || 'Unknown'} · {(i.severity || 'low').toUpperCase()}
+                    {i.resolved ? ' · Resolved' : ''}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+              {!i.resolved && (
+                <TouchableOpacity
+                  style={adminStyles.iconBtn}
+                  onPress={() => resolve(i)}
+                  disabled={busyId === i.id}
+                >
+                  {busyId === i.id ? <ActivityIndicator size="small" color="#018a16" /> : <CheckCircle2 size={16} color="#018a16" />}
+                </TouchableOpacity>
+              )}
+              <TouchableOpacity
+                style={adminStyles.iconBtn}
+                onPress={() => handleDelete(i)}
+                disabled={busyId === i.id}
+              >
+                <Trash2 size={16} color="#c4001a" />
+              </TouchableOpacity>
+            </View>
+          );
+        })
+      )}
+
+      {viewing && (
+        <IssueViewModal
+          visible
+          issue={viewing}
+          vehicle={vehicles.find(v => v.id === viewing.vehicleId) || null}
+          authedFetch={authedFetch}
+          onClose={() => setViewing(null)}
+          onChanged={async () => { setViewing(null); await onChanged(); }}
+        />
+      )}
+    </>
+  );
+}
+
+function IssueViewModal({ visible, issue, vehicle, authedFetch, onClose, onChanged }) {
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState('');
+
+  async function markResolved() {
+    setSubmitting(true);
+    setError('');
+    try {
+      await authedFetch(`/api/issues/${issue.id}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ resolved: true }),
+      });
+      await onChanged();
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={styles.modalSafe}>
+        <View style={styles.modalHeader}>
+          <View>
+            <Text style={styles.modalTitle}>Issue</Text>
+            <Text style={styles.modalSubtitle}>
+              {vehicle ? `${vehicle.make} ${vehicle.model}` : 'Unknown vehicle'}
+            </Text>
+          </View>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <X size={18} color="#000" />
+          </TouchableOpacity>
+        </View>
+        <ScrollView contentContainerStyle={styles.modalList}>
+          <InlineError message={error} />
+          <Text style={styles.fieldLabel}>Reported by</Text>
+          <Text style={adminStyles.readonlyValue}>{issue.reportedBy || 'Unknown'}</Text>
+
+          <Text style={styles.fieldLabel}>Severity</Text>
+          <Text style={adminStyles.readonlyValue}>{(issue.severity || 'low').toUpperCase()}</Text>
+
+          <Text style={styles.fieldLabel}>Description</Text>
+          <Text style={adminStyles.readonlyValue}>{issue.description || '—'}</Text>
+
+          <Text style={styles.fieldLabel}>Reported at</Text>
+          <Text style={adminStyles.readonlyValue}>{issue.createdAt || '—'}</Text>
+
+          <Text style={styles.fieldLabel}>Status</Text>
+          <Text style={adminStyles.readonlyValue}>{issue.resolved ? 'Resolved' : 'Open'}</Text>
+
+          {!issue.resolved && (
+            <TouchableOpacity
+              style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}
+              onPress={markResolved}
+              disabled={submitting}
+              activeOpacity={0.85}
+            >
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Mark as Resolved</Text>}
+            </TouchableOpacity>
+          )}
+        </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+// ── Fuel records (read-only) ───────────────────────────────────────────────────
+function FuelRecordsSection({ records, vehicles, users }) {
+  function vehicleLabel(id) {
+    if (!id) return 'Unknown vehicle';
+    const v = vehicles.find(x => x.id === id);
+    return v ? `${v.make} ${v.model}` : id;
+  }
+
+  function driverLabel(r) {
+    return r.paidBy || (users.find(u => u.id === r.driverId)?.name) || 'Unknown';
+  }
+
+  const sorted = [...records].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''));
+
+  if (sorted.length === 0) {
+    return <Text style={adminStyles.emptyText}>No fuel records yet.</Text>;
+  }
+
+  return sorted.slice(0, 50).map(r => (
+    <View key={r.id} style={adminStyles.row}>
+      <View style={[adminStyles.avatar, { backgroundColor: '#fff7ed' }]}>
+        <Fuel size={18} color="#f97316" />
+      </View>
+      <View style={{ flex: 1, marginLeft: 12 }}>
+        <Text style={adminStyles.rowTitle}>£{Number(r.amount || 0).toFixed(2)} · {vehicleLabel(r.vehicleId)}</Text>
+        <Text style={adminStyles.rowMeta}>
+          {driverLabel(r)} · {(r.createdAt || '').slice(0, 10)}
+          {r.usedFuelCard ? ' · Fuel card' : ''}
+        </Text>
+      </View>
+    </View>
+  ));
+}
+
+// ── Shared form field ──────────────────────────────────────────────────────────
+function FormField({ label, value, onChange, placeholder, keyboardType, autoCapitalize, multiline, secureTextEntry }) {
+  return (
+    <>
+      <Text style={styles.fieldLabel}>{label}</Text>
+      <TextInput
+        style={[styles.textInput, multiline && styles.multiline]}
+        value={value}
+        onChangeText={onChange}
+        placeholder={placeholder || ''}
+        placeholderTextColor="#bbb"
+        keyboardType={keyboardType}
+        autoCapitalize={autoCapitalize}
+        multiline={multiline}
+        secureTextEntry={secureTextEntry}
+      />
+    </>
+  );
+}
+
+const adminStyles = StyleSheet.create({
+  section: {
+    backgroundColor: '#fff',
+    borderRadius: 14,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#ebebeb',
+    overflow: 'hidden',
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 16,
+    gap: 12,
+  },
+  sectionIcon: {
+    width: 38, height: 38, borderRadius: 10,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  sectionTitle: { fontSize: 15, fontWeight: '700', color: '#000' },
+  sectionSubtitle: { fontSize: 12, color: '#888', marginTop: 2 },
+  sectionBody: {
+    padding: 14,
+    borderTopWidth: 1,
+    borderTopColor: '#f3f3f3',
+    backgroundColor: '#fafafa',
+  },
+
+  actionRow: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+    marginBottom: 10,
+  },
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#000',
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+  },
+  addBtnText: { color: '#fff', fontSize: 13, fontWeight: '600' },
+
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#ebebeb',
+  },
+  rowMain: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
+  rowTitle: { fontSize: 14, fontWeight: '600', color: '#000' },
+  rowMeta: { fontSize: 12, color: '#888', marginTop: 2 },
+
+  vehicleImage: {
+    width: 60, height: 40,
+    alignItems: 'center', justifyContent: 'center',
+    backgroundColor: '#f5f5f5', borderRadius: 8,
+    overflow: 'hidden',
+  },
+  avatar: {
+    width: 38, height: 38, borderRadius: 19,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  avatarText: { fontSize: 16, fontWeight: '700' },
+  iconBtn: {
+    width: 32, height: 32, borderRadius: 16,
+    backgroundColor: '#fff', borderWidth: 1, borderColor: '#ebebeb',
+    alignItems: 'center', justifyContent: 'center',
+    marginLeft: 6,
+  },
+
+  emptyText: { textAlign: 'center', color: '#999', paddingVertical: 16, fontSize: 13 },
+
+  errorBanner: {
+    backgroundColor: '#fef2f2',
+    borderWidth: 1,
+    borderColor: '#fecaca',
+    borderRadius: 10,
+    padding: 10,
+    marginBottom: 10,
+  },
+  errorText: { color: '#c4001a', fontSize: 12, fontWeight: '500' },
+
+  chip: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: '#fff',
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: '#ebebeb',
+    marginRight: 8,
+  },
+  chipSelected: { backgroundColor: '#000', borderColor: '#000' },
+  chipText: { color: '#222', fontSize: 13, fontWeight: '500' },
+  chipTextSelected: { color: '#fff', fontWeight: '700' },
+
+  tabHint: { fontSize: 12, color: '#888', marginTop: -4, marginBottom: 8 },
+  tabRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 6,
+    borderWidth: 1,
+    borderColor: '#ebebeb',
+  },
+  tabRowDisabled: { backgroundColor: '#fef2f2', borderColor: '#fecaca' },
+  tabRowLabel: { fontSize: 14, color: '#222', fontWeight: '500' },
+  tabRowState: { fontSize: 12, color: '#888', fontWeight: '600' },
+
+  readonlyValue: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    fontSize: 14,
+    color: '#000',
+    borderWidth: 1,
+    borderColor: '#ebebeb',
+  },
+});
 
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#f5f5f5' },

@@ -186,11 +186,108 @@ export function registerMiscRoutes(app, requireAuth) {
         reportedBy: req.body.reportedBy || req.user?.name || '',
         description: req.body.description || '',
         severity: req.body.severity || 'low',
+        resolved: false,
         createdAt: req.body.createdAt || new Date().toISOString(),
       };
       all.push(issue);
       saveJsonFile('issues.json', all);
       res.status(201).json(issue);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  // PATCH an issue — mark resolved, update fields
+  app.patch('/api/issues/:id', requireAuth, (req, res) => {
+    try {
+      const all = loadJsonFile('issues.json');
+      const idx = all.findIndex(i => i.id === req.params.id);
+      if (idx === -1) return res.status(404).json({ error: 'Issue not found' });
+      const allowed = ['description', 'severity', 'resolved'];
+      for (const key of allowed) {
+        if (req.body[key] !== undefined) all[idx][key] = req.body[key];
+      }
+      all[idx].updatedAt = new Date().toISOString();
+      saveJsonFile('issues.json', all);
+      res.json(all[idx]);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  // DELETE an issue
+  app.delete('/api/issues/:id', requireAuth, (req, res) => {
+    try {
+      const all = loadJsonFile('issues.json');
+      const next = all.filter(i => i.id !== req.params.id);
+      if (next.length === all.length) return res.status(404).json({ error: 'Issue not found' });
+      saveJsonFile('issues.json', next);
+      res.json({ ok: true });
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  // ── Drives (file-backed) ────────────────────────────────────────────────────
+  // A drive is created when a driver "starts" (selects a vehicle) and updated
+  // when they "stop" (park the vehicle). Time between start/end + start/end
+  // location coordinates are stored so we can show a history of every trip.
+
+  app.get('/api/drives', requireAuth, (req, res) => {
+    try {
+      const { vehicleId, driverId } = req.query;
+      const all = loadJsonFile('drives.json');
+      let filtered = all;
+      if (vehicleId) filtered = filtered.filter(d => d.vehicleId === vehicleId);
+      if (driverId) filtered = filtered.filter(d => d.driverId === driverId);
+      filtered.sort((a, b) => new Date(b.startedAt) - new Date(a.startedAt));
+      res.json(filtered);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Start a drive — returns the new drive id which client should remember to call /stop on
+  app.post('/api/drives/start', requireAuth, (req, res) => {
+    try {
+      const all = loadJsonFile('drives.json');
+      const startPos = req.body.startPosition || null; // { lat, lng } or null
+      const drive = {
+        id: randomUUID(),
+        vehicleId: req.body.vehicleId || null,
+        vehicleName: req.body.vehicleName || '',
+        driverId: req.user?.id || req.body.driverId || null,
+        driverName: req.user?.name || req.body.driverName || '',
+        startedAt: new Date().toISOString(),
+        startPosition: startPos,
+        startAddress: req.body.startAddress || null,
+        endedAt: null,
+        endPosition: null,
+        endAddress: null,
+        durationMs: null,
+      };
+      all.push(drive);
+      saveJsonFile('drives.json', all);
+      res.status(201).json(drive);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  // Stop a drive — patches the drive with end position and computes duration
+  app.post('/api/drives/:id/stop', requireAuth, (req, res) => {
+    try {
+      const all = loadJsonFile('drives.json');
+      const idx = all.findIndex(d => d.id === req.params.id);
+      if (idx === -1) return res.status(404).json({ error: 'Drive not found' });
+      const drive = all[idx];
+      if (drive.endedAt) return res.status(409).json({ error: 'Drive already ended', drive });
+      drive.endedAt = new Date().toISOString();
+      drive.endPosition = req.body.endPosition || null;
+      drive.endAddress = req.body.endAddress || null;
+      drive.durationMs = new Date(drive.endedAt) - new Date(drive.startedAt);
+      saveJsonFile('drives.json', all);
+      res.json(drive);
+    } catch (e) { res.status(500).json({ error: e.message }); }
+  });
+
+  app.delete('/api/drives/:id', requireAuth, (req, res) => {
+    try {
+      const all = loadJsonFile('drives.json');
+      const next = all.filter(d => d.id !== req.params.id);
+      if (next.length === all.length) return res.status(404).json({ error: 'Drive not found' });
+      saveJsonFile('drives.json', next);
+      res.json({ ok: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 }

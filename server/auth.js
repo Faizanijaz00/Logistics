@@ -239,6 +239,49 @@ export function registerAuthRoutes(app) {
     }
   });
 
+  // Update user (admin only) — name, role, username
+  app.patch('/api/auth/users/:id', requireAuth, requireRole('admin'), async (req, res) => {
+    const { id } = req.params;
+    const { name, role, username } = req.body || {};
+    const updates = {};
+    if (name !== undefined) updates.name = name;
+    if (role !== undefined) {
+      if (role !== 'admin' && role !== 'driver') {
+        return res.status(400).json({ error: 'role must be admin or driver' });
+      }
+      updates.role = role;
+    }
+    if (username !== undefined) updates.username = username;
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No fields to update' });
+    }
+    try {
+      // If demoting an admin, ensure at least one admin remains
+      if (role === 'driver') {
+        const target = await sb(`/rest/v1/users?id=eq.${encodeURIComponent(id)}&select=role`);
+        if (target?.[0]?.role === 'admin') {
+          const admins = await sb('/rest/v1/users?role=eq.admin&select=id');
+          if ((admins || []).length <= 1) {
+            return res.status(400).json({ error: 'Cannot demote the last admin' });
+          }
+        }
+      }
+      const rows = await sb(`/rest/v1/users?id=eq.${encodeURIComponent(id)}`, {
+        method: 'PATCH',
+        headers: { 'Prefer': 'return=representation' },
+        body: JSON.stringify(updates),
+      });
+      if (!rows || rows.length === 0) return res.status(404).json({ error: 'User not found' });
+      res.json({ user: sanitizeUser(rows[0]) });
+    } catch (err) {
+      if (err.message && (err.message.includes('duplicate') || err.message.includes('unique'))) {
+        return res.status(409).json({ error: 'Username already exists' });
+      }
+      console.error('[Auth] Update user error:', err.message);
+      res.status(500).json({ error: 'Failed to update user' });
+    }
+  });
+
   // Update user tab access (admin only)
   app.patch('/api/auth/users/:id/tabs', requireAuth, requireRole('admin'), async (req, res) => {
     const { id } = req.params;

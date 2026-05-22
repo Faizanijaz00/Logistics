@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
@@ -7,11 +7,14 @@ import { LocateFixed } from 'lucide-react-native';
 import { useVehicleStore } from '../../src/store/vehicleStore';
 import { SERVER_URL } from '../../src/config/api';
 import { useLayout } from '../../src/hooks/useLayout';
+import { getCarImage } from '../../src/config/carImages';
 
-// Get car image URL served by the Express server
-function getServerImageUrl(imageId) {
-  if (!imageId) return null;
-  return `${SERVER_URL}/cars/${imageId}.png`;
+// Resolve a bundled car image (same as Fleet page) into a URI the WebView can load
+function getLocalImageUri(imageId) {
+  const asset = getCarImage(imageId);
+  if (!asset) return null;
+  const resolved = Image.resolveAssetSource(asset);
+  return resolved?.uri || null;
 }
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -22,7 +25,7 @@ function buildMapHTML(vehicles, userLocation) {
       const lat = parseFloat(v.position?.lat);
       const lng = parseFloat(v.position?.lng);
       if (isNaN(lat) || isNaN(lng) || (lat === 0 && lng === 0)) return null;
-      const imageUri = getServerImageUrl(v.imageId);
+      const imageUri = getLocalImageUri(v.imageId);
       return {
         id: String(v.id),
         lat,

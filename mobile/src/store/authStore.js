@@ -12,8 +12,51 @@ export const useAuthStore = create(
       error: null,
       selectedVehicleId: null,
       isDriving: false,
+      activeDriveId: null,
 
-      selectVehicle: async (vehicleId) => {
+      _getCurrentPosition: async () => {
+        try {
+          const Location = await import('expo-location');
+          const { status } = await Location.getForegroundPermissionsAsync();
+          if (status !== 'granted') return null;
+          const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          return { lat: pos.coords.latitude, lng: pos.coords.longitude };
+        } catch { return null; }
+      },
+
+      _startDrive: async (vehicleId, vehicleName) => {
+        const { token, _getCurrentPosition } = get();
+        if (!token) return;
+        try {
+          const startPosition = await _getCurrentPosition();
+          const resp = await fetch(`${SERVER_URL}/api/drives/start`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ vehicleId, vehicleName, startPosition }),
+          });
+          if (resp.ok) {
+            const data = await resp.json();
+            set({ activeDriveId: data.id });
+          }
+        } catch {}
+      },
+
+      _endDrive: async () => {
+        const { token, activeDriveId, _getCurrentPosition } = get();
+        if (!token || !activeDriveId) return;
+        try {
+          const endPosition = await _getCurrentPosition();
+          await fetch(`${SERVER_URL}/api/drives/${activeDriveId}/stop`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ endPosition }),
+          });
+        } catch {}
+        set({ activeDriveId: null });
+      },
+
+      selectVehicle: async (vehicleId, vehicleName) => {
+        const { _startDrive } = get();
         set({ selectedVehicleId: vehicleId, isDriving: true });
         const { token } = get();
         if (!token) return;
@@ -24,8 +67,11 @@ export const useAuthStore = create(
             body: JSON.stringify({ vehicleId }),
           });
         } catch {}
+        await _startDrive(vehicleId, vehicleName || '');
       },
       stopDriving: async () => {
+        const { _endDrive } = get();
+        await _endDrive();
         set({ selectedVehicleId: null, isDriving: false });
         const { token } = get();
         if (!token) return;
@@ -37,7 +83,9 @@ export const useAuthStore = create(
           });
         } catch {}
       },
-      switchVehicle: async (vehicleId) => {
+      switchVehicle: async (vehicleId, vehicleName) => {
+        const { _endDrive, _startDrive } = get();
+        await _endDrive();
         set({ selectedVehicleId: vehicleId, isDriving: true });
         const { token } = get();
         if (!token) return;
@@ -48,6 +96,7 @@ export const useAuthStore = create(
             body: JSON.stringify({ vehicleId }),
           });
         } catch {}
+        await _startDrive(vehicleId, vehicleName || '');
       },
 
       login: async (username, password) => {
@@ -97,7 +146,7 @@ export const useAuthStore = create(
     {
       name: 'auth-storage',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({ token: state.token, user: state.user, selectedVehicleId: state.selectedVehicleId, isDriving: state.isDriving }),
+      partialize: (state) => ({ token: state.token, user: state.user, selectedVehicleId: state.selectedVehicleId, isDriving: state.isDriving, activeDriveId: state.activeDriveId }),
     }
   )
 );
