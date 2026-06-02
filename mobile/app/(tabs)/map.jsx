@@ -5,12 +5,18 @@ import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { LocateFixed } from 'lucide-react-native';
 import { useVehicleStore } from '../../src/store/vehicleStore';
-import { SERVER_URL } from '../../src/config/api';
+import { getCarImage } from '../../src/config/carImages';
 import { useLayout } from '../../src/hooks/useLayout';
-// Resolve to the server-hosted image URL (server now ships images in server/public/cars/)
+
+// Use the SAME bundled car images as the Fleet page. The map runs inside a
+// WebView, so resolve each require()'d asset to a URI it can load (a Metro URL
+// in dev, a packaged file:// asset in production). The server does not host
+// these images, so loading them over HTTP would 404 and show only a circle.
 function getCarImageUrl(imageId) {
-  if (!imageId) return null;
-  return `${SERVER_URL}/cars/${imageId}.png`;
+  const src = getCarImage(imageId);
+  if (!src) return null;
+  const resolved = Image.resolveAssetSource(src);
+  return resolved?.uri || null;
 }
 
 const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
@@ -162,11 +168,9 @@ function buildMapHTML(vehicles, userLocation) {
 
       // Add user location blue dot
       if (userLat !== null && userLng !== null) {
+        try {
         var userPos = { lat: userLat, lng: userLng };
         bounds.extend(userPos);
-
-        _userMarker = new google.maps.marker.AdvancedMarkerElement
-          ? null : null;
 
         // Use OverlayView for custom HTML marker
         function UserLocationOverlay(pos, map) {
@@ -202,6 +206,7 @@ function buildMapHTML(vehicles, userLocation) {
         };
 
         new UserLocationOverlay(userPos, _map);
+        } catch (e) { /* user-location overlay failed — still render vehicle markers */ }
       }
 
       function buildInfoFor(v, state) {
