@@ -3,6 +3,11 @@ import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SERVER_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from '../config/api';
 
+// Live location watcher handle (module-level so it survives store re-renders).
+// While a driver is on a journey we push their phone GPS to the vehicle's
+// position so the car shows up — and moves — on the live map.
+let _locationSub = null;
+
 export const useAuthStore = create(
   persist(
     (set, get) => ({
@@ -14,28 +19,90 @@ export const useAuthStore = create(
       isDriving: false,
       activeDriveId: null,
 
+      // Get the current GPS position, but never block longer than 4s — a slow
+      // or unavailable fix must not freeze "select vehicle" / "stop driving".
       _getCurrentPosition: async () => {
         try {
           const Location = await import('expo-location');
           const { status } = await Location.getForegroundPermissionsAsync();
           if (status !== 'granted') return null;
-          const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          const posPromise = Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Balanced });
+          const timeout = new Promise((resolve) => setTimeout(() => resolve(null), 4000));
+          const pos = await Promise.race([posPromise, timeout]);
+          if (!pos?.coords) return null;
           return { lat: pos.coords.latitude, lng: pos.coords.longitude };
         } catch { return null; }
       },
 
+      // PATCH the selected vehicle's position so it shows/moves on the live map.
+      _pushVehiclePosition: (lat, lng) => {
+        const { token, selectedVehicleId } = get();
+        if (!token || !selectedVehicleId || lat == null || lng == null) return;
+        fetch(`${SERVER_URL}/api/vehicles/${selectedVehicleId}`, {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ position: { lat, lng }, lastGpsUpdate: new Date().toISOString() }),
+        }).catch(() => {});
+      },
+
+      _startLocationTracking: async () => {
+        try {
+          const Location = await import('expo-location');
+          let { status } = await Location.getForegroundPermissionsAsync();
+          if (status !== 'granted') {
+            const req = await Location.requestForegroundPermissionsAsync();
+            status = req.status;
+          }
+          if (status !== 'granted') return;
+          if (_locationSub) { try { _locationSub.remove(); } catch {} _locationSub = null; }
+          // Push one position immediately so the car appears on the map right away
+          const first = await get()._getCurrentPosition();
+          if (first) get()._pushVehiclePosition(first.lat, first.lng);
+          _locationSub = await Location.watchPositionAsync(
+            { accuracy: Location.Accuracy.Balanced, timeInterval: 10000, distanceInterval: 20 },
+            (pos) => { if (pos?.coords) get()._pushVehiclePosition(pos.coords.latitude, pos.coords.longitude); }
+          );
+        } catch {}
+      },
+
+      _stopLocationTracking: () => {
+        if (_locationSub) { try { _locationSub.remove(); } catch {} _locationSub = null; }
+      },
+
+      // Re-arm location tracking after an app relaunch if a drive is in progress.
+      resumeDriving: () => {
+        const { isDriving, selectedVehicleId } = get();
+        if (isDriving && selectedVehicleId) get()._startLocationTracking();
+      },
+
+      // Reconcile local driving state against the shared server truth so every
+      // device agrees on who's driving which car. If another driver now holds the
+      // vehicle we thought we were in, we've been bumped off it — drop it locally.
+      reconcileFromVehicles: (vehicles) => {
+        const { isDriving, selectedVehicleId, user } = get();
+        if (!isDriving || !selectedVehicleId || !user?.id) return;
+        const v = (vehicles || []).find((x) => x.id === selectedVehicleId);
+        if (!v) return;
+        const driverId = v.currentDriverId || v.current_driver_id || null;
+        if (driverId && driverId !== user.id) {
+          if (_locationSub) { try { _locationSub.remove(); } catch {} _locationSub = null; }
+          set({ selectedVehicleId: null, isDriving: false, activeDriveId: null });
+        }
+      },
+
       _startDrive: async (vehicleId, vehicleName) => {
-        const { token, user, _getCurrentPosition } = get();
+        const { token, user } = get();
         if (!token) return;
         try {
-          const startPosition = await _getCurrentPosition();
+          // Create the drive record immediately (no GPS wait) so it shows on the
+          // Drives tab straight away; attach the start position once GPS resolves.
           const resp = await fetch(`${SERVER_URL}/api/drives/start`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify({
               vehicleId,
               vehicleName,
-              startPosition,
+              startPosition: null,
               driverId: user?.id || null,
               driverName: user?.name || user?.username || 'Unknown',
             }),
@@ -43,19 +110,32 @@ export const useAuthStore = create(
           if (resp.ok) {
             const data = await resp.json();
             set({ activeDriveId: data.id });
+            get()._getCurrentPosition().then((startPosition) => {
+              if (startPosition && data.id) {
+                fetch(`${SERVER_URL}/api/drives/${data.id}`, {
+                  method: 'PATCH',
+                  headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+                  body: JSON.stringify({ startPosition }),
+                }).catch(() => {});
+                get()._pushVehiclePosition(startPosition.lat, startPosition.lng);
+              }
+            });
           }
         } catch {}
       },
 
       _endDrive: async () => {
-        const { token, activeDriveId, user, _getCurrentPosition } = get();
+        const { token, activeDriveId, user } = get();
+        // Clear synchronously up-front so a subsequent _startDrive (switch) can't
+        // have its new id wiped, and so a retry can't double-stop.
+        set({ activeDriveId: null });
         if (!token) return;
-        const endPosition = await _getCurrentPosition();
+        const endPosition = await get()._getCurrentPosition();
         let driveIds = [];
         if (activeDriveId) driveIds.push(activeDriveId);
 
-        // Recovery: if no activeDriveId in state (or as a safety net),
-        // also stop ANY ongoing drives owned by this user on the server.
+        // Recovery: also stop ANY ongoing drive owned by this user on the server,
+        // so "stop driving" reliably closes the trip even if local state is stale.
         try {
           if (user?.id) {
             const r = await fetch(`${SERVER_URL}/api/drives?driverId=${encodeURIComponent(user.id)}`, {
@@ -79,51 +159,51 @@ export const useAuthStore = create(
             });
           } catch {}
         }
-        set({ activeDriveId: null });
       },
 
       selectVehicle: async (vehicleId, vehicleName) => {
-        const { _startDrive } = get();
+        // Optimistic: update UI instantly, then talk to the server in the background.
         set({ selectedVehicleId: vehicleId, isDriving: true });
+        get()._startLocationTracking();
         const { token } = get();
         if (!token) return;
-        try {
-          await fetch(`${SERVER_URL}/api/auth/select-vehicle`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ vehicleId }),
-          });
-        } catch {}
-        await _startDrive(vehicleId, vehicleName || '');
+        fetch(`${SERVER_URL}/api/auth/select-vehicle`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ vehicleId }),
+        }).catch(() => {});
+        get()._startDrive(vehicleId, vehicleName || '');
       },
+
       stopDriving: async () => {
-        const { _endDrive } = get();
-        await _endDrive();
+        // Clear UI state immediately so the button responds instantly, then end
+        // the drive + release the vehicle in the background.
         set({ selectedVehicleId: null, isDriving: false });
+        get()._stopLocationTracking();
+        get()._endDrive();
         const { token } = get();
         if (!token) return;
-        try {
-          await fetch(`${SERVER_URL}/api/auth/select-vehicle`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-            body: JSON.stringify({ vehicleId: null }),
-          });
-        } catch {}
+        fetch(`${SERVER_URL}/api/auth/select-vehicle`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+          body: JSON.stringify({ vehicleId: null }),
+        }).catch(() => {});
       },
+
       switchVehicle: async (vehicleId, vehicleName) => {
-        const { _endDrive, _startDrive } = get();
-        await _endDrive();
+        get()._stopLocationTracking();
+        get()._endDrive(); // captures + clears the old drive id synchronously
         set({ selectedVehicleId: vehicleId, isDriving: true });
+        get()._startLocationTracking();
         const { token } = get();
-        if (!token) return;
-        try {
-          await fetch(`${SERVER_URL}/api/auth/select-vehicle`, {
+        if (token) {
+          fetch(`${SERVER_URL}/api/auth/select-vehicle`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
             body: JSON.stringify({ vehicleId }),
-          });
-        } catch {}
-        await _startDrive(vehicleId, vehicleName || '');
+          }).catch(() => {});
+        }
+        get()._startDrive(vehicleId, vehicleName || '');
       },
 
       login: async (username, password) => {
@@ -147,7 +227,10 @@ export const useAuthStore = create(
         }
       },
 
-      logout: () => set({ token: null, user: null, selectedVehicleId: null, isDriving: false }),
+      logout: () => {
+        if (_locationSub) { try { _locationSub.remove(); } catch {} _locationSub = null; }
+        set({ token: null, user: null, selectedVehicleId: null, isDriving: false, activeDriveId: null });
+      },
 
       fetchMe: async () => {
         const { token } = get();

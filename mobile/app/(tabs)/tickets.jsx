@@ -1,10 +1,27 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { ReceiptText, Car, User, Calendar, AlertCircle, Clock } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
 import { useVehicleStore } from '../../src/store/vehicleStore';
 import { SERVER_URL } from '../../src/config/api';
+
+// Appeal/paid state isn't stored in its own columns — `status` carries paid/
+// appealing and the deadlines ride inside plan_for_contesting as JSON. Also
+// accept the older camelCase/snake fields so historical tickets still read.
+export function parseTicketMeta(t) {
+  let meta = {};
+  const raw = t.plan_for_contesting;
+  if (raw && typeof raw === 'string' && raw.trim().startsWith('{')) {
+    try { meta = JSON.parse(raw); } catch {}
+  }
+  const appealing = t.appealing || meta.appealing || (t.status === 'Appealing' ? 'yes' : 'undecided');
+  const appealDeadline = t.appeal_deadline || t.appealDeadline || meta.appeal_deadline || null;
+  const paymentDeadline = t.payment_deadline || t.paymentDeadline || meta.payment_deadline || null;
+  const paid = !!t.paid || t.status === 'Paid';
+  return { appealing, appealDeadline, paymentDeadline, paid };
+}
 
 function formatDate(iso) {
   if (!iso) return '—';
@@ -48,7 +65,8 @@ export default function TicketsScreen() {
     }
   }, [token]);
 
-  useEffect(() => { load(); }, [load]);
+  // Reload whenever the tab is focused so a ticket just added from Home shows up.
+  useFocusEffect(useCallback(() => { load(); }, [load]));
   const onRefresh = () => { setRefreshing(true); load(); };
 
   const getVehicle = (t) => {
@@ -107,10 +125,7 @@ export default function TicketsScreen() {
             const amount = t.outstanding ?? t.amount;
             const dateStr = t.date || t.createdAt || t.created_at;
             const reason = t.notes || t.reason || '';
-            const paid = t.paid || t.status === 'Paid';
-            const appealing = t.appealing || 'undecided';
-            const appealDeadline = t.appeal_deadline || t.appealDeadline;
-            const paymentDeadline = t.payment_deadline || t.paymentDeadline;
+            const { appealing, appealDeadline, paymentDeadline, paid } = parseTicketMeta(t);
             return (
               <View key={t.id} style={[styles.card, paid && styles.cardPaid]}>
                 <View style={styles.cardHeader}>

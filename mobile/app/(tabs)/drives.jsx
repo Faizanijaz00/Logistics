@@ -1,4 +1,5 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Car, User, Clock, MapPin } from 'lucide-react-native';
@@ -55,7 +56,16 @@ export default function DrivesScreen() {
     }
   }, [token, isAdmin, user?.id]);
 
-  useEffect(() => { load(); }, [load]);
+  // Reload every time the tab is focused, and poll while it stays focused, so a
+  // drive just started on the Home tab appears here within a couple of seconds
+  // and an ongoing drive's duration stays current.
+  useFocusEffect(
+    useCallback(() => {
+      load();
+      const id = setInterval(load, 4000);
+      return () => clearInterval(id);
+    }, [load])
+  );
 
   const onRefresh = () => { setRefreshing(true); load(); };
 

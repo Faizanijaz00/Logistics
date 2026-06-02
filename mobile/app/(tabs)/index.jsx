@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
+import { useFocusEffect } from 'expo-router';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, Modal, TextInput, Switch, ActivityIndicator, Alert, KeyboardAvoidingView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Fuel, ReceiptText, AlertTriangle, LogOut, RefreshCw, MapPin, Navigation, X, Car, ChevronRight, ChevronDown, ChevronUp, Users, Route, Plus, Trash2, CheckCircle2, Clock } from 'lucide-react-native';
@@ -7,6 +8,21 @@ import { useVehicleStore } from '../../src/store/vehicleStore';
 import { getCarImage } from '../../src/config/carImages';
 import { useLayout } from '../../src/hooks/useLayout';
 import { SERVER_URL } from '../../src/config/api';
+
+// Appeal/paid state lives in `status`; deadlines ride inside plan_for_contesting
+// as JSON. Accept legacy camelCase/snake fields too so older tickets still read.
+function parseTicketMeta(t) {
+  let meta = {};
+  const raw = t?.plan_for_contesting;
+  if (raw && typeof raw === 'string' && raw.trim().startsWith('{')) {
+    try { meta = JSON.parse(raw); } catch {}
+  }
+  const appealing = t?.appealing || meta.appealing || (t?.status === 'Appealing' ? 'yes' : 'undecided');
+  const appealDeadline = t?.appeal_deadline || t?.appealDeadline || meta.appeal_deadline || '';
+  const paymentDeadline = t?.payment_deadline || t?.paymentDeadline || meta.payment_deadline || '';
+  const paid = !!t?.paid || t?.status === 'Paid';
+  return { appealing, appealDeadline, paymentDeadline, paid };
+}
 
 function UKPlate({ registration, small }) {
   if (!registration) return null;
@@ -127,7 +143,7 @@ export default function HomeScreen() {
 }
 
 function DriverHomeScreen() {
-  const { user, token, logout, selectedVehicleId, isDriving, selectVehicle, stopDriving, switchVehicle } = useAuthStore();
+  const { user, token, logout, selectedVehicleId, isDriving, selectVehicle, stopDriving, switchVehicle, resumeDriving, reconcileFromVehicles } = useAuthStore();
   const { vehicles, fetchVehicles } = useVehicleStore();
   const [showPicker, setShowPicker] = useState(false);
   const [showFuelModal, setShowFuelModal] = useState(false);
@@ -137,7 +153,21 @@ function DriverHomeScreen() {
   const [drivers, setDrivers] = useState([]);
   const { isUnfolded } = useLayout();
 
-  useEffect(() => { fetchVehicles(); }, []);
+  // If a drive was in progress when the app was last closed, re-arm live tracking.
+  useEffect(() => { resumeDriving(); }, []);
+
+  // Keep the vehicle list (and therefore "who's driving which car") fresh while
+  // this tab is focused, so every device shows the same, current assignments.
+  useFocusEffect(
+    useCallback(() => {
+      fetchVehicles();
+      const id = setInterval(fetchVehicles, 6000);
+      return () => clearInterval(id);
+    }, [fetchVehicles])
+  );
+
+  // Reconcile local driving state against the shared server truth.
+  useEffect(() => { reconcileFromVehicles(vehicles); }, [vehicles, reconcileFromVehicles]);
 
   // Fetch drivers list once (used by the Add Ticket modal)
   useEffect(() => {
@@ -592,29 +622,28 @@ function AddTicketModal({ visible, onClose, vehicle, user, token, drivers }) {
     setSubmitting(true);
     try {
       const isUnknown = !selectedDriver?.id || driverId === '__unknown__';
+      // Map onto the ACTUAL Supabase `tickets` columns. The table has no
+      // driver_name / paid / appealing / *_deadline columns — sending them makes
+      // PostgREST reject the whole insert (which is why saving silently failed).
+      // Appeal state lives in `status`; deadlines ride along in plan_for_contesting.
+      const meta = {};
+      if (appealing && appealing !== 'undecided') meta.appealing = appealing;
+      if (appealDeadline) meta.appeal_deadline = appealDeadline;
+      if (paymentDeadline) meta.payment_deadline = paymentDeadline;
+      const nowIso = new Date().toISOString();
       const body = {
-        // Supabase snake_case columns
+        id: `ticket-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
         vehicle_id: vehicle.id,
-        driver_id: isUnknown ? null : selectedDriver?.id,
-        driver_name: isUnknown ? 'Unknown' : (selectedDriver?.name || ''),
+        driver_id: isUnknown ? null : (selectedDriver?.id || null),
         pcn: reference.trim(),
         outstanding: numeric,
         date,
         notes: reason.trim(),
-        status: 'Issued',
-        paid: false,
-        appealing,
-        appeal_deadline: appealDeadline || null,
-        payment_deadline: paymentDeadline || null,
-        // also store the friendly fields for backward-compat reads
-        vehicleId: vehicle.id,
-        driverName: isUnknown ? 'Unknown' : (selectedDriver?.name || ''),
-        driverId: isUnknown ? null : (selectedDriver?.id || null),
-        reference: reference.trim(),
-        amount: numeric,
-        reason: reason.trim(),
-        appealDeadline: appealDeadline || null,
-        paymentDeadline: paymentDeadline || null,
+        status: appealing === 'yes' ? 'Appealing' : 'Issued',
+        action_taken: appealing === 'yes',
+        plan_for_contesting: Object.keys(meta).length ? JSON.stringify(meta) : '',
+        created_at: nowIso,
+        updated_at: nowIso,
       };
       const resp = await fetch(`${SERVER_URL}/api/tickets`, {
         method: 'POST',
@@ -1815,10 +1844,11 @@ function TicketEditModal({ visible, ticket, vehicles, currentUser, authedFetch, 
   const [date, setDate] = useState(ticket?.date || new Date().toISOString().slice(0, 10));
   const [reason, setReason] = useState(ticket?.reason || ticket?.notes || '');
   const [vehicleId, setVehicleId] = useState(ticket?.vehicleId || ticket?.vehicle_id || vehicles[0]?.id || '');
-  const [appealing, setAppealing] = useState(ticket?.appealing || 'undecided');
-  const [appealDeadline, setAppealDeadline] = useState(ticket?.appeal_deadline || ticket?.appealDeadline || '');
-  const [paymentDeadline, setPaymentDeadline] = useState(ticket?.payment_deadline || ticket?.paymentDeadline || '');
-  const [paid, setPaid] = useState(!!(ticket?.paid || ticket?.status === 'Paid'));
+  const _meta = parseTicketMeta(ticket);
+  const [appealing, setAppealing] = useState(_meta.appealing);
+  const [appealDeadline, setAppealDeadline] = useState(_meta.appealDeadline);
+  const [paymentDeadline, setPaymentDeadline] = useState(_meta.paymentDeadline);
+  const [paid, setPaid] = useState(_meta.paid);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -1830,47 +1860,34 @@ function TicketEditModal({ visible, ticket, vehicles, currentUser, authedFetch, 
     setSubmitting(true);
     setError('');
     try {
-      const appealFields = {
-        appealing,
-        appeal_deadline: appealDeadline || null,
-        payment_deadline: paymentDeadline || null,
-        appealDeadline: appealDeadline || null,
-        paymentDeadline: paymentDeadline || null,
-        paid,
-        status: paid ? 'Paid' : 'Issued',
+      // Map onto the real Supabase `tickets` columns (see AddTicketModal note).
+      const meta = {};
+      if (appealing && appealing !== 'undecided') meta.appealing = appealing;
+      if (appealDeadline) meta.appeal_deadline = appealDeadline;
+      if (paymentDeadline) meta.payment_deadline = paymentDeadline;
+      const status = paid ? 'Paid' : (appealing === 'yes' ? 'Appealing' : 'Issued');
+      const nowIso = new Date().toISOString();
+      const common = {
+        vehicle_id: vehicleId,
+        pcn: reference.trim(),
+        outstanding: num,
+        date,
+        notes: reason.trim(),
+        status,
+        action_taken: appealing === 'yes',
+        plan_for_contesting: Object.keys(meta).length ? JSON.stringify(meta) : '',
+        updated_at: nowIso,
       };
       if (isNew) {
         const body = {
           id: `ticket-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          vehicleId,
-          vehicle_id: vehicleId,
-          driverName: currentUser?.name || currentUser?.username || '',
-          driverId: currentUser?.id || null,
           driver_id: currentUser?.id || null,
-          reference: reference.trim(),
-          pcn: reference.trim(),
-          amount: num,
-          outstanding: num,
-          date,
-          reason: reason.trim(),
-          notes: reason.trim(),
-          ...appealFields,
+          created_at: nowIso,
+          ...common,
         };
         await authedFetch('/api/tickets', { method: 'POST', body: JSON.stringify(body) });
       } else {
-        const body = {
-          reference: reference.trim(),
-          pcn: reference.trim(),
-          amount: num,
-          outstanding: num,
-          date,
-          reason: reason.trim(),
-          notes: reason.trim(),
-          vehicleId,
-          vehicle_id: vehicleId,
-          ...appealFields,
-        };
-        await authedFetch(`/api/tickets/${ticket.id}`, { method: 'PATCH', body: JSON.stringify(body) });
+        await authedFetch(`/api/tickets/${ticket.id}`, { method: 'PATCH', body: JSON.stringify(common) });
       }
       await onSaved();
     } catch (e) {
