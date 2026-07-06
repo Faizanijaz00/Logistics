@@ -1,0 +1,14 @@
+{
+  "name": "Fleet Hub",
+  "short_name": "Fleet Hub",
+  "description": "Fleet management — vehicles, tickets, drives and receipts.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0b0d10",
+  "theme_color": "#0b0d10",
+  "icons": [
+    { "src": "/app-icon.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" },
+    { "src": "/app-icon.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" },
+    { "src": "/app-icon.png", "sizes": "192x192", "type": "image/png" }
+  ]
+}
