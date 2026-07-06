@@ -3,9 +3,9 @@
 // styles live in the scoped <style> block below so it doesn't depend on the
 // rest of the app's CSS.
 
-// Swap this for the newest EAS APK URL when a build finishes.
+// Swap this for the direct APK artifact URL when the current build finishes.
 const ANDROID_APK_URL =
-  'https://expo.dev/accounts/ivoines242/projects/logistics/builds/9c4c8f7d-6618-4128-95df-029722e7b2be';
+  'https://expo.dev/accounts/ivoines242/projects/logistics/builds/82f9e182-d34f-4509-a0c5-69ff4b3bfff2';
 
 const CSS = `
 .dl-root {
