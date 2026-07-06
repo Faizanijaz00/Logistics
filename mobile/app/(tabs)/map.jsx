@@ -1,22 +1,21 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { WebView } from 'react-native-webview';
 import { useRouter } from 'expo-router';
 import * as Location from 'expo-location';
 import { LocateFixed } from 'lucide-react-native';
 import { useVehicleStore } from '../../src/store/vehicleStore';
-import { getCarImage } from '../../src/config/carImages';
+import { SERVER_URL } from '../../src/config/api';
 import { useLayout } from '../../src/hooks/useLayout';
 
-// Use the SAME bundled car images as the Fleet page. The map runs inside a
-// WebView, so resolve each require()'d asset to a URI it can load (a Metro URL
-// in dev, a packaged file:// asset in production). The server does not host
-// these images, so loading them over HTTP would 404 and show only a circle.
+// The map runs inside a WebView, which can't load bundled RN assets in a
+// release build (only over Metro in dev). So we serve the car images from the
+// backend over https and load them by URL — works in dev AND production. The
+// server hosts them at /cars/<imageId>.png (see server/public/cars). Missing
+// files fall back to a coloured dot via the <img> onerror handler.
 function getCarImageUrl(imageId) {
-  const src = getCarImage(imageId);
-  if (!src) return null;
-  const resolved = Image.resolveAssetSource(src);
-  return resolved?.uri || null;
+  if (!imageId) return null;
+  return `${SERVER_URL}/cars/${imageId}.png`;
 }
 
 const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
