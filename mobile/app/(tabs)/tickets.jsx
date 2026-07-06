@@ -1,13 +1,14 @@
 import { useState, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ReceiptText, Car, User, Calendar, AlertCircle, Clock, Plus } from 'lucide-react-native';
+import { ReceiptText, Car, User, Calendar, AlertCircle, Clock, Plus, Search, X } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
 import { useVehicleStore } from '../../src/store/vehicleStore';
 import { SERVER_URL } from '../../src/config/api';
 import ReceiptViewer from '../../src/components/ReceiptViewer';
-import { AddTicketModal } from './index';
+import SkeletonList from '../../src/components/SkeletonList';
+import { AddTicketModal, TicketEditModal } from './index';
 
 // Appeal/paid state isn't stored in its own columns — `status` carries paid/
 // appealing and the deadlines ride inside plan_for_contesting as JSON. Also
@@ -48,9 +49,27 @@ export default function TicketsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [editing, setEditing] = useState(null);
+  const [query, setQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState('all'); // all | outstanding | appealing | paid
 
   // Same driver list the Add Ticket modal expects (drivers + admins).
   const drivers = users.filter(u => u.role === 'driver' || u.role === 'admin');
+
+  // Small helper matching the one the edit modal expects: prefixes SERVER_URL,
+  // attaches auth, returns parsed JSON (or null on 204).
+  const authedFetch = useCallback(async (path, options = {}) => {
+    const res = await fetch(`${SERVER_URL}${path}`, {
+      ...options,
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}`, ...(options.headers || {}) },
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.error || `Request failed (${res.status})`);
+    }
+    if (res.status === 204) return null;
+    return res.json().catch(() => null);
+  }, [token]);
 
   const load = useCallback(async () => {
     setError(null);
@@ -95,7 +114,37 @@ export default function TicketsScreen() {
         return did === user?.id;
       });
 
-  const totalOutstanding = visible.reduce((sum, t) => sum + (Number(t.outstanding ?? t.amount) || 0), 0);
+  const matchesStatus = (t) => {
+    const { appealing, paid } = parseTicketMeta(t);
+    switch (statusFilter) {
+      case 'paid': return paid;
+      case 'appealing': return !paid && appealing === 'yes';
+      case 'outstanding': return !paid;
+      default: return true;
+    }
+  };
+
+  const q = query.trim().toLowerCase();
+  const matchesQuery = (t) => {
+    if (!q) return true;
+    const v = getVehicle(t);
+    const haystack = [
+      t.pcn, t.reference, t.notes, t.reason, getDriver(t),
+      v && `${v.make} ${v.model} ${v.licensePlate}`,
+    ].filter(Boolean).join(' ').toLowerCase();
+    return haystack.includes(q);
+  };
+
+  const filtered = visible.filter(t => matchesStatus(t) && matchesQuery(t));
+
+  const totalOutstanding = filtered.reduce((sum, t) => sum + (Number(t.outstanding ?? t.amount) || 0), 0);
+
+  const FILTERS = [
+    { key: 'all', label: 'All' },
+    { key: 'outstanding', label: 'Outstanding' },
+    { key: 'appealing', label: 'Appealing' },
+    { key: 'paid', label: 'Paid' },
+  ];
 
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
@@ -104,7 +153,7 @@ export default function TicketsScreen() {
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>Tickets & Fines</Text>
             <Text style={styles.headerSub}>
-              {visible.length} ticket{visible.length === 1 ? '' : 's'} · {formatCurrency(totalOutstanding)} outstanding
+              {filtered.length} ticket{filtered.length === 1 ? '' : 's'} · {formatCurrency(totalOutstanding)} outstanding
             </Text>
           </View>
           <TouchableOpacity style={styles.addBtn} onPress={() => setShowAdd(true)} activeOpacity={0.85}>
@@ -112,6 +161,46 @@ export default function TicketsScreen() {
             <Text style={styles.addBtnText}>Add</Text>
           </TouchableOpacity>
         </View>
+
+        <View style={styles.searchRow}>
+          <Search size={16} color="#999" />
+          <TextInput
+            style={styles.searchInput}
+            value={query}
+            onChangeText={setQuery}
+            placeholder="Search PCN, driver, vehicle…"
+            placeholderTextColor="#aaa"
+            autoCorrect={false}
+            autoCapitalize="none"
+            returnKeyType="search"
+          />
+          {query ? (
+            <TouchableOpacity onPress={() => setQuery('')} hitSlop={8}>
+              <X size={16} color="#999" />
+            </TouchableOpacity>
+          ) : null}
+        </View>
+
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.filterRow}
+          keyboardShouldPersistTaps="handled"
+        >
+          {FILTERS.map(f => {
+            const active = statusFilter === f.key;
+            return (
+              <TouchableOpacity
+                key={f.key}
+                style={[styles.filterChip, active && styles.filterChipActive]}
+                onPress={() => setStatusFilter(f.key)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{f.label}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </ScrollView>
       </View>
 
       <ScrollView
@@ -120,20 +209,29 @@ export default function TicketsScreen() {
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
       >
         {loading && !refreshing ? (
-          <View style={styles.empty}><ActivityIndicator size="small" color="#888" /></View>
+          <SkeletonList count={4} />
         ) : error ? (
           <View style={styles.empty}>
             <Text style={styles.errorText}>{error}</Text>
             <TouchableOpacity onPress={load} style={styles.retryBtn}><Text style={styles.retryText}>Retry</Text></TouchableOpacity>
           </View>
-        ) : visible.length === 0 ? (
+        ) : filtered.length === 0 ? (
           <View style={styles.empty}>
             <ReceiptText size={48} color="#ccc" />
-            <Text style={styles.emptyText}>No tickets yet</Text>
-            <Text style={styles.emptyHint}>Tap Add to log your first ticket.</Text>
+            {visible.length === 0 ? (
+              <>
+                <Text style={styles.emptyText}>No tickets yet</Text>
+                <Text style={styles.emptyHint}>Tap Add to log your first ticket.</Text>
+              </>
+            ) : (
+              <>
+                <Text style={styles.emptyText}>No matching tickets</Text>
+                <Text style={styles.emptyHint}>Try a different search or filter.</Text>
+              </>
+            )}
           </View>
         ) : (
-          visible.map(t => {
+          filtered.map(t => {
             const v = getVehicle(t);
             const driver = getDriver(t);
             const ref = t.pcn || t.reference || '—';
@@ -142,7 +240,12 @@ export default function TicketsScreen() {
             const reason = t.notes || t.reason || '';
             const { appealing, appealDeadline, paymentDeadline, paid, receiptPath } = parseTicketMeta(t);
             return (
-              <View key={t.id} style={[styles.card, paid && styles.cardPaid]}>
+              <TouchableOpacity
+                key={t.id}
+                style={[styles.card, paid && styles.cardPaid]}
+                onPress={() => setEditing(t)}
+                activeOpacity={0.7}
+              >
                 <View style={styles.cardHeader}>
                   <Text style={styles.ref}>{ref}</Text>
                   <Text style={[styles.amount, paid && styles.amountPaid]}>{formatCurrency(amount)}</Text>
@@ -197,7 +300,7 @@ export default function TicketsScreen() {
                 {reason ? <Text style={styles.reason} numberOfLines={3}>{reason}</Text> : null}
 
                 <ReceiptViewer path={receiptPath} token={token} label="Ticket photo" />
-              </View>
+              </TouchableOpacity>
             );
           })
         )}
@@ -212,6 +315,20 @@ export default function TicketsScreen() {
         vehicles={vehicles}
         onSaved={load}
       />
+
+      {editing && (
+        <TicketEditModal
+          visible
+          ticket={editing}
+          vehicles={vehicles}
+          currentUser={user}
+          token={token}
+          authedFetch={authedFetch}
+          onClose={() => setEditing(null)}
+          onSaved={async () => { setEditing(null); await load(); }}
+          onDeleted={async () => { setEditing(null); await load(); }}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -224,6 +341,13 @@ const styles = StyleSheet.create({
   headerSub: { fontSize: 13, color: '#888', marginTop: 2 },
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#000', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },
   addBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
+  searchRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#f2f2f2', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 9, marginTop: 12 },
+  searchInput: { flex: 1, fontSize: 15, color: '#111', padding: 0 },
+  filterRow: { gap: 8, paddingTop: 10, paddingRight: 4 },
+  filterChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 16, backgroundColor: '#f2f2f2' },
+  filterChipActive: { backgroundColor: '#000' },
+  filterChipText: { fontSize: 13, fontWeight: '600', color: '#555' },
+  filterChipTextActive: { color: '#fff' },
   list: { flex: 1 },
   listContent: { padding: 16, paddingBottom: 40 },
   empty: { padding: 40, alignItems: 'center', justifyContent: 'center', gap: 8 },

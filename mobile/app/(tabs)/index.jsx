@@ -10,6 +10,7 @@ import { useLayout } from '../../src/hooks/useLayout';
 import { SERVER_URL } from '../../src/config/api';
 import ReceiptPicker from '../../src/components/ReceiptPicker';
 import ReceiptViewer from '../../src/components/ReceiptViewer';
+import DateField from '../../src/components/DateField';
 
 // Same Mapbox token the map uses — powers destination address autocomplete.
 const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
@@ -772,14 +773,7 @@ export function AddTicketModal({ visible, onClose, vehicle, user, token, drivers
               />
             </View>
 
-            <Text style={styles.fieldLabel}>Date</Text>
-            <TextInput
-              style={styles.textInput}
-              value={date}
-              onChangeText={setDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor="#bbb"
-            />
+            <DateField label="Date" value={date} onChange={setDate} clearable={false} />
 
             <Text style={styles.fieldLabel}>Reason</Text>
             <TextInput
@@ -839,29 +833,11 @@ export function AddTicketModal({ visible, onClose, vehicle, user, token, drivers
             </View>
 
             {appealing !== 'no' ? (
-              <>
-                <Text style={styles.fieldLabel}>Appeal deadline</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={appealDeadline}
-                  onChangeText={setAppealDeadline}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#bbb"
-                />
-              </>
+              <DateField label="Appeal deadline" value={appealDeadline} onChange={setAppealDeadline} />
             ) : null}
 
             {appealing !== 'yes' ? (
-              <>
-                <Text style={styles.fieldLabel}>Payment deadline</Text>
-                <TextInput
-                  style={styles.textInput}
-                  value={paymentDeadline}
-                  onChangeText={setPaymentDeadline}
-                  placeholder="YYYY-MM-DD"
-                  placeholderTextColor="#bbb"
-                />
-              </>
+              <DateField label="Payment deadline" value={paymentDeadline} onChange={setPaymentDeadline} />
             ) : null}
 
             <Text style={styles.fieldLabel}>Ticket photo</Text>
@@ -1598,9 +1574,9 @@ function VehicleEditModal({ visible, vehicle, authedFetch, onClose, onSaved }) {
             <FormField label="Color" value={form.color} onChange={v => set('color', v)} />
             <FormField label="Capacity (seats)" value={form.capacity} onChange={v => set('capacity', v)} keyboardType="number-pad" />
             <FormField label="Fuel type" value={form.fuelType} onChange={v => set('fuelType', v)} placeholder="Petrol / Diesel / EV" />
-            <FormField label="Insurance expiry" value={form.insuranceExpiry} onChange={v => set('insuranceExpiry', v)} placeholder="YYYY-MM-DD" />
-            <FormField label="Tax expiry" value={form.taxExpiry} onChange={v => set('taxExpiry', v)} placeholder="YYYY-MM-DD" />
-            <FormField label="MOT expiry" value={form.motExpiry} onChange={v => set('motExpiry', v)} placeholder="YYYY-MM-DD" />
+            <DateField label="Insurance expiry" value={form.insuranceExpiry} onChange={v => set('insuranceExpiry', v)} />
+            <DateField label="Tax expiry" value={form.taxExpiry} onChange={v => set('taxExpiry', v)} />
+            <DateField label="MOT expiry" value={form.motExpiry} onChange={v => set('motExpiry', v)} />
 
             <TouchableOpacity
               style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}
@@ -2003,7 +1979,7 @@ function TicketsSection({ tickets, vehicles, users, currentUser, token, authedFe
   );
 }
 
-function TicketEditModal({ visible, ticket, vehicles, currentUser, token, authedFetch, onClose, onSaved }) {
+export function TicketEditModal({ visible, ticket, vehicles, currentUser, token, authedFetch, onClose, onSaved, onDeleted }) {
   const isNew = !ticket;
   const [reference, setReference] = useState(ticket?.reference || ticket?.pcn || '');
   const [amount, setAmount] = useState(
@@ -2067,6 +2043,22 @@ function TicketEditModal({ visible, ticket, vehicles, currentUser, token, authed
     }
   }
 
+  function handleDelete() {
+    if (isNew || !ticket) return;
+    confirmDelete(reference || ticket.id, async () => {
+      setSubmitting(true);
+      setError('');
+      try {
+        await authedFetch(`/api/tickets/${ticket.id}`, { method: 'DELETE' });
+        await (onDeleted ? onDeleted() : onSaved());
+      } catch (e) {
+        setError(e.message);
+      } finally {
+        setSubmitting(false);
+      }
+    });
+  }
+
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={styles.modalSafe}>
@@ -2084,7 +2076,7 @@ function TicketEditModal({ visible, ticket, vehicles, currentUser, token, authed
             <InlineError message={error} />
             <FormField label="Reference" value={reference} onChange={setReference} autoCapitalize="characters" />
             <FormField label="Amount (£)" value={amount} onChange={setAmount} keyboardType="decimal-pad" />
-            <FormField label="Date" value={date} onChange={setDate} placeholder="YYYY-MM-DD" />
+            <DateField label="Date" value={date} onChange={setDate} clearable={false} />
             <FormField label="Reason" value={reason} onChange={setReason} multiline />
 
             <Text style={styles.fieldLabel}>Vehicle</Text>
@@ -2123,10 +2115,10 @@ function TicketEditModal({ visible, ticket, vehicles, currentUser, token, authed
             </View>
 
             {appealing !== 'no' ? (
-              <FormField label="Appeal deadline" value={appealDeadline} onChange={setAppealDeadline} placeholder="YYYY-MM-DD" />
+              <DateField label="Appeal deadline" value={appealDeadline} onChange={setAppealDeadline} />
             ) : null}
             {appealing !== 'yes' ? (
-              <FormField label="Payment deadline" value={paymentDeadline} onChange={setPaymentDeadline} placeholder="YYYY-MM-DD" />
+              <DateField label="Payment deadline" value={paymentDeadline} onChange={setPaymentDeadline} />
             ) : null}
 
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
@@ -2144,6 +2136,17 @@ function TicketEditModal({ visible, ticket, vehicles, currentUser, token, authed
             >
               {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>{isNew ? 'Create Ticket' : 'Save Changes'}</Text>}
             </TouchableOpacity>
+
+            {!isNew ? (
+              <TouchableOpacity
+                style={[styles.secondaryBtn, submitting && { opacity: 0.6 }]}
+                onPress={handleDelete}
+                disabled={submitting}
+                activeOpacity={0.7}
+              >
+                <Text style={styles.secondaryBtnText}>Delete ticket</Text>
+              </TouchableOpacity>
+            ) : null}
           </ScrollView>
         </KeyboardAvoidingView>
       </SafeAreaView>
@@ -2274,7 +2277,7 @@ function TripEditModal({ visible, trip, authedFetch, onClose, onSaved }) {
           <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
             <InlineError message={error} />
             <FormField label="Name" value={name} onChange={setName} />
-            <FormField label="Date" value={date} onChange={setDate} placeholder="YYYY-MM-DD" />
+            <DateField label="Date" value={date} onChange={setDate} clearable={false} />
             <FormField label="Description" value={description} onChange={setDescription} multiline />
 
             <TouchableOpacity

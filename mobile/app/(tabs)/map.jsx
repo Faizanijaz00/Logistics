@@ -153,6 +153,8 @@ function buildMapHTML(vehicles, userLocation) {
       } else {
         el.appendChild(circle());
       }
+      // Tapping the car goes straight to its detail screen.
+      el.addEventListener('click', function(e) { e.stopPropagation(); goToVehicle(v.id); });
       return el;
     }
 
@@ -173,8 +175,19 @@ function buildMapHTML(vehicles, userLocation) {
         attributionControl: false,
       });
 
-      // Render the user's location dot (but don't force it into the fleet view —
-      // the "my location" button pans to it on demand).
+      var bounds = new mapboxgl.LngLatBounds();
+      markers.forEach(function(v) {
+        bounds.extend([v.lng, v.lat]);
+        var marker = new mapboxgl.Marker({ element: makeCarElement(v) })
+          .setLngLat([v.lng, v.lat])
+          .addTo(_map);
+        _markersById[v.id] = marker;
+      });
+
+      // Render the user's own location dot LAST so it sits on top of the car
+      // markers (otherwise a car parked on the same spot hides it). It's the
+      // operator's position — never a vehicle. Doesn't force the fleet view;
+      // the "my location" button pans to it on demand.
       if (userLat !== null && userLng !== null) {
         var uel = document.createElement('div');
         uel.className = 'user-location-marker';
@@ -182,22 +195,24 @@ function buildMapHTML(vehicles, userLocation) {
         new mapboxgl.Marker({ element: uel }).setLngLat([userLng, userLat]).addTo(_map);
       }
 
-      var bounds = new mapboxgl.LngLatBounds();
-      markers.forEach(function(v) {
-        bounds.extend([v.lng, v.lat]);
-        var popup = new mapboxgl.Popup({ offset: 28, closeButton: false }).setHTML(buildInfoFor(v));
-        var marker = new mapboxgl.Marker({ element: makeCarElement(v) })
-          .setLngLat([v.lng, v.lat])
-          .setPopup(popup)
-          .addTo(_map);
-        marker._buildInfo = function(state) { return buildInfoFor(v, state); };
-        _markersById[v.id] = marker;
-        _popupById[v.id] = popup;
-      });
-
       // Focus on the fleet: fit multiple cars, or center a single car at street zoom.
       if (markers.length > 1) {
-        _map.fitBounds(bounds, { padding: { top: 60, right: 40, bottom: 60, left: 40 }, maxZoom: 15 });
+        // Guard against a stray/stale position (e.g. a simulator GPS on the other
+        // side of the world) blowing the view out to the whole globe. If the cars
+        // span more than ~5° we don't try to fit them all — we center on the user
+        // (or the first car) at city zoom so the local fleet stays usable.
+        var lats = markers.map(function(m) { return m.lat; });
+        var lngs = markers.map(function(m) { return m.lng; });
+        var span = Math.max(
+          Math.max.apply(null, lats) - Math.min.apply(null, lats),
+          Math.max.apply(null, lngs) - Math.min.apply(null, lngs)
+        );
+        if (span > 5) {
+          var c = (userLat !== null && userLng !== null) ? [userLng, userLat] : [markers[0].lng, markers[0].lat];
+          _map.flyTo({ center: c, zoom: 12 });
+        } else {
+          _map.fitBounds(bounds, { padding: { top: 60, right: 40, bottom: 60, left: 40 }, maxZoom: 15 });
+        }
       } else if (markers.length === 1) {
         _map.flyTo({ center: [markers[0].lng, markers[0].lat], zoom: 14 });
       }
@@ -255,13 +270,15 @@ export default function MapScreen() {
 
   // Stable key — only the set of vehicle IDs that are on the map.
   // Re-build the HTML only when vehicles get added/removed, NOT on every
-  // position update (those are injected via updateMarkers below).
+  // position update (those are injected via updateMarkers below). We build
+  // straight from vehiclesWithPos here: it's current in the same render that
+  // vehicleIdsKey changes, so the first batch of cars renders immediately.
   const vehicleIdsKey = vehiclesWithPos.map(v => v.id).sort().join('|');
-  const initialMarkersRef = useRef(vehiclesWithPos);
-  useEffect(() => { initialMarkersRef.current = vehiclesWithPos; }, [vehicleIdsKey]);
 
   const source = useMemo(
-    () => ({ html: buildMapHTML(initialMarkersRef.current, userLocation) }),
+    () => ({ html: buildMapHTML(vehiclesWithPos, userLocation) }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuild only when the
+    // set of vehicles (not their moving positions) or the user location changes.
     [vehicleIdsKey, userLocation]
   );
 

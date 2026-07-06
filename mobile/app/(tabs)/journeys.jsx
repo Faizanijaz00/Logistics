@@ -10,6 +10,7 @@ import { useRouter } from 'expo-router';
 import { useTripStore, isTripComplete } from '../../src/store/tripStore';
 import { useVehicleStore } from '../../src/store/vehicleStore';
 import { getCarImage } from '../../src/config/carImages';
+import DateField from '../../src/components/DateField';
 import { useLayout } from '../../src/hooks/useLayout';
 
 function formatDate(isoDate) {
@@ -520,15 +521,7 @@ export default function JourneysScreen() {
               autoFocus
             />
 
-            <Text style={styles.label}>Date</Text>
-            <TextInput
-              style={styles.input}
-              value={date}
-              onChangeText={setDate}
-              placeholder="YYYY-MM-DD"
-              placeholderTextColor="#bbb"
-              keyboardType="numbers-and-punctuation"
-            />
+            <DateField label="Date" value={date} onChange={setDate} clearable={false} />
 
             <Text style={styles.label}>Description (optional)</Text>
             <TextInput

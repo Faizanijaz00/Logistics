@@ -145,7 +145,7 @@ function InfoCardContent({ vehicle, editing, plate, setPlate, handleSavePlate, s
             <Text style={styles.statusLabel}>Location</Text>
             <Text style={[styles.statusValue, vehicle.position?.lat && styles.statusValueLink]} numberOfLines={1}>
               {vehicle.position?.lat != null && vehicle.position?.lng != null
-                ? `${vehicle.position.lat.toFixed(6)}, ${vehicle.position.lng.toFixed(6)}`
+                ? (locationAddress || `${vehicle.position.lat.toFixed(6)}, ${vehicle.position.lng.toFixed(6)}`)
                 : 'Unknown'}
             </Text>
             {vehicle.destination ? (
