@@ -21,7 +21,10 @@
         "backgroundColor": "#ffffff",
         "foregroundImage": "./assets/android-icon-foreground.png"
       },
-      "package": "com.logistics.app"
+      "package": "com.logistics.app",
+      "permissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
     },
     "plugins": [
       "expo-router",
@@ -37,9 +40,9 @@
     "extra": {
       "router": {},
       "eas": {
-        "projectId": "a3aede58-5e9b-4d26-9fe1-00e4eeea9021"
+        "projectId": "6a30b6f3-e333-4d61-a18e-a22312ab628b"
       }
     },
-    "owner": "faizanijaz"
+    "owner": "ivoines242"
   }
 }
