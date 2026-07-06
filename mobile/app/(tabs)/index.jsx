@@ -1517,9 +1517,38 @@ function VehicleEditModal({ visible, vehicle, authedFetch, onClose, onSaved }) {
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [looking, setLooking] = useState(false);
 
   function set(key, value) {
     setForm(f => ({ ...f, [key]: value }));
+  }
+
+  // Auto-fill make/colour/year/fuel + tax & MOT expiry from the DVLA vehicle
+  // enquiry (one call returns tax + MOT status and dates).
+  async function lookupPlate() {
+    const reg = form.licensePlate.trim();
+    if (!reg) { setError('Enter a license plate first.'); return; }
+    setLooking(true);
+    setError('');
+    try {
+      const d = await authedFetch('/api/vehicle-lookup', {
+        method: 'POST',
+        body: JSON.stringify({ registration: reg.replace(/\s/g, '') }),
+      });
+      setForm(f => ({
+        ...f,
+        make: d.make || f.make,
+        year: d.yearOfManufacture ? String(d.yearOfManufacture) : f.year,
+        color: d.colour || f.color,
+        fuelType: d.fuelType ? (d.fuelType.charAt(0) + d.fuelType.slice(1).toLowerCase()) : f.fuelType,
+        taxExpiry: d.taxDueDate || f.taxExpiry,
+        motExpiry: d.motExpiryDate || f.motExpiry,
+      }));
+    } catch (e) {
+      setError(e.message || 'Lookup failed');
+    } finally {
+      setLooking(false);
+    }
   }
 
   async function handleSave() {
@@ -1568,6 +1597,15 @@ function VehicleEditModal({ visible, vehicle, authedFetch, onClose, onSaved }) {
             <InlineError message={error} />
 
             <FormField label="License plate" value={form.licensePlate} onChange={v => set('licensePlate', v)} autoCapitalize="characters" />
+            <TouchableOpacity
+              style={[adminStyles.lookupBtn, looking && { opacity: 0.6 }]}
+              onPress={lookupPlate}
+              disabled={looking}
+              activeOpacity={0.8}
+            >
+              {looking ? <ActivityIndicator size="small" color="#0061bd" /> : <Text style={adminStyles.lookupBtnText}>⟳ Auto-fill from DVLA (tax + MOT)</Text>}
+            </TouchableOpacity>
+
             <FormField label="Make" value={form.make} onChange={v => set('make', v)} />
             <FormField label="Model" value={form.model} onChange={v => set('model', v)} />
             <FormField label="Year" value={form.year} onChange={v => set('year', v)} keyboardType="number-pad" />
@@ -2759,6 +2797,12 @@ function FormField({ label, value, onChange, placeholder, keyboardType, autoCapi
 }
 
 const adminStyles = StyleSheet.create({
+  lookupBtn: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: '#0061bd', borderRadius: 10,
+    paddingVertical: 11, marginTop: -6, marginBottom: 14,
+  },
+  lookupBtnText: { color: '#0061bd', fontSize: 14, fontWeight: '600' },
   section: {
     backgroundColor: '#fff',
     borderRadius: 14,
