@@ -3,9 +3,10 @@
 // styles live in the scoped <style> block below so it doesn't depend on the
 // rest of the app's CSS.
 
-// Swap this for the direct APK artifact URL when the current build finishes.
+// Direct APK artifact from EAS (preview build, OTA-enabled). Update when a new
+// native build is published.
 const ANDROID_APK_URL =
-  'https://expo.dev/accounts/ivoines242/projects/logistics/builds/82f9e182-d34f-4509-a0c5-69ff4b3bfff2';
+  'https://expo.dev/artifacts/eas/Ns4OA1piRDy82wudhBtFqDynJqVGcLrITAm5My_pdrE.apk';
 
 const CSS = `
 .dl-root {
