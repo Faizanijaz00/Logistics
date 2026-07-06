@@ -1,7 +1,9 @@
 import { useState, useEffect } from 'react';
-import { Plus, Trash2, X, Upload, ChevronDown, Image } from 'lucide-react';
+import { Plus, Trash2, X, Upload, ChevronDown } from 'lucide-react';
 import { useTicketStore } from '../../store/ticketStore';
 import { useVehicleStore, useAuthStore } from '../../store';
+import { uploadReceipt } from '../../lib/receipts';
+import { TicketPhoto } from './TicketPhoto';
 
 const ISSUERS = ['TFL', 'Islington', 'Westminster', 'Camden', 'PCM', 'APCOA', 'Wandsworth', 'Lambeth', 'Hackney', 'Other'];
 const TYPES = ['Parking', 'Speeding', 'Bus Lane', 'No-entry', 'Tunnel', 'Congestion', 'ULEZ', 'Other'];
@@ -111,6 +113,7 @@ export default function TicketsPage() {
   const { user } = useAuthStore();
   const [showAdd, setShowAdd] = useState(false);
   const [editingId, setEditingId] = useState(null);
+  const [uploading, setUploading] = useState(false);
   const [form, setForm] = useState({
     pcn: '', issuer: '', date: '', type: '', status: 'Issued',
     outstanding: '', paid: false,
@@ -126,6 +129,21 @@ export default function TicketsPage() {
     setForm({ pcn: '', issuer: '', date: '', type: '', status: 'Issued', outstanding: '', paid: false, picture_url: '', driver_id: '', vehicle_id: '', notes: '' });
     setShowAdd(false);
     setEditingId(null);
+  };
+
+  const handlePickPhoto = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const path = await uploadReceipt(file, 'ticket');
+      setForm(f => ({ ...f, picture_url: path }));
+    } catch (err) {
+      alert('Photo upload failed: ' + err.message);
+    } finally {
+      setUploading(false);
+      e.target.value = '';
+    }
   };
 
   const handleSave = () => {
@@ -276,13 +294,7 @@ export default function TicketsPage() {
                     </span>
                   </td>
                   <td style={{ padding: '12px 16px', textAlign: 'center' }}>
-                    {ticket.picture_url ? (
-                      <a href={ticket.picture_url} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()}>
-                        <Image style={{ width: '18px', height: '18px', color: '#0061bd' }} />
-                      </a>
-                    ) : (
-                      <span style={{ color: '#c9cacb' }}>—</span>
-                    )}
+                    <TicketPhoto ticket={ticket} />
                   </td>
                   <td style={{ padding: '12px 16px' }}>
                     <button
@@ -390,10 +402,27 @@ export default function TicketsPage() {
                   <option value="true">Paid</option>
                 </select>
               </div>
-              {/* 10. Picture / Evidence */}
+              {/* 10. Ticket photo (upload) */}
               <div>
-                <label style={labelStyle}>Picture / Evidence URL</label>
-                <input style={inputStyle} value={form.picture_url} onChange={e => setForm({ ...form, picture_url: e.target.value })} placeholder="Paste image URL or link to evidence" />
+                <label style={labelStyle}>Ticket photo</label>
+                {form.picture_url ? (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <TicketPhoto ticket={form} size={44} />
+                    <button
+                      type="button"
+                      onClick={() => setForm(f => ({ ...f, picture_url: '' }))}
+                      style={{ padding: '6px 12px', background: 'transparent', border: '1px solid #c4001a', color: '#c4001a', borderRadius: '4px', fontSize: '13px', cursor: 'pointer' }}
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ) : (
+                  <label style={{ ...inputStyle, display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer', color: '#555' }}>
+                    <Upload style={{ width: '16px', height: '16px' }} />
+                    {uploading ? 'Uploading…' : 'Attach ticket photo'}
+                    <input type="file" accept="image/*" onChange={handlePickPhoto} disabled={uploading} style={{ display: 'none' }} />
+                  </label>
+                )}
               </div>
             </div>
 
