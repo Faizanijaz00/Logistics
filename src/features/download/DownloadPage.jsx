@@ -73,19 +73,17 @@ export default function DownloadPage() {
             </span>
           </a>
 
-          <a className="dl-badge" href="https://testflight.apple.com/join/NJHKRQCH" target="_blank" rel="noopener">
+          <a className="dl-badge" href="https://testflight.apple.com/v1/invite/50d22e4794a94315ababdf88963ffb14614ea3bdff3846d784dba3a08b0988701949b5f57?ct=9GKP2K3AYB&advp=10000&platform=ios" target="_blank" rel="noopener">
             <svg viewBox="0 0 384 512" aria-hidden="true">
               <path fill="#000" d="M318 272c-1-58 48-86 50-87-27-40-70-45-85-46-36-4-70 21-88 21s-46-20-76-20c-39 1-75 23-95 58-40 70-10 173 29 230 19 28 42 59 72 58 29-1 40-19 75-19s45 19 76 18c31 0 51-28 70-56 22-32 31-63 31-65-1-1-60-23-61-91z" />
               <path fill="#000" d="M259 61c16-19 27-46 24-73-23 1-51 15-67 34-15 17-28 45-24 71 25 2 51-13 67-32z" />
             </svg>
             <span className="dl-txt">
-              <span className="dl-small">iOS beta on</span>
-              <span className="dl-big">TestFlight</span>
+              <span className="dl-small">Download on the</span>
+              <span className="dl-big">App Store</span>
             </span>
           </a>
         </div>
-
-        <p className="dl-note">iOS runs via TestFlight — install the TestFlight app, then tap the button.</p>
       </main>
     </div>
   );
