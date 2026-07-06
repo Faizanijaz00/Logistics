@@ -293,15 +293,31 @@ export function registerMiscRoutes(app, requireAuth) {
       // Fill in a human-readable address if the client only sent coordinates.
       let startAddress = req.body.startAddress || null;
       if (!startAddress && startPos) startAddress = await reverseGeocode(startPos.lat, startPos.lng);
+      const now = new Date().toISOString();
+      const driverId = req.body.driverId || req.user?.id || null;
+      const vehicleId = req.body.vehicleId || null;
+
+      // A driver can only be on one drive, and a vehicle can only be driven by
+      // one person, at a time. Auto-close any still-"ongoing" drive for this
+      // driver or this vehicle so we never end up with duplicate ONGOING rows
+      // (e.g. if a previous drive's /stop never landed).
+      for (const d of all) {
+        if (d.endedAt) continue;
+        if (d.driverId === driverId || (vehicleId && d.vehicleId === vehicleId)) {
+          d.endedAt = now;
+          d.durationMs = d.startedAt ? new Date(now) - new Date(d.startedAt) : null;
+        }
+      }
+
       // JWT has { id, username, role } but not `name` — trust the client-sent
       // driverName first, fall back to anything we can get from req.user.
       const drive = {
         id: randomUUID(),
-        vehicleId: req.body.vehicleId || null,
+        vehicleId,
         vehicleName: req.body.vehicleName || '',
-        driverId: req.body.driverId || req.user?.id || null,
+        driverId,
         driverName: req.body.driverName || req.user?.name || req.user?.username || 'Unknown',
-        startedAt: new Date().toISOString(),
+        startedAt: now,
         startPosition: startPos,
         startAddress,
         endedAt: null,
