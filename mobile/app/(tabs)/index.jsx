@@ -598,87 +598,36 @@ function FuelUpModal({ visible, onClose, vehicle, user, token }) {
 }
 
 // ── Add Ticket Modal ───────────────────────────────────────────────────────────
-// `vehicle` fixes the ticket to one car (Home flow, where you're driving it).
-// When it's omitted (Tickets tab, e.g. after you've ended a ride) a vehicle
-// picker is shown so a ticket can still be logged against any car.
-export function AddTicketModal({ visible, onClose, vehicle, user, token, drivers, vehicles = [], onSaved }) {
-  const [reference, setReference] = useState('');
-  const [fineAmount, setFineAmount] = useState('');
-  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
-  const [reason, setReason] = useState('');
-  const [driverId, setDriverId] = useState(user?.id || null);
-  const [driverPickerOpen, setDriverPickerOpen] = useState(false);
-  const [vehicleId, setVehicleId] = useState(vehicle?.id || null);
-  const [vehiclePickerOpen, setVehiclePickerOpen] = useState(false);
-  const [appealing, setAppealing] = useState('undecided'); // 'yes' | 'no' | 'undecided'
-  const [appealDeadline, setAppealDeadline] = useState('');
-  const [paymentDeadline, setPaymentDeadline] = useState('');
+// Deliberately minimal: the driver just snaps a photo of the ticket. It's logged
+// against their current vehicle (or a passed-in one); an admin fills in the
+// reference / amount / appeal / deadlines later by tapping the ticket.
+export function AddTicketModal({ visible, onClose, vehicle, user, token, vehicles = [], onSaved }) {
+  const selectedVehicleId = useAuthStore(s => s.selectedVehicleId);
   const [receiptPath, setReceiptPath] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
-    if (visible) {
-      setReference('');
-      setFineAmount('');
-      setDate(new Date().toISOString().slice(0, 10));
-      setReason('');
-      setDriverId(user?.id || (drivers[0] && drivers[0].id) || null);
-      setDriverPickerOpen(false);
-      setVehicleId(vehicle?.id || null);
-      setVehiclePickerOpen(false);
-      setAppealing('undecided');
-      setAppealDeadline('');
-      setPaymentDeadline('');
-      setReceiptPath(null);
-    }
-  }, [visible, vehicle?.id]);
+    if (visible) setReceiptPath(null);
+  }, [visible]);
 
-  const selectedDriver =
-    driverId === '__unknown__'
-      ? { id: null, name: 'Unknown' }
-      : drivers.find(d => d.id === driverId) || { id: user?.id, name: user?.name || user?.username };
-
-  // When a fixed vehicle is passed use it; otherwise resolve the picked one.
-  const effectiveVehicle = vehicle || vehicles.find(v => v.id === vehicleId) || null;
+  // Auto-use the driver's current vehicle; fall back to a passed-in vehicle.
+  const effectiveVehicle = vehicle || vehicles.find(v => v.id === selectedVehicleId) || null;
 
   async function handleSubmit() {
-    if (!effectiveVehicle) {
-      Alert.alert('Missing vehicle', 'Please choose which vehicle the ticket is for.');
-      return;
-    }
-    if (!reference.trim()) {
-      Alert.alert('Missing reference', 'Please enter a ticket reference.');
-      return;
-    }
-    const numeric = parseFloat(fineAmount);
-    if (isNaN(numeric) || numeric <= 0) {
-      Alert.alert('Invalid amount', 'Please enter a valid fine amount.');
+    if (!receiptPath) {
+      Alert.alert('Add a photo', 'Attach a photo of the ticket first.');
       return;
     }
     setSubmitting(true);
     try {
-      const isUnknown = !selectedDriver?.id || driverId === '__unknown__';
-      // Map onto the ACTUAL Supabase `tickets` columns. The table has no
-      // driver_name / paid / appealing / *_deadline columns — sending them makes
-      // PostgREST reject the whole insert (which is why saving silently failed).
-      // Appeal state lives in `status`; deadlines ride along in plan_for_contesting.
-      const meta = {};
-      if (appealing && appealing !== 'undecided') meta.appealing = appealing;
-      if (appealDeadline) meta.appeal_deadline = appealDeadline;
-      if (paymentDeadline) meta.payment_deadline = paymentDeadline;
-      if (receiptPath) meta.receipt_path = receiptPath;
       const nowIso = new Date().toISOString();
       const body = {
         id: `ticket-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        vehicle_id: effectiveVehicle.id,
-        driver_id: isUnknown ? null : (selectedDriver?.id || null),
-        pcn: reference.trim(),
-        outstanding: numeric,
-        date,
-        notes: reason.trim(),
-        status: appealing === 'yes' ? 'Appealing' : 'Issued',
-        action_taken: appealing === 'yes',
-        plan_for_contesting: Object.keys(meta).length ? JSON.stringify(meta) : '',
+        vehicle_id: effectiveVehicle?.id || null,
+        driver_id: user?.id || null,
+        date: nowIso.slice(0, 10),
+        status: 'Issued',
+        plan_for_contesting: JSON.stringify({ receipt_path: receiptPath }),
         created_at: nowIso,
         updated_at: nowIso,
       };
@@ -693,7 +642,7 @@ export function AddTicketModal({ visible, onClose, vehicle, user, token, drivers
       }
       onSaved?.();
       onClose();
-      Alert.alert('Saved', 'Ticket added.');
+      Alert.alert('Saved', 'Ticket photo added — an admin can fill in the details.');
     } catch (e) {
       Alert.alert('Error', e.message);
     } finally {
@@ -704,155 +653,31 @@ export function AddTicketModal({ visible, onClose, vehicle, user, token, drivers
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
       <SafeAreaView style={styles.modalSafe}>
-        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-          <View style={styles.modalHeader}>
-            <View>
-              <Text style={styles.modalTitle}>Add Ticket</Text>
-              <Text style={styles.modalSubtitle}>
-                {effectiveVehicle ? `${effectiveVehicle.make} ${effectiveVehicle.model}` : 'Choose a vehicle'}
-              </Text>
-            </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={18} color="#000" />
-            </TouchableOpacity>
+        <View style={styles.modalHeader}>
+          <View>
+            <Text style={styles.modalTitle}>Add Ticket</Text>
+            <Text style={styles.modalSubtitle}>
+              {effectiveVehicle ? `${effectiveVehicle.make} ${effectiveVehicle.model}` : 'Snap the ticket'}
+            </Text>
           </View>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+            <X size={18} color="#000" />
+          </TouchableOpacity>
+        </View>
 
-          <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
-            {!vehicle ? (
-              <>
-                <Text style={styles.fieldLabel}>Vehicle</Text>
-                <TouchableOpacity
-                  style={styles.dropdown}
-                  onPress={() => setVehiclePickerOpen(o => !o)}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.dropdownText, !effectiveVehicle && { color: '#bbb' }]}>
-                    {effectiveVehicle
-                      ? `${effectiveVehicle.make} ${effectiveVehicle.model} · ${effectiveVehicle.licensePlate}`
-                      : 'Select vehicle'}
-                  </Text>
-                  <ChevronDown size={18} color="#888" />
-                </TouchableOpacity>
-                {vehiclePickerOpen && (
-                  <View style={styles.dropdownList}>
-                    {vehicles.map(v => (
-                      <TouchableOpacity
-                        key={v.id}
-                        style={styles.dropdownItem}
-                        onPress={() => { setVehicleId(v.id); setVehiclePickerOpen(false); }}
-                      >
-                        <Text style={styles.dropdownItemText}>{v.make} {v.model} · {v.licensePlate}</Text>
-                        {v.id === vehicleId ? <Text style={styles.dropdownCheck}>✓</Text> : null}
-                      </TouchableOpacity>
-                    ))}
-                  </View>
-                )}
-              </>
-            ) : null}
+        <ScrollView contentContainerStyle={styles.modalList}>
+          <Text style={styles.fieldLabel}>Ticket photo</Text>
+          <ReceiptPicker kind="ticket" token={token} onChange={setReceiptPath} label="Attach ticket photo" />
 
-            <Text style={styles.fieldLabel}>Ticket reference</Text>
-            <TextInput
-              style={styles.textInput}
-              value={reference}
-              onChangeText={setReference}
-              placeholder="e.g. PCN12345678"
-              placeholderTextColor="#bbb"
-              autoCapitalize="characters"
-            />
-
-            <Text style={styles.fieldLabel}>Fine amount</Text>
-            <View style={styles.amountRow}>
-              <Text style={styles.currency}>£</Text>
-              <TextInput
-                style={styles.amountInput}
-                value={fineAmount}
-                onChangeText={setFineAmount}
-                keyboardType="decimal-pad"
-                placeholder="0.00"
-                placeholderTextColor="#bbb"
-              />
-            </View>
-
-            <DateField label="Date" value={date} onChange={setDate} clearable={false} />
-
-            <Text style={styles.fieldLabel}>Reason</Text>
-            <TextInput
-              style={[styles.textInput, styles.multiline]}
-              value={reason}
-              onChangeText={setReason}
-              placeholder="e.g. Parking violation"
-              placeholderTextColor="#bbb"
-              multiline
-            />
-
-            <Text style={styles.fieldLabel}>Driver</Text>
-            <TouchableOpacity
-              style={styles.dropdown}
-              onPress={() => setDriverPickerOpen(o => !o)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.dropdownText}>{selectedDriver?.name || 'Select driver'}</Text>
-              <ChevronDown size={18} color="#888" />
-            </TouchableOpacity>
-            {driverPickerOpen && (
-              <View style={styles.dropdownList}>
-                <TouchableOpacity
-                  style={styles.dropdownItem}
-                  onPress={() => { setDriverId('__unknown__'); setDriverPickerOpen(false); }}
-                >
-                  <Text style={[styles.dropdownItemText, { fontStyle: 'italic', color: '#666' }]}>Unknown</Text>
-                  {driverId === '__unknown__' ? <Text style={styles.dropdownCheck}>✓</Text> : null}
-                </TouchableOpacity>
-                {drivers.map(d => (
-                  <TouchableOpacity
-                    key={d.id}
-                    style={styles.dropdownItem}
-                    onPress={() => { setDriverId(d.id); setDriverPickerOpen(false); }}
-                  >
-                    <Text style={styles.dropdownItemText}>{d.name}</Text>
-                    {d.id === driverId ? <Text style={styles.dropdownCheck}>✓</Text> : null}
-                  </TouchableOpacity>
-                ))}
-              </View>
-            )}
-
-            <Text style={styles.fieldLabel}>Are we appealing?</Text>
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-              {['yes', 'no', 'undecided'].map(opt => (
-                <TouchableOpacity
-                  key={opt}
-                  onPress={() => setAppealing(opt)}
-                  style={[styles.severityChip, appealing === opt && styles.severityChipActive]}
-                  activeOpacity={0.7}
-                >
-                  <Text style={[styles.severityChipText, appealing === opt && styles.severityChipTextActive]}>
-                    {opt === 'yes' ? 'Yes' : opt === 'no' ? 'No' : 'Undecided'}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
-            {appealing !== 'no' ? (
-              <DateField label="Appeal deadline" value={appealDeadline} onChange={setAppealDeadline} />
-            ) : null}
-
-            {appealing !== 'yes' ? (
-              <DateField label="Payment deadline" value={paymentDeadline} onChange={setPaymentDeadline} />
-            ) : null}
-
-            <Text style={styles.fieldLabel}>Ticket photo</Text>
-            <ReceiptPicker kind="ticket" token={token} onChange={setReceiptPath} label="Attach ticket photo" />
-
-            <TouchableOpacity
-              style={[styles.primaryBtn, submitting && { opacity: 0.6 }, { marginTop: 16 }]}
-              onPress={handleSubmit}
-              disabled={submitting}
-              activeOpacity={0.85}
-            >
-              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save Ticket</Text>}
-            </TouchableOpacity>
-          </ScrollView>
-        </KeyboardAvoidingView>
+          <TouchableOpacity
+            style={[styles.primaryBtn, (submitting || !receiptPath) && { opacity: 0.6 }, { marginTop: 16 }]}
+            onPress={handleSubmit}
+            disabled={submitting || !receiptPath}
+            activeOpacity={0.85}
+          >
+            {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save Ticket</Text>}
+          </TouchableOpacity>
+        </ScrollView>
       </SafeAreaView>
     </Modal>
   );
