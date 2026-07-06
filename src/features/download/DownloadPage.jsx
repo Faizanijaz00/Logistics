@@ -6,7 +6,7 @@
 // Direct APK artifact from EAS (preview build, OTA-enabled). Update when a new
 // native build is published.
 const ANDROID_APK_URL =
-  'https://expo.dev/artifacts/eas/8R7H7HlBdpK1ecaqJUb8yVgf1VsoTPJ37lO4h-Ce7uI.apk';
+  'https://expo.dev/artifacts/eas/VC9sjQo6j9d3rh6QYCOGRtR0nH2103XsLVg0-b9yDPE.apk';
 
 const CSS = `
 .dl-root {
