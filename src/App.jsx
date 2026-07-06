@@ -48,6 +48,11 @@ function App() {
     return <LoginPage />;
   }
 
+  // Authenticated but hasn't chosen a car yet → show car selection
+  if (!carSelectReady) {
+    return <CarSelectPage />;
+  }
+
   // Authenticated → main app
   return (
     <BrowserRouter unstable_useTransitions={false}>
