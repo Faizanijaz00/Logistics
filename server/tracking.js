@@ -6,17 +6,66 @@ import { config } from './config.js';
 const SUPABASE_URL = 'https://bwwfrdwpcxzlvprswzne.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJ3d2ZyZHdwY3h6bHZwcnN3em5lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI5OTY2MjIsImV4cCI6MjA4ODU3MjYyMn0.KYJYGHFo2WstiVFgEIuBv0P3i40OM4wcHmdkLcujVeo';
 
-// Map Vigitech device names → our Supabase vehicle IDs
-const DEVICE_TO_VEHICLE = {
-  'GLE': 'v1',           // MERCEDES GLE
-  'V Class': 'v5',       // MERCEDES-BENZ V Class
-  'S Class': 'v6',       // MERCEDES-BENZ S Class
-  // Rename unnamed Vigitech devices to match these to activate tracking:
-  // 'Sprinter': 'v4',   // NISSAN Sprinter
-  // 'Range': 'v2',      // LAND ROVER Sport
-  // 'Insignia': 'v3',   // VAUXHALL Insignia
-  // 'Ibiza': 'v1774290886803', // SEAT Ibiza
-};
+// Device → vehicle links are data-driven: each vehicle's `tracker_id` in Supabase
+// holds the GPS device IMEI (Traccar/Vigitech `uniqueId`). No hardcoded mapping.
+// The map is refreshed every poll so linking a tracker in the UI takes effect live.
+let imeiToVehicleId = {};
+
+// Path-history recording: only store a breadcrumb once a car has moved far enough
+// from its last recorded point, so parked cars don't flood the table.
+const MIN_TRACK_MOVE_METERS = 20;
+const lastRecordedPoint = {}; // vehicleId → { lat, lng }
+
+function distanceMeters(a, b) {
+  const R = 6371000;
+  const toRad = (d) => (d * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const s =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return R * 2 * Math.atan2(Math.sqrt(s), Math.sqrt(1 - s));
+}
+
+async function recordPositionHistory(vehicleId, lat, lng, speed, heading) {
+  if (lat == null || lng == null) return;
+  const prev = lastRecordedPoint[vehicleId];
+  if (prev && distanceMeters(prev, { lat, lng }) < MIN_TRACK_MOVE_METERS) return;
+  lastRecordedPoint[vehicleId] = { lat, lng };
+  try {
+    await fetch(`${SUPABASE_URL}/rest/v1/vehicle_positions`, {
+      method: 'POST',
+      headers: {
+        apikey: SUPABASE_ANON_KEY,
+        Authorization: `Bearer ${SUPABASE_ANON_KEY}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal',
+      },
+      body: JSON.stringify({ vehicle_id: vehicleId, lat, lng, speed: speed ?? null, heading: heading ?? null }),
+    });
+  } catch (err) {
+    console.warn('[Tracking] Failed to record position history:', err.message);
+  }
+}
+
+async function refreshVehicleTrackerMap() {
+  try {
+    const rows = await fetch(
+      `${SUPABASE_URL}/rest/v1/vehicles?select=id,tracker_id&tracker_id=not.is.null`,
+      { headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` } }
+    ).then(r => (r.ok ? r.json() : []));
+
+    const map = {};
+    for (const row of rows) {
+      if (row.tracker_id) map[String(row.tracker_id).trim()] = row.id;
+    }
+    imeiToVehicleId = map;
+    return map;
+  } catch (err) {
+    console.warn('[Tracking] Failed to refresh vehicle tracker map:', err.message);
+    return imeiToVehicleId;
+  }
+}
 
 let sessionCookie = null;
 
@@ -62,7 +111,7 @@ async function fetchPositions() {
   return resp.json();
 }
 
-async function updateVehiclePosition(vehicleId, lat, lng, speed, course, address, attrs) {
+async function updateVehiclePosition(vehicleId, lat, lng, speed, course, attrs) {
   const body = {
     position: { lat, lng },
     speed: speed || 0,
@@ -101,6 +150,9 @@ async function updateVehiclePosition(vehicleId, lat, lng, speed, course, address
     },
     body: JSON.stringify(body),
   });
+
+  // Record a breadcrumb for the path trail (deduped by distance)
+  await recordPositionHistory(vehicleId, lat, lng, speed, course);
 }
 
 let pollInterval = null;
@@ -110,16 +162,19 @@ async function poll() {
   try {
     const positions = await fetchPositions();
 
-    // Build deviceId → device name map
-    const deviceNameMap = {};
-    devices.forEach(d => { deviceNameMap[d.id] = d.name; });
+    // Refresh the IMEI → vehicle map so UI tracker changes apply without a restart
+    await refreshVehicleTrackerMap();
+
+    // Build deviceId → device IMEI (uniqueId) map
+    const deviceImeiMap = {};
+    devices.forEach(d => { deviceImeiMap[d.id] = d.uniqueId; });
 
     let updated = 0;
     for (const pos of positions) {
-      const deviceName = deviceNameMap[pos.deviceId];
-      if (!deviceName) continue;
+      const imei = deviceImeiMap[pos.deviceId];
+      if (!imei) continue;
 
-      const vehicleId = DEVICE_TO_VEHICLE[deviceName];
+      const vehicleId = imeiToVehicleId[String(imei).trim()];
       if (!vehicleId) continue;
 
       await updateVehiclePosition(
@@ -128,7 +183,6 @@ async function poll() {
         pos.longitude,
         pos.speed,
         pos.course,
-        pos.address,
         pos.attributes || {}
       );
       updated++;
@@ -148,10 +202,11 @@ export async function startTracking() {
     devices = await fetchDevices();
     console.log(`[Tracking] Connected to Vigitech — ${devices.length} devices found`);
 
-    // Log device mappings
+    // Load tracker links from the DB, then log which devices are linked to a vehicle
+    await refreshVehicleTrackerMap();
     devices.forEach(d => {
-      const vehicleId = DEVICE_TO_VEHICLE[d.name];
-      console.log(`  ${d.name} (${d.id}) → ${vehicleId || 'UNMAPPED'}`);
+      const vehicleId = imeiToVehicleId[String(d.uniqueId).trim()];
+      console.log(`  ${d.name} (imei ${d.uniqueId}) → ${vehicleId || 'UNLINKED'}`);
     });
 
     // Initial poll
@@ -185,7 +240,7 @@ export async function getTrackingStatus() {
       return {
         deviceId: pos.deviceId,
         deviceName: device.name || 'Unknown',
-        vehicleId: DEVICE_TO_VEHICLE[device.name] || null,
+        vehicleId: imeiToVehicleId[String(device.uniqueId).trim()] || null,
         lat: pos.latitude,
         lng: pos.longitude,
         speed: pos.speed,

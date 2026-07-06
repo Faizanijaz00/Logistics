@@ -4,6 +4,7 @@ import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
 import { join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { randomUUID } from 'crypto';
+import { reverseGeocode } from './geocode.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = join(__dirname, 'data');
@@ -159,6 +160,7 @@ export function registerMiscRoutes(app, requireAuth) {
         amount: Number(req.body.amount) || 0,
         paidBy: req.body.paidBy || req.user?.name || '',
         usedFuelCard: !!req.body.usedFuelCard,
+        receiptPath: req.body.receiptPath || null,
         createdAt: new Date().toISOString(),
       };
       all.push(record);
@@ -172,7 +174,7 @@ export function registerMiscRoutes(app, requireAuth) {
       const all = loadJsonFile('fuel_records.json');
       const idx = all.findIndex(r => r.id === req.params.id);
       if (idx === -1) return res.status(404).json({ error: 'Fuel record not found' });
-      const allowed = ['vehicleId', 'amount', 'paidBy', 'usedFuelCard'];
+      const allowed = ['vehicleId', 'amount', 'paidBy', 'usedFuelCard', 'receiptPath'];
       for (const key of allowed) {
         if (req.body[key] !== undefined) all[idx][key] = key === 'amount' ? Number(req.body[key]) : req.body[key];
       }
@@ -210,6 +212,7 @@ export function registerMiscRoutes(app, requireAuth) {
         reportedBy: req.body.reportedBy || req.user?.name || '',
         description: req.body.description || '',
         severity: req.body.severity || 'low',
+        photoPath: req.body.photoPath || null,
         resolved: false,
         createdAt: req.body.createdAt || new Date().toISOString(),
       };
@@ -225,7 +228,7 @@ export function registerMiscRoutes(app, requireAuth) {
       const all = loadJsonFile('issues.json');
       const idx = all.findIndex(i => i.id === req.params.id);
       if (idx === -1) return res.status(404).json({ error: 'Issue not found' });
-      const allowed = ['description', 'severity', 'resolved'];
+      const allowed = ['description', 'severity', 'resolved', 'photoPath'];
       for (const key of allowed) {
         if (req.body[key] !== undefined) all[idx][key] = req.body[key];
       }
@@ -251,10 +254,29 @@ export function registerMiscRoutes(app, requireAuth) {
   // when they "stop" (park the vehicle). Time between start/end + start/end
   // location coordinates are stored so we can show a history of every trip.
 
-  app.get('/api/drives', requireAuth, (req, res) => {
+  app.get('/api/drives', requireAuth, async (req, res) => {
     try {
       const { vehicleId, driverId } = req.query;
       const all = loadJsonFile('drives.json');
+
+      // Lazily turn coordinates into human-readable addresses for older drives
+      // that were saved before geocoding existed. Capped per request so we never
+      // block on a long run of Nominatim lookups (it fills in over a few loads).
+      let changed = false;
+      let budget = 3;
+      for (const d of all) {
+        if (budget <= 0) break;
+        if (!d.startAddress && d.startPosition) {
+          d.startAddress = await reverseGeocode(d.startPosition.lat, d.startPosition.lng);
+          changed = true; budget--;
+        }
+        if (budget > 0 && d.endedAt && !d.endAddress && d.endPosition) {
+          d.endAddress = await reverseGeocode(d.endPosition.lat, d.endPosition.lng);
+          changed = true; budget--;
+        }
+      }
+      if (changed) saveJsonFile('drives.json', all);
+
       let filtered = all;
       if (vehicleId) filtered = filtered.filter(d => d.vehicleId === vehicleId);
       if (driverId) filtered = filtered.filter(d => d.driverId === driverId);
@@ -264,10 +286,13 @@ export function registerMiscRoutes(app, requireAuth) {
   });
 
   // Start a drive — returns the new drive id which client should remember to call /stop on
-  app.post('/api/drives/start', requireAuth, (req, res) => {
+  app.post('/api/drives/start', requireAuth, async (req, res) => {
     try {
       const all = loadJsonFile('drives.json');
       const startPos = req.body.startPosition || null; // { lat, lng } or null
+      // Fill in a human-readable address if the client only sent coordinates.
+      let startAddress = req.body.startAddress || null;
+      if (!startAddress && startPos) startAddress = await reverseGeocode(startPos.lat, startPos.lng);
       // JWT has { id, username, role } but not `name` — trust the client-sent
       // driverName first, fall back to anything we can get from req.user.
       const drive = {
@@ -278,7 +303,7 @@ export function registerMiscRoutes(app, requireAuth) {
         driverName: req.body.driverName || req.user?.name || req.user?.username || 'Unknown',
         startedAt: new Date().toISOString(),
         startPosition: startPos,
-        startAddress: req.body.startAddress || null,
+        startAddress,
         endedAt: null,
         endPosition: null,
         endAddress: null,
@@ -291,18 +316,33 @@ export function registerMiscRoutes(app, requireAuth) {
   });
 
   // Stop a drive — patches the drive with end position and computes duration
-  app.post('/api/drives/:id/stop', requireAuth, (req, res) => {
+  app.post('/api/drives/:id/stop', requireAuth, async (req, res) => {
     try {
       const all = loadJsonFile('drives.json');
       const idx = all.findIndex(d => d.id === req.params.id);
       if (idx === -1) return res.status(404).json({ error: 'Drive not found' });
       const drive = all[idx];
       if (drive.endedAt) return res.status(409).json({ error: 'Drive already ended', drive });
+      const endPos = req.body.endPosition || null;
+      let endAddress = req.body.endAddress || null;
+      if (!endAddress && endPos) endAddress = await reverseGeocode(endPos.lat, endPos.lng);
       drive.endedAt = new Date().toISOString();
-      drive.endPosition = req.body.endPosition || null;
-      drive.endAddress = req.body.endAddress || null;
+      drive.endPosition = endPos;
+      drive.endAddress = endAddress;
       drive.durationMs = new Date(drive.endedAt) - new Date(drive.startedAt);
       saveJsonFile('drives.json', all);
+
+      // The ride is over — clear the vehicle's set destination so it doesn't
+      // linger for the next driver. Best-effort: never fail the stop on this.
+      if (drive.vehicleId) {
+        try {
+          await sb(`/rest/v1/vehicles?id=eq.${encodeURIComponent(drive.vehicleId)}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ destination: null }),
+          });
+        } catch {}
+      }
+
       res.json(drive);
     } catch (e) { res.status(500).json({ error: e.message }); }
   });

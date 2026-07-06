@@ -19,7 +19,7 @@ function getCarImageUrl(imageId) {
   return resolved?.uri || null;
 }
 
-const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 
 function buildMapHTML(vehicles, userLocation) {
   const markers = vehicles
@@ -57,56 +57,35 @@ function buildMapHTML(vehicles, userLocation) {
 <head>
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
+  <script src="https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.js"></script>
+  <link href="https://api.mapbox.com/mapbox-gl-js/v3.9.0/mapbox-gl.css" rel="stylesheet"/>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body, #map { width: 100%; height: 100%; }
+    .mapboxgl-ctrl-logo, .mapboxgl-ctrl-attrib { display: none !important; }
 
     @keyframes pulse {
-      0% {
-        transform: scale(1);
-        opacity: 0.6;
-      }
-      50% {
-        transform: scale(2.2);
-        opacity: 0;
-      }
-      100% {
-        transform: scale(1);
-        opacity: 0;
-      }
+      0% { transform: scale(1); opacity: 0.6; }
+      50% { transform: scale(2.2); opacity: 0; }
+      100% { transform: scale(1); opacity: 0; }
     }
 
-    .user-location-marker {
-      position: relative;
-      width: 22px;
-      height: 22px;
-    }
-
+    .user-location-marker { position: relative; width: 22px; height: 22px; }
     .user-dot {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 14px;
-      height: 14px;
-      transform: translate(-50%, -50%);
-      background: #4285F4;
-      border: 2.5px solid #fff;
-      border-radius: 50%;
-      box-shadow: 0 0 6px rgba(66, 133, 244, 0.5);
-      z-index: 2;
+      position: absolute; top: 50%; left: 50%; width: 14px; height: 14px;
+      transform: translate(-50%, -50%); background: #4285F4; border: 2.5px solid #fff;
+      border-radius: 50%; box-shadow: 0 0 6px rgba(66, 133, 244, 0.5); z-index: 2;
     }
-
     .user-pulse {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 14px;
-      height: 14px;
-      transform: translate(-50%, -50%);
-      background: rgba(66, 133, 244, 0.35);
-      border-radius: 50%;
-      animation: pulse 2s ease-out infinite;
-      z-index: 1;
+      position: absolute; top: 50%; left: 50%; width: 14px; height: 14px;
+      transform: translate(-50%, -50%); background: rgba(66, 133, 244, 0.35);
+      border-radius: 50%; animation: pulse 2s ease-out infinite; z-index: 1;
+    }
+    .car-marker { cursor: pointer; }
+    .car-marker img { height: 50px; width: auto; display: block; }
+    .car-dot {
+      width: 22px; height: 22px; border-radius: 50%; border: 2.5px solid #fff;
+      box-shadow: 0 0 4px rgba(0,0,0,0.4);
     }
   </style>
 </head>
@@ -114,9 +93,8 @@ function buildMapHTML(vehicles, userLocation) {
   <div id="map"></div>
   <script>
     var _map;
-    var _userMarker;
     var _markersById = {};
-    var _infoById = {};
+    var _popupById = {};
 
     function goToVehicle(id) {
       if (window.ReactNativeWebView) {
@@ -131,19 +109,51 @@ function buildMapHTML(vehicles, userLocation) {
         var u = updates[i];
         var m = _markersById[u.id];
         if (!m) continue;
-        m.setPosition({ lat: u.lat, lng: u.lng });
-        // Refresh info content (driver/destination may have changed)
-        var info = _infoById[u.id];
-        if (info && m._buildInfo) info.setContent(m._buildInfo(u));
-        m._state = Object.assign(m._state || {}, u);
+        m.setLngLat([u.lng, u.lat]);
+        var pop = _popupById[u.id];
+        if (pop && m._buildInfo) pop.setHTML(m._buildInfo(u));
       }
     };
 
     function panToUser(lat, lng) {
       if (_map && lat && lng) {
-        _map.panTo({ lat: lat, lng: lng });
-        _map.setZoom(15);
+        _map.flyTo({ center: [lng, lat], zoom: 15 });
       }
+    }
+
+    function buildInfoFor(v, state) {
+      var driver = (state && state.driver !== undefined) ? state.driver : v.driver;
+      var dest = (state && state.destination !== undefined) ? state.destination : v.destination;
+      var driverLine = driver ? '<div style="font-size:12px;color:#444;margin-top:3px">Driver: ' + driver + '</div>' : '';
+      var destLine = dest ? '<div style="font-size:12px;color:#3B82F6;margin-top:3px">→ ' + dest + '</div>' : '';
+      return '<div style="font-family:sans-serif;padding:4px 2px">' +
+        '<strong>' + v.title + '</strong><br/>' +
+        '<span style="font-family:monospace;font-size:13px">' + v.plate + '</span>' +
+        driverLine +
+        destLine +
+        '<button onclick="goToVehicle(\\'' + v.id + '\\')" style="margin-top:8px;padding:6px 14px;background:#000;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;">View</button>' +
+        '</div>';
+    }
+
+    function makeCarElement(v) {
+      var el = document.createElement('div');
+      el.className = 'car-marker';
+      function circle() {
+        var c = document.createElement('div');
+        c.className = 'car-dot';
+        c.style.background = v.active ? '#018a16' : '#333333';
+        return c;
+      }
+      // Show the car image if it loads, otherwise a coloured dot fallback.
+      if (v.imageUri) {
+        var img = document.createElement('img');
+        img.onerror = function() { el.innerHTML = ''; el.appendChild(circle()); };
+        img.src = v.imageUri;
+        el.appendChild(img);
+      } else {
+        el.appendChild(circle());
+      }
+      return el;
     }
 
     function initMap() {
@@ -152,128 +162,49 @@ function buildMapHTML(vehicles, userLocation) {
       var userLat = ${userLat !== null ? userLat : 'null'};
       var userLng = ${userLng !== null ? userLng : 'null'};
 
-      _map = new google.maps.Map(document.getElementById('map'), {
+      mapboxgl.accessToken = ${JSON.stringify(MAPBOX_TOKEN || '')};
+
+      _map = new mapboxgl.Map({
+        container: 'map',
+        style: 'mapbox://styles/mapbox/streets-v12',
+        projection: 'mercator', // flat map, not the 3D globe
+        center: [center.lng, center.lat],
         zoom: markers.length > 0 ? 13 : 12,
-        center: center,
-        disableDefaultUI: true,
-        gestureHandling: 'greedy',
-        styles: [
-          { featureType: 'poi', elementType: 'labels', stylers: [{ visibility: 'off' }] },
-          { featureType: 'poi.business', stylers: [{ visibility: 'off' }] },
-          { featureType: 'transit', elementType: 'labels.icon', stylers: [{ visibility: 'off' }] }
-        ],
+        attributionControl: false,
       });
 
-      var bounds = new google.maps.LatLngBounds();
-
-      // Add user location blue dot
+      // Render the user's location dot (but don't force it into the fleet view —
+      // the "my location" button pans to it on demand).
       if (userLat !== null && userLng !== null) {
-        try {
-        var userPos = { lat: userLat, lng: userLng };
-        bounds.extend(userPos);
-
-        // Use OverlayView for custom HTML marker
-        function UserLocationOverlay(pos, map) {
-          this.pos = pos;
-          this.map = map;
-          this.div = null;
-          this.setMap(map);
-        }
-        UserLocationOverlay.prototype = new google.maps.OverlayView();
-        UserLocationOverlay.prototype.onAdd = function() {
-          var div = document.createElement('div');
-          div.className = 'user-location-marker';
-          div.innerHTML = '<div class="user-pulse"></div><div class="user-dot"></div>';
-          div.style.position = 'absolute';
-          div.style.cursor = 'default';
-          this.div = div;
-          var panes = this.getPanes();
-          panes.overlayMouseTarget.appendChild(div);
-        };
-        UserLocationOverlay.prototype.draw = function() {
-          var projection = this.getProjection();
-          var point = projection.fromLatLngToDivPixel(new google.maps.LatLng(this.pos.lat, this.pos.lng));
-          if (this.div) {
-            this.div.style.left = (point.x - 11) + 'px';
-            this.div.style.top = (point.y - 11) + 'px';
-          }
-        };
-        UserLocationOverlay.prototype.onRemove = function() {
-          if (this.div && this.div.parentNode) {
-            this.div.parentNode.removeChild(this.div);
-            this.div = null;
-          }
-        };
-
-        new UserLocationOverlay(userPos, _map);
-        } catch (e) { /* user-location overlay failed — still render vehicle markers */ }
+        var uel = document.createElement('div');
+        uel.className = 'user-location-marker';
+        uel.innerHTML = '<div class="user-pulse"></div><div class="user-dot"></div>';
+        new mapboxgl.Marker({ element: uel }).setLngLat([userLng, userLat]).addTo(_map);
       }
 
-      function buildInfoFor(v, state) {
-        var driver = (state && state.driver !== undefined) ? state.driver : v.driver;
-        var dest = (state && state.destination !== undefined) ? state.destination : v.destination;
-        var driverLine = driver ? '<div style="font-size:12px;color:#444;margin-top:3px">Driver: ' + driver + '</div>' : '';
-        var destLine = dest ? '<div style="font-size:12px;color:#3B82F6;margin-top:3px">→ ' + dest + '</div>' : '';
-        return '<div style="font-family:sans-serif;padding:4px 2px">' +
-          '<strong>' + v.title + '</strong><br/>' +
-          '<span style="font-family:monospace;font-size:13px">' + v.plate + '</span>' +
-          driverLine +
-          destLine +
-          '<button onclick="goToVehicle(\\'' + v.id + '\\')" style="margin-top:8px;padding:6px 14px;background:#000;color:#fff;border:none;border-radius:6px;font-size:13px;cursor:pointer;">View</button>' +
-          '</div>';
-      }
-
+      var bounds = new mapboxgl.LngLatBounds();
       markers.forEach(function(v) {
-        var pos = { lat: v.lat, lng: v.lng };
-        bounds.extend(pos);
-
-        var infoContent = buildInfoFor(v);
-
-        var circleIcon = {
-          path: google.maps.SymbolPath.CIRCLE,
-          scale: 11,
-          fillColor: v.active ? '#018a16' : '#333333',
-          fillOpacity: 1,
-          strokeColor: '#ffffff',
-          strokeWeight: 2.5,
-        };
-
-        // Always place a marker immediately (circle fallback). If the car image
-        // loads, swap the icon. This guarantees every vehicle with a position
-        // shows SOMETHING on the map even if image loading fails or hangs.
-        var marker = new google.maps.Marker({ position: pos, map: _map, title: v.title, icon: circleIcon });
-        var info = new google.maps.InfoWindow({ content: infoContent });
-        marker.addListener('click', function() { info.open(_map, marker); });
-
-        // Register for live position updates
+        bounds.extend([v.lng, v.lat]);
+        var popup = new mapboxgl.Popup({ offset: 28, closeButton: false }).setHTML(buildInfoFor(v));
+        var marker = new mapboxgl.Marker({ element: makeCarElement(v) })
+          .setLngLat([v.lng, v.lat])
+          .setPopup(popup)
+          .addTo(_map);
         marker._buildInfo = function(state) { return buildInfoFor(v, state); };
         _markersById[v.id] = marker;
-        _infoById[v.id] = info;
-
-        if (v.imageUri) {
-          var img = new window.Image();
-          img.onload = function() {
-            var h = 50;
-            var nh = img.naturalHeight || 1;
-            var nw = img.naturalWidth || 1;
-            var w = Math.round(nw * (h / nh));
-            marker.setIcon({ url: v.imageUri, scaledSize: new google.maps.Size(w, h) });
-          };
-          img.onerror = function() {
-            // Leave circle marker in place
-          };
-          img.src = v.imageUri;
-        }
+        _popupById[v.id] = popup;
       });
 
-      if (markers.length > 1 || (markers.length >= 1 && userLat !== null)) {
-        _map.fitBounds(bounds, { top: 60, right: 40, bottom: 60, left: 40 });
+      // Focus on the fleet: fit multiple cars, or center a single car at street zoom.
+      if (markers.length > 1) {
+        _map.fitBounds(bounds, { padding: { top: 60, right: 40, bottom: 60, left: 40 }, maxZoom: 15 });
+      } else if (markers.length === 1) {
+        _map.flyTo({ center: [markers[0].lng, markers[0].lat], zoom: 14 });
       }
     }
-  </script>
-  <script
-    src="https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&callback=initMap"
-    async defer>
+
+    if (window.mapboxgl) { initMap(); }
+    else { window.addEventListener('load', initMap); }
   </script>
 </body>
 </html>`;

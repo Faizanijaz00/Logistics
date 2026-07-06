@@ -2,10 +2,12 @@ import { useState, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ReceiptText, Car, User, Calendar, AlertCircle, Clock } from 'lucide-react-native';
+import { ReceiptText, Car, User, Calendar, AlertCircle, Clock, Plus } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
 import { useVehicleStore } from '../../src/store/vehicleStore';
 import { SERVER_URL } from '../../src/config/api';
+import ReceiptViewer from '../../src/components/ReceiptViewer';
+import { AddTicketModal } from './index';
 
 // Appeal/paid state isn't stored in its own columns — `status` carries paid/
 // appealing and the deadlines ride inside plan_for_contesting as JSON. Also
@@ -20,7 +22,8 @@ export function parseTicketMeta(t) {
   const appealDeadline = t.appeal_deadline || t.appealDeadline || meta.appeal_deadline || null;
   const paymentDeadline = t.payment_deadline || t.paymentDeadline || meta.payment_deadline || null;
   const paid = !!t.paid || t.status === 'Paid';
-  return { appealing, appealDeadline, paymentDeadline, paid };
+  const receiptPath = t.receipt_path || meta.receipt_path || null;
+  return { appealing, appealDeadline, paymentDeadline, paid, receiptPath };
 }
 
 function formatDate(iso) {
@@ -44,6 +47,10 @@ export default function TicketsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
+  const [showAdd, setShowAdd] = useState(false);
+
+  // Same driver list the Add Ticket modal expects (drivers + admins).
+  const drivers = users.filter(u => u.role === 'driver' || u.role === 'admin');
 
   const load = useCallback(async () => {
     setError(null);
@@ -93,10 +100,18 @@ export default function TicketsScreen() {
   return (
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
-        <Text style={styles.headerTitle}>Tickets & Fines</Text>
-        <Text style={styles.headerSub}>
-          {visible.length} ticket{visible.length === 1 ? '' : 's'} · {formatCurrency(totalOutstanding)} outstanding
-        </Text>
+        <View style={styles.headerRow}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.headerTitle}>Tickets & Fines</Text>
+            <Text style={styles.headerSub}>
+              {visible.length} ticket{visible.length === 1 ? '' : 's'} · {formatCurrency(totalOutstanding)} outstanding
+            </Text>
+          </View>
+          <TouchableOpacity style={styles.addBtn} onPress={() => setShowAdd(true)} activeOpacity={0.85}>
+            <Plus size={18} color="#fff" />
+            <Text style={styles.addBtnText}>Add</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -115,7 +130,7 @@ export default function TicketsScreen() {
           <View style={styles.empty}>
             <ReceiptText size={48} color="#ccc" />
             <Text style={styles.emptyText}>No tickets yet</Text>
-            <Text style={styles.emptyHint}>Add a ticket from the home screen.</Text>
+            <Text style={styles.emptyHint}>Tap Add to log your first ticket.</Text>
           </View>
         ) : (
           visible.map(t => {
@@ -125,7 +140,7 @@ export default function TicketsScreen() {
             const amount = t.outstanding ?? t.amount;
             const dateStr = t.date || t.createdAt || t.created_at;
             const reason = t.notes || t.reason || '';
-            const { appealing, appealDeadline, paymentDeadline, paid } = parseTicketMeta(t);
+            const { appealing, appealDeadline, paymentDeadline, paid, receiptPath } = parseTicketMeta(t);
             return (
               <View key={t.id} style={[styles.card, paid && styles.cardPaid]}>
                 <View style={styles.cardHeader}>
@@ -180,11 +195,23 @@ export default function TicketsScreen() {
                 ) : null}
 
                 {reason ? <Text style={styles.reason} numberOfLines={3}>{reason}</Text> : null}
+
+                <ReceiptViewer path={receiptPath} token={token} label="Ticket photo" />
               </View>
             );
           })
         )}
       </ScrollView>
+
+      <AddTicketModal
+        visible={showAdd}
+        onClose={() => setShowAdd(false)}
+        user={user}
+        token={token}
+        drivers={drivers}
+        vehicles={vehicles}
+        onSaved={load}
+      />
     </SafeAreaView>
   );
 }
@@ -192,8 +219,11 @@ export default function TicketsScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#f5f5f5' },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 14, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#ececec' },
+  headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   headerTitle: { fontSize: 22, fontWeight: '700', color: '#000' },
   headerSub: { fontSize: 13, color: '#888', marginTop: 2 },
+  addBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#000', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },
+  addBtnText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   list: { flex: 1 },
   listContent: { padding: 16, paddingBottom: 40 },
   empty: { padding: 40, alignItems: 'center', justifyContent: 'center', gap: 8 },

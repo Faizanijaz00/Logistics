@@ -228,6 +228,20 @@ export const useAuthStore = create(
       },
 
       logout: () => {
+        // Release any vehicle this driver was holding + close any open drive on
+        // the server BEFORE we drop the token, otherwise the car stays stuck as
+        // "In use by <name>" for everyone else even though they've left.
+        const { token, selectedVehicleId } = get();
+        if (token) {
+          if (selectedVehicleId) {
+            fetch(`${SERVER_URL}/api/auth/select-vehicle`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+              body: JSON.stringify({ vehicleId: null }),
+            }).catch(() => {});
+          }
+          get()._endDrive();
+        }
         if (_locationSub) { try { _locationSub.remove(); } catch {} _locationSub = null; }
         set({ token: null, user: null, selectedVehicleId: null, isDriving: false, activeDriveId: null });
       },

@@ -14,6 +14,7 @@ import { registerVehicleRoutes } from './vehicles.js';
 import { registerMiscRoutes } from './misc.js';
 import { tripsRouter } from './trips.js';
 import { registerPassengerRoutes } from './passengers.js';
+import { registerReceiptRoutes } from './receipts.js';
 import { startTracking, stopTracking, getTrackingStatus } from './tracking.js';
 
 const app = express();
@@ -54,6 +55,7 @@ registerVehicleRoutes(app, requireAuth, requireRole);
 registerMiscRoutes(app, requireAuth);
 app.use(tripsRouter);
 registerPassengerRoutes(app);
+registerReceiptRoutes(app, requireAuth);
 
 // --- REST endpoints ---
 

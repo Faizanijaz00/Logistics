@@ -1,6 +1,6 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, Modal, TextInput, Switch, ActivityIndicator, Alert, KeyboardAvoidingView } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, Modal, TextInput, Switch, ActivityIndicator, Alert, KeyboardAvoidingView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Fuel, ReceiptText, AlertTriangle, LogOut, RefreshCw, MapPin, Navigation, X, Car, ChevronRight, ChevronDown, ChevronUp, Users, Route, Plus, Trash2, CheckCircle2, Clock } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
@@ -8,6 +8,19 @@ import { useVehicleStore } from '../../src/store/vehicleStore';
 import { getCarImage } from '../../src/config/carImages';
 import { useLayout } from '../../src/hooks/useLayout';
 import { SERVER_URL } from '../../src/config/api';
+import ReceiptPicker from '../../src/components/ReceiptPicker';
+import ReceiptViewer from '../../src/components/ReceiptViewer';
+
+// Same Mapbox token the map uses — powers destination address autocomplete.
+const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
+
+// Time-of-day greeting based on the device's local clock.
+function timeGreeting() {
+  const h = new Date().getHours();
+  if (h < 12) return 'Good morning';
+  if (h < 17) return 'Good afternoon';
+  return 'Good evening';
+}
 
 // Appeal/paid state lives in `status`; deadlines ride inside plan_for_contesting
 // as JSON. Accept legacy camelCase/snake fields too so older tickets still read.
@@ -21,7 +34,8 @@ function parseTicketMeta(t) {
   const appealDeadline = t?.appeal_deadline || t?.appealDeadline || meta.appeal_deadline || '';
   const paymentDeadline = t?.payment_deadline || t?.paymentDeadline || meta.payment_deadline || '';
   const paid = !!t?.paid || t?.status === 'Paid';
-  return { appealing, appealDeadline, paymentDeadline, paid };
+  const receiptPath = t?.receipt_path || meta.receipt_path || null;
+  return { appealing, appealDeadline, paymentDeadline, paid, receiptPath };
 }
 
 function UKPlate({ registration, small }) {
@@ -220,7 +234,7 @@ function DriverHomeScreen() {
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={[styles.greeting, isUnfolded && styles.greetingUnfolded]}>Hello, {user?.name?.split(' ')[0] || user?.username}</Text>
+            <Text style={[styles.greeting, isUnfolded && styles.greetingUnfolded]}>{timeGreeting()}, {user?.name?.split(' ')[0] || user?.username}</Text>
             <Text style={styles.role}>{isDriving ? 'On a journey' : 'Ready to drive'}</Text>
           </View>
           <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
@@ -473,6 +487,7 @@ function DriverHomeScreen() {
 function FuelUpModal({ visible, onClose, vehicle, user, token }) {
   const [amount, setAmount] = useState('');
   const [usedFuelCard, setUsedFuelCard] = useState(false);
+  const [receiptPath, setReceiptPath] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   const isMercedesGLE = vehicle?.id === 'v1';
@@ -481,6 +496,7 @@ function FuelUpModal({ visible, onClose, vehicle, user, token }) {
     if (visible) {
       setAmount('');
       setUsedFuelCard(false);
+      setReceiptPath(null);
     }
   }, [visible]);
 
@@ -497,6 +513,7 @@ function FuelUpModal({ visible, onClose, vehicle, user, token }) {
         vehicleId: vehicle.id,
         amount: numeric,
         paidBy: user?.name || user?.username || '',
+        receiptPath,
       };
       if (isMercedesGLE) body.usedFuelCard = usedFuelCard;
 
@@ -561,8 +578,11 @@ function FuelUpModal({ visible, onClose, vehicle, user, token }) {
               </View>
             )}
 
+            <Text style={styles.fieldLabel}>Receipt</Text>
+            <ReceiptPicker kind="fuel" token={token} onChange={setReceiptPath} label="Attach fuel receipt" />
+
             <TouchableOpacity
-              style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}
+              style={[styles.primaryBtn, submitting && { opacity: 0.6 }, { marginTop: 16 }]}
               onPress={handleSubmit}
               disabled={submitting}
               activeOpacity={0.85}
@@ -577,16 +597,22 @@ function FuelUpModal({ visible, onClose, vehicle, user, token }) {
 }
 
 // ── Add Ticket Modal ───────────────────────────────────────────────────────────
-function AddTicketModal({ visible, onClose, vehicle, user, token, drivers }) {
+// `vehicle` fixes the ticket to one car (Home flow, where you're driving it).
+// When it's omitted (Tickets tab, e.g. after you've ended a ride) a vehicle
+// picker is shown so a ticket can still be logged against any car.
+export function AddTicketModal({ visible, onClose, vehicle, user, token, drivers, vehicles = [], onSaved }) {
   const [reference, setReference] = useState('');
   const [fineAmount, setFineAmount] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [reason, setReason] = useState('');
   const [driverId, setDriverId] = useState(user?.id || null);
   const [driverPickerOpen, setDriverPickerOpen] = useState(false);
+  const [vehicleId, setVehicleId] = useState(vehicle?.id || null);
+  const [vehiclePickerOpen, setVehiclePickerOpen] = useState(false);
   const [appealing, setAppealing] = useState('undecided'); // 'yes' | 'no' | 'undecided'
   const [appealDeadline, setAppealDeadline] = useState('');
   const [paymentDeadline, setPaymentDeadline] = useState('');
+  const [receiptPath, setReceiptPath] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -597,19 +623,28 @@ function AddTicketModal({ visible, onClose, vehicle, user, token, drivers }) {
       setReason('');
       setDriverId(user?.id || (drivers[0] && drivers[0].id) || null);
       setDriverPickerOpen(false);
+      setVehicleId(vehicle?.id || null);
+      setVehiclePickerOpen(false);
       setAppealing('undecided');
       setAppealDeadline('');
       setPaymentDeadline('');
+      setReceiptPath(null);
     }
-  }, [visible]);
+  }, [visible, vehicle?.id]);
 
   const selectedDriver =
     driverId === '__unknown__'
       ? { id: null, name: 'Unknown' }
       : drivers.find(d => d.id === driverId) || { id: user?.id, name: user?.name || user?.username };
 
+  // When a fixed vehicle is passed use it; otherwise resolve the picked one.
+  const effectiveVehicle = vehicle || vehicles.find(v => v.id === vehicleId) || null;
+
   async function handleSubmit() {
-    if (!vehicle) return;
+    if (!effectiveVehicle) {
+      Alert.alert('Missing vehicle', 'Please choose which vehicle the ticket is for.');
+      return;
+    }
     if (!reference.trim()) {
       Alert.alert('Missing reference', 'Please enter a ticket reference.');
       return;
@@ -630,10 +665,11 @@ function AddTicketModal({ visible, onClose, vehicle, user, token, drivers }) {
       if (appealing && appealing !== 'undecided') meta.appealing = appealing;
       if (appealDeadline) meta.appeal_deadline = appealDeadline;
       if (paymentDeadline) meta.payment_deadline = paymentDeadline;
+      if (receiptPath) meta.receipt_path = receiptPath;
       const nowIso = new Date().toISOString();
       const body = {
         id: `ticket-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-        vehicle_id: vehicle.id,
+        vehicle_id: effectiveVehicle.id,
         driver_id: isUnknown ? null : (selectedDriver?.id || null),
         pcn: reference.trim(),
         outstanding: numeric,
@@ -654,6 +690,7 @@ function AddTicketModal({ visible, onClose, vehicle, user, token, drivers }) {
         const err = await resp.json().catch(() => ({}));
         throw new Error(err.error || 'Failed to save ticket');
       }
+      onSaved?.();
       onClose();
       Alert.alert('Saved', 'Ticket added.');
     } catch (e) {
@@ -670,7 +707,9 @@ function AddTicketModal({ visible, onClose, vehicle, user, token, drivers }) {
           <View style={styles.modalHeader}>
             <View>
               <Text style={styles.modalTitle}>Add Ticket</Text>
-              <Text style={styles.modalSubtitle}>{vehicle?.make} {vehicle?.model}</Text>
+              <Text style={styles.modalSubtitle}>
+                {effectiveVehicle ? `${effectiveVehicle.make} ${effectiveVehicle.model}` : 'Choose a vehicle'}
+              </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
               <X size={18} color="#000" />
@@ -678,6 +717,38 @@ function AddTicketModal({ visible, onClose, vehicle, user, token, drivers }) {
           </View>
 
           <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
+            {!vehicle ? (
+              <>
+                <Text style={styles.fieldLabel}>Vehicle</Text>
+                <TouchableOpacity
+                  style={styles.dropdown}
+                  onPress={() => setVehiclePickerOpen(o => !o)}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.dropdownText, !effectiveVehicle && { color: '#bbb' }]}>
+                    {effectiveVehicle
+                      ? `${effectiveVehicle.make} ${effectiveVehicle.model} · ${effectiveVehicle.licensePlate}`
+                      : 'Select vehicle'}
+                  </Text>
+                  <ChevronDown size={18} color="#888" />
+                </TouchableOpacity>
+                {vehiclePickerOpen && (
+                  <View style={styles.dropdownList}>
+                    {vehicles.map(v => (
+                      <TouchableOpacity
+                        key={v.id}
+                        style={styles.dropdownItem}
+                        onPress={() => { setVehicleId(v.id); setVehiclePickerOpen(false); }}
+                      >
+                        <Text style={styles.dropdownItemText}>{v.make} {v.model} · {v.licensePlate}</Text>
+                        {v.id === vehicleId ? <Text style={styles.dropdownCheck}>✓</Text> : null}
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+              </>
+            ) : null}
+
             <Text style={styles.fieldLabel}>Ticket reference</Text>
             <TextInput
               style={styles.textInput}
@@ -793,8 +864,11 @@ function AddTicketModal({ visible, onClose, vehicle, user, token, drivers }) {
               </>
             ) : null}
 
+            <Text style={styles.fieldLabel}>Ticket photo</Text>
+            <ReceiptPicker kind="ticket" token={token} onChange={setReceiptPath} label="Attach ticket photo" />
+
             <TouchableOpacity
-              style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}
+              style={[styles.primaryBtn, submitting && { opacity: 0.6 }, { marginTop: 16 }]}
               onPress={handleSubmit}
               disabled={submitting}
               activeOpacity={0.85}
@@ -812,12 +886,14 @@ function AddTicketModal({ visible, onClose, vehicle, user, token, drivers }) {
 function ReportIssueModal({ visible, onClose, vehicle, user, token }) {
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState('low');
+  const [photoPath, setPhotoPath] = useState(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
     if (visible) {
       setDescription('');
       setSeverity('low');
+      setPhotoPath(null);
     }
   }, [visible]);
 
@@ -834,6 +910,7 @@ function ReportIssueModal({ visible, onClose, vehicle, user, token }) {
         reportedBy: user?.name || user?.username || '',
         description: description.trim(),
         severity,
+        photoPath,
         createdAt: new Date().toISOString(),
       };
       const resp = await fetch(`${SERVER_URL}/api/issues`, {
@@ -908,8 +985,11 @@ function ReportIssueModal({ visible, onClose, vehicle, user, token }) {
               })}
             </View>
 
+            <Text style={styles.fieldLabel}>Photo</Text>
+            <ReceiptPicker kind="issue" token={token} onChange={setPhotoPath} label="Attach issue photo" />
+
             <TouchableOpacity
-              style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}
+              style={[styles.primaryBtn, submitting && { opacity: 0.6 }, { marginTop: 16 }]}
               onPress={handleSubmit}
               disabled={submitting}
               activeOpacity={0.85}
@@ -926,11 +1006,52 @@ function ReportIssueModal({ visible, onClose, vehicle, user, token }) {
 // ── Destination Modal ─────────────────────────────────────────────────────────
 function DestinationModal({ visible, onClose, vehicle, token, onSaved }) {
   const [text, setText] = useState('');
+  const [suggestions, setSuggestions] = useState([]);
+  const [searching, setSearching] = useState(false);
+  const [searched, setSearched] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  // Skip the autocomplete lookup right after we programmatically set the text
+  // (prefill on open, or picking a suggestion) so it doesn't re-search itself.
+  const skipSearch = useRef(false);
 
   useEffect(() => {
-    if (visible) setText(vehicle?.destination || '');
+    if (visible) {
+      setText(vehicle?.destination || '');
+      setSuggestions([]);
+      setSearched(false);
+      skipSearch.current = true;
+    }
   }, [visible, vehicle?.destination]);
+
+  // Debounced Mapbox address autocomplete.
+  useEffect(() => {
+    if (skipSearch.current) { skipSearch.current = false; return; }
+    const q = text.trim();
+    if (q.length < 3 || !MAPBOX_TOKEN) { setSuggestions([]); setSearching(false); setSearched(false); return; }
+    let alive = true;
+    setSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json`
+          + `?access_token=${MAPBOX_TOKEN}&autocomplete=true&limit=5&types=poi,address,place,locality,neighborhood`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (alive) setSuggestions(Array.isArray(data.features) ? data.features : []);
+      } catch {
+        if (alive) setSuggestions([]);
+      } finally {
+        if (alive) { setSearching(false); setSearched(true); }
+      }
+    }, 300);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [text]);
+
+  function pickSuggestion(feature) {
+    skipSearch.current = true;
+    setText(feature.place_name);
+    setSuggestions([]);
+    save(feature.place_name);
+  }
 
   async function save(dest) {
     if (!vehicle) return;
@@ -956,7 +1077,11 @@ function DestinationModal({ visible, onClose, vehicle, token, onSaved }) {
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
-      <View style={styles.modalBackdrop}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        style={styles.modalBackdrop}
+      >
+        <Pressable style={{ flex: 1 }} onPress={onClose} />
         <View style={styles.modalSheet}>
           <View style={styles.modalHeader}>
             <Text style={styles.modalTitle}>Set Destination</Text>
@@ -966,14 +1091,44 @@ function DestinationModal({ visible, onClose, vehicle, token, onSaved }) {
           </View>
           <View style={{ padding: 18 }}>
             <Text style={styles.fieldLabel}>Where are you heading?</Text>
-            <TextInput
-              style={styles.textInput}
-              value={text}
-              onChangeText={setText}
-              placeholder="e.g. Heathrow Terminal 5"
-              placeholderTextColor="#aaa"
-              autoCorrect={false}
-            />
+            <View style={destStyles.inputWrap}>
+              <TextInput
+                style={styles.textInput}
+                value={text}
+                onChangeText={setText}
+                placeholder="Search an address or place…"
+                placeholderTextColor="#aaa"
+                autoCorrect={false}
+                autoCapitalize="none"
+              />
+              {searching ? (
+                <ActivityIndicator size="small" color="#888" style={destStyles.inputSpinner} />
+              ) : null}
+            </View>
+
+            {suggestions.length > 0 ? (
+              <View style={destStyles.suggestions}>
+                {suggestions.map(f => (
+                  <TouchableOpacity
+                    key={f.id}
+                    style={destStyles.suggestionRow}
+                    onPress={() => pickSuggestion(f)}
+                    activeOpacity={0.6}
+                  >
+                    <MapPin size={16} color="#0061bd" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={destStyles.suggestionTitle} numberOfLines={1}>{f.text || f.place_name}</Text>
+                      <Text style={destStyles.suggestionSub} numberOfLines={1}>{f.place_name}</Text>
+                    </View>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            ) : searched && !searching && text.trim().length >= 3 ? (
+              <View style={destStyles.noMatch}>
+                <Text style={destStyles.noMatchText}>No matches — you can still save what you typed.</Text>
+              </View>
+            ) : null}
+
             <TouchableOpacity
               style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}
               onPress={() => save(text.trim())}
@@ -994,10 +1149,21 @@ function DestinationModal({ visible, onClose, vehicle, token, onSaved }) {
             ) : null}
           </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }
+
+const destStyles = StyleSheet.create({
+  inputWrap: { position: 'relative', justifyContent: 'center' },
+  inputSpinner: { position: 'absolute', right: 14 },
+  suggestions: { marginTop: 6, borderWidth: 1, borderColor: '#eee', borderRadius: 12, overflow: 'hidden', backgroundColor: '#fff' },
+  suggestionRow: { flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 12, paddingVertical: 11, borderBottomWidth: 1, borderBottomColor: '#f2f2f2' },
+  suggestionTitle: { fontSize: 14, fontWeight: '600', color: '#111' },
+  suggestionSub: { fontSize: 12, color: '#888', marginTop: 1 },
+  noMatch: { marginTop: 6, paddingHorizontal: 4 },
+  noMatchText: { fontSize: 12, color: '#999' },
+});
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // ADMIN HOME SCREEN
@@ -1102,7 +1268,7 @@ function AdminHomeScreen() {
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, isUnfolded && styles.contentUnfolded]} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View>
-            <Text style={[styles.greeting, isUnfolded && styles.greetingUnfolded]}>Hello, {user?.name?.split(' ')[0] || user?.username}</Text>
+            <Text style={[styles.greeting, isUnfolded && styles.greetingUnfolded]}>{timeGreeting()}, {user?.name?.split(' ')[0] || user?.username}</Text>
             <Text style={styles.role}>Admin dashboard</Text>
           </View>
           <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
@@ -1154,6 +1320,7 @@ function AdminHomeScreen() {
             vehicles={vehicles}
             users={users}
             currentUser={user}
+            token={token}
             authedFetch={authedFetch}
             onChanged={loadTickets}
           />
@@ -1202,6 +1369,7 @@ function AdminHomeScreen() {
           <IssuesSection
             issues={issues}
             vehicles={vehicles}
+            token={token}
             authedFetch={authedFetch}
             onChanged={loadIssues}
           />
@@ -1730,7 +1898,7 @@ function UserCreateModal({ visible, authedFetch, onClose, onSaved }) {
 }
 
 // ── Tickets ────────────────────────────────────────────────────────────────────
-function TicketsSection({ tickets, vehicles, users, currentUser, authedFetch, onChanged }) {
+function TicketsSection({ tickets, vehicles, users, currentUser, token, authedFetch, onChanged }) {
   const [editing, setEditing] = useState(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');
@@ -1814,6 +1982,7 @@ function TicketsSection({ tickets, vehicles, users, currentUser, authedFetch, on
           visible
           ticket={editing}
           vehicles={vehicles}
+          token={token}
           authedFetch={authedFetch}
           onClose={() => setEditing(null)}
           onSaved={async () => { setEditing(null); await onChanged(); }}
@@ -1834,7 +2003,7 @@ function TicketsSection({ tickets, vehicles, users, currentUser, authedFetch, on
   );
 }
 
-function TicketEditModal({ visible, ticket, vehicles, currentUser, authedFetch, onClose, onSaved }) {
+function TicketEditModal({ visible, ticket, vehicles, currentUser, token, authedFetch, onClose, onSaved }) {
   const isNew = !ticket;
   const [reference, setReference] = useState(ticket?.reference || ticket?.pcn || '');
   const [amount, setAmount] = useState(
@@ -1865,6 +2034,7 @@ function TicketEditModal({ visible, ticket, vehicles, currentUser, authedFetch, 
       if (appealing && appealing !== 'undecided') meta.appealing = appealing;
       if (appealDeadline) meta.appeal_deadline = appealDeadline;
       if (paymentDeadline) meta.payment_deadline = paymentDeadline;
+      if (_meta.receiptPath) meta.receipt_path = _meta.receiptPath; // keep the attached photo on edit
       const status = paid ? 'Paid' : (appealing === 'yes' ? 'Appealing' : 'Issued');
       const nowIso = new Date().toISOString();
       const common = {
@@ -1963,6 +2133,8 @@ function TicketEditModal({ visible, ticket, vehicles, currentUser, authedFetch, 
               <Text style={styles.fieldLabel}>Paid</Text>
               <Switch value={paid} onValueChange={setPaid} />
             </View>
+
+            {_meta.receiptPath ? <ReceiptViewer path={_meta.receiptPath} token={token} label="Ticket photo" /> : null}
 
             <TouchableOpacity
               style={[styles.primaryBtn, submitting && { opacity: 0.6 }]}
@@ -2121,7 +2293,7 @@ function TripEditModal({ visible, trip, authedFetch, onClose, onSaved }) {
 }
 
 // ── Issues ─────────────────────────────────────────────────────────────────────
-function IssuesSection({ issues, vehicles, authedFetch, onChanged }) {
+function IssuesSection({ issues, vehicles, token, authedFetch, onChanged }) {
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [viewing, setViewing] = useState(null);
@@ -2223,6 +2395,7 @@ function IssuesSection({ issues, vehicles, authedFetch, onChanged }) {
           visible
           issue={viewing}
           vehicle={vehicles.find(v => v.id === viewing.vehicleId) || null}
+          token={token}
           authedFetch={authedFetch}
           onClose={() => setViewing(null)}
           onChanged={async () => { setViewing(null); await onChanged(); }}
@@ -2232,7 +2405,7 @@ function IssuesSection({ issues, vehicles, authedFetch, onChanged }) {
   );
 }
 
-function IssueViewModal({ visible, issue, vehicle, authedFetch, onClose, onChanged }) {
+function IssueViewModal({ visible, issue, vehicle, token, authedFetch, onClose, onChanged }) {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -2276,6 +2449,8 @@ function IssueViewModal({ visible, issue, vehicle, authedFetch, onClose, onChang
 
           <Text style={styles.fieldLabel}>Description</Text>
           <Text style={adminStyles.readonlyValue}>{issue.description || '—'}</Text>
+
+          {issue.photoPath ? <ReceiptViewer path={issue.photoPath} token={token} label="Photo" /> : null}
 
           <Text style={styles.fieldLabel}>Reported at</Text>
           <Text style={adminStyles.readonlyValue}>{issue.createdAt || '—'}</Text>
@@ -2543,6 +2718,7 @@ function FuelRecordsSection({ records, vehicles, users, token, onChange }) {
                 <Text style={styles.fieldLabel}>Used fuel card</Text>
                 <Switch value={editUsedCard} onValueChange={setEditUsedCard} />
               </View>
+              {editing?.receiptPath ? <ReceiptViewer path={editing.receiptPath} token={token} label="Receipt" /> : null}
               <TouchableOpacity
                 style={[styles.primaryBtn, busy && { opacity: 0.6 }]}
                 onPress={save}
@@ -2877,6 +3053,13 @@ const styles = StyleSheet.create({
 
   // Modal
   modalSafe: { flex: 1, backgroundColor: '#f5f5f5' },
+  // Bottom-sheet modals (Set Destination, Edit Fuel Record)
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  modalSheet: {
+    backgroundColor: '#f5f5f5',
+    borderTopLeftRadius: 22, borderTopRightRadius: 22,
+    paddingBottom: 28, maxHeight: '88%',
+  },
   modalHeader: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14,
@@ -2947,6 +3130,11 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   primaryBtnText: { color: '#fff', fontSize: 15, fontWeight: '600' },
+  secondaryBtn: {
+    marginTop: 12, paddingVertical: 15, alignItems: 'center',
+    borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e6e6e6',
+  },
+  secondaryBtnText: { color: '#c4001a', fontSize: 15, fontWeight: '600' },
   dropdown: {
     flexDirection: 'row',
     alignItems: 'center',

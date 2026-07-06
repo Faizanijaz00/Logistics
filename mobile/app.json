@@ -24,7 +24,14 @@
       "package": "com.logistics.app"
     },
     "plugins": [
-      "expo-router"
+      "expo-router",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Allow Logistics to access your photos so you can attach fuel receipts, ticket notices, and issue photos.",
+          "cameraPermission": "Allow Logistics to use the camera so you can photograph fuel receipts, ticket notices, and issues."
+        }
+      ]
     ],
     "extra": {
       "router": {},

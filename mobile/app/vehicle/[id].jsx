@@ -12,22 +12,18 @@ import { getCarImage } from '../../src/config/carImages';
 import { SERVER_URL } from '../../src/config/api';
 import { useLayout } from '../../src/hooks/useLayout';
 
-const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 
 function useReverseGeocode(position) {
   const [address, setAddress] = useState(null);
   useEffect(() => {
     if (!position?.lat || !position?.lng) return;
-    fetch(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${position.lat},${position.lng}&key=${GOOGLE_MAPS_API_KEY}`)
+    // Mapbox reverse geocoding — lng,lat order. Prefer a short label (postcode/neighbourhood).
+    fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${position.lng},${position.lat}.json?types=postcode,neighborhood,address&limit=1&access_token=${MAPBOX_TOKEN}`)
       .then(r => r.json())
       .then(data => {
-        if (data.results?.length) {
-          // Try to find a short address (postal code or neighborhood)
-          const postal = data.results.find(r => r.types?.includes('postal_code'));
-          const neighborhood = data.results.find(r => r.types?.includes('neighborhood') || r.types?.includes('sublocality'));
-          const short = postal?.formatted_address || neighborhood?.formatted_address || data.results[0]?.formatted_address;
-          setAddress(short || null);
-        }
+        const short = data.features?.[0]?.place_name;
+        if (short) setAddress(short);
       })
       .catch(() => {});
   }, [position?.lat, position?.lng]);

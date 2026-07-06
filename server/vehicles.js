@@ -126,6 +126,30 @@ export function registerVehicleRoutes(app, requireAuth, requireRole) {
     }
   });
 
+  // GET /api/vehicles/:id/track — position history (path trail)
+  // Query: ?since=ISO (default last 24h), ?limit=N (default 500, max 2000)
+  app.get('/api/vehicles/:id/track', requireAuth, async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit) || 500, 2000);
+      const since = req.query.since || new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      const rows = await sb(
+        `/rest/v1/vehicle_positions?vehicle_id=eq.${encodeURIComponent(req.params.id)}` +
+        `&recorded_at=gte.${encodeURIComponent(since)}` +
+        `&order=recorded_at.asc&limit=${limit}` +
+        `&select=lat,lng,speed,heading,recorded_at`
+      );
+      res.json((rows || []).map(r => ({
+        lat: r.lat,
+        lng: r.lng,
+        speed: r.speed,
+        heading: r.heading,
+        timestamp: r.recorded_at,
+      })));
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   // POST /api/vehicles — create
   app.post('/api/vehicles', requireAuth, requireRole('admin'), async (req, res) => {
     try {
@@ -146,6 +170,28 @@ export function registerVehicleRoutes(app, requireAuth, requireRole) {
     try {
       const row = toRow(req.body);
       if (!Object.keys(row).length) return res.status(400).json({ error: 'No fields to update' });
+
+      // The GPS tracker is the single source of truth for position. If this
+      // vehicle has a linked tracker, drop any client-supplied position/GPS
+      // fields (e.g. a driver's phone-GPS push) so they can't fight the tracker
+      // — the tracker poller writes straight to Supabase, bypassing this route.
+      const touchesGps = ['position', 'heading', 'speed', 'last_gps_update']
+        .some(k => k in row);
+      if (touchesGps) {
+        const existing = await sb(`/rest/v1/vehicles?id=eq.${req.params.id}&select=tracker_id`);
+        const hasTracker = existing?.[0]?.tracker_id != null && String(existing[0].tracker_id).trim() !== '';
+        if (hasTracker) {
+          delete row.position;
+          delete row.heading;
+          delete row.speed;
+          delete row.last_gps_update;
+          if (!Object.keys(row).length) {
+            // Nothing left to write once GPS fields are stripped — no-op success.
+            return res.json({ ok: true, ignored: 'position (tracker authoritative)' });
+          }
+        }
+      }
+
       const result = await sb(`/rest/v1/vehicles?id=eq.${req.params.id}`, {
         method: 'PATCH',
         body: JSON.stringify(row),

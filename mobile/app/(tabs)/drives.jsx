@@ -127,17 +127,23 @@ export default function DrivesScreen() {
 
               <View style={styles.row}>
                 <MapPin size={14} color="#018a16" />
-                <Text style={styles.rowText} numberOfLines={1}>
-                  {d.startAddress || formatPosition(d.startPosition)}
-                </Text>
+                <View style={styles.locCol}>
+                  <Text style={styles.locLabel}>From</Text>
+                  <Text style={styles.rowText} numberOfLines={1}>
+                    {d.startAddress || formatPosition(d.startPosition)}
+                  </Text>
+                </View>
               </View>
 
               {d.endedAt && (
                 <View style={styles.row}>
                   <MapPin size={14} color="#c4001a" />
-                  <Text style={styles.rowText} numberOfLines={1}>
-                    {d.endAddress || formatPosition(d.endPosition)}
-                  </Text>
+                  <View style={styles.locCol}>
+                    <Text style={styles.locLabel}>To</Text>
+                    <Text style={styles.rowText} numberOfLines={1}>
+                      {d.endAddress || formatPosition(d.endPosition)}
+                    </Text>
+                  </View>
                 </View>
               )}
             </View>
@@ -172,4 +178,6 @@ const styles = StyleSheet.create({
   activeText: { fontSize: 10, fontWeight: '700', color: '#018a16', letterSpacing: 0.5 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   rowText: { fontSize: 13, color: '#444', flex: 1 },
+  locCol: { flex: 1 },
+  locLabel: { fontSize: 10, fontWeight: '700', color: '#999', letterSpacing: 0.5, textTransform: 'uppercase' },
 });
