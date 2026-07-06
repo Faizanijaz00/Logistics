@@ -55,7 +55,7 @@ export default function DownloadPage() {
           </svg>
         </div>
 
-        <h1 className="dl-title">Logistics</h1>
+        <h1 className="dl-title">Fleet Hub</h1>
         <p className="dl-tagline">Fleet management, simplified.</p>
 
         <div className="dl-badges">
