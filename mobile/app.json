@@ -23,6 +23,7 @@
       },
       "package": "com.logistics.app",
       "permissions": [
+        "android.permission.RECORD_AUDIO",
         "android.permission.RECORD_AUDIO"
       ]
     },
@@ -43,6 +44,12 @@
         "projectId": "6a30b6f3-e333-4d61-a18e-a22312ab628b"
       }
     },
-    "owner": "ivoines242"
+    "owner": "ivoines242",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/6a30b6f3-e333-4d61-a18e-a22312ab628b"
+    }
   }
 }
