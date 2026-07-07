@@ -1,9 +1,10 @@
-import { useState, useRef } from 'react';
-import { Autocomplete } from '@react-google-maps/api';
+import { useState, useEffect } from 'react';
 import { LiveMap } from './components/LiveMap';
 import { useVehicleStore, useParkingStore, useSavedLocationStore } from '../../store';
 import { Layers, ChevronDown, MapPin, X, Plus, Trash2 } from 'lucide-react';
 import { useIsMobile } from '../../hooks/useIsMobile';
+
+const MAPBOX_TOKEN = import.meta.env.VITE_MAPBOX_TOKEN;
 
 export function ModernMapPage() {
   const { vehicles } = useVehicleStore();
@@ -16,19 +17,35 @@ export function ModernMapPage() {
   const [newLocationName, setNewLocationName] = useState('');
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [geocodeError, setGeocodeError] = useState('');
-  const autocompleteRef = useRef(null);
+  const [addrQuery, setAddrQuery] = useState('');
+  const [addrResults, setAddrResults] = useState([]);
   const mobile = useIsMobile();
 
-  const handlePlaceSelected = () => {
-    const place = autocompleteRef.current?.getPlace();
-    if (place?.geometry?.location) {
-      setSelectedAddress({
-        address: place.formatted_address || place.name,
-        lat: place.geometry.location.lat(),
-        lng: place.geometry.location.lng(),
-      });
-      setGeocodeError('');
-    }
+  // Debounced Mapbox forward-geocoding for the saved-location address search.
+  useEffect(() => {
+    const q = addrQuery.trim();
+    if (q.length < 3 || !MAPBOX_TOKEN) { setAddrResults([]); return; }
+    let alive = true;
+    const t = setTimeout(async () => {
+      try {
+        const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json`
+          + `?access_token=${MAPBOX_TOKEN}&autocomplete=true&limit=5&country=gb&types=address,poi,place,locality,neighborhood`;
+        const resp = await fetch(url);
+        const data = await resp.json();
+        if (alive) setAddrResults(Array.isArray(data.features) ? data.features : []);
+      } catch {
+        if (alive) setAddrResults([]);
+      }
+    }, 300);
+    return () => { alive = false; clearTimeout(t); };
+  }, [addrQuery]);
+
+  const pickAddress = (feature) => {
+    const [lng, lat] = feature.center;
+    setSelectedAddress({ address: feature.place_name, lat, lng });
+    setAddrQuery(feature.place_name);
+    setAddrResults([]);
+    setGeocodeError('');
   };
 
   const handleSaveLocation = () => {
@@ -43,6 +60,8 @@ export function ModernMapPage() {
     addLocation(newLocationName.trim(), selectedAddress.address, selectedAddress.lat, selectedAddress.lng);
     setNewLocationName('');
     setSelectedAddress(null);
+    setAddrQuery('');
+    setAddrResults([]);
     setShowAddLocation(false);
     setGeocodeError('');
   };
@@ -233,14 +252,13 @@ export function ModernMapPage() {
                       boxSizing: 'border-box',
                     }}
                   />
-                  <Autocomplete
-                    onLoad={(ref) => (autocompleteRef.current = ref)}
-                    onPlaceChanged={handlePlaceSelected}
-                    options={{ componentRestrictions: { country: 'gb' } }}
-                  >
+                  <div style={{ position: 'relative' }}>
                     <input
                       type="text"
+                      value={addrQuery}
+                      onChange={(e) => { setAddrQuery(e.target.value); setSelectedAddress(null); }}
                       placeholder="Search address..."
+                      autoComplete="off"
                       style={{
                         width: '100%',
                         padding: '10px 14px',
@@ -251,7 +269,31 @@ export function ModernMapPage() {
                         boxSizing: 'border-box',
                       }}
                     />
-                  </Autocomplete>
+                    {addrResults.length > 0 && (
+                      <div style={{
+                        position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 10,
+                        background: '#fff', border: '1px solid #e0e0e0', borderRadius: '4px',
+                        marginTop: '4px', overflow: 'hidden', boxShadow: '0 6px 20px rgba(0,0,0,0.12)',
+                      }}>
+                        {addrResults.map((f) => (
+                          <button
+                            key={f.id}
+                            onClick={() => pickAddress(f)}
+                            style={{
+                              display: 'flex', alignItems: 'center', gap: '8px', width: '100%',
+                              padding: '10px 12px', background: 'transparent', border: 'none',
+                              borderBottom: '1px solid #f2f2f2', cursor: 'pointer', textAlign: 'left',
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = '#f6f6f6'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                          >
+                            <MapPin style={{ width: '14px', height: '14px', color: '#0061bd', flexShrink: 0 }} />
+                            <span style={{ fontSize: '13px', color: '#111', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.place_name}</span>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
                   {selectedAddress && (
                     <p style={{ fontSize: '12px', color: '#018a16', margin: 0 }}>
                       Selected: {selectedAddress.address}
@@ -266,6 +308,8 @@ export function ModernMapPage() {
                         setShowAddLocation(false);
                         setNewLocationName('');
                         setSelectedAddress(null);
+                        setAddrQuery('');
+                        setAddrResults([]);
                         setGeocodeError('');
                       }}
                       style={{
