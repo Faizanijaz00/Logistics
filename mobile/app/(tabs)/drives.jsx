@@ -7,6 +7,7 @@ import { useAuthStore } from '../../src/store/authStore';
 import { SERVER_URL } from '../../src/config/api';
 import SkeletonList from '../../src/components/SkeletonList';
 import GeoText from '../../src/components/GeoText';
+import UpdateInfo from '../../src/components/UpdateInfo';
 
 const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 
@@ -232,6 +233,7 @@ export default function DrivesScreen() {
             </TouchableOpacity>
           ))
         )}
+        {!loading && !error && <UpdateInfo />}
       </ScrollView>
 
       {/* Drive / journey detail */}
