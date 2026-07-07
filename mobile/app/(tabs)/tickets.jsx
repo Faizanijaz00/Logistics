@@ -321,6 +321,7 @@ export default function TicketsScreen() {
           visible
           ticket={editing}
           vehicles={vehicles}
+          drivers={drivers}
           currentUser={user}
           token={token}
           authedFetch={authedFetch}

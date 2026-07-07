@@ -2061,8 +2061,10 @@ function TicketsSection({ tickets, vehicles, users, currentUser, token, authedFe
   );
 }
 
-export function TicketEditModal({ visible, ticket, vehicles, currentUser, token, authedFetch, onClose, onSaved, onDeleted }) {
+export function TicketEditModal({ visible, ticket, vehicles, drivers = [], currentUser, token, authedFetch, onClose, onSaved, onDeleted }) {
   const isNew = !ticket;
+  const isAdmin = currentUser?.role === 'admin';
+  const [driverId, setDriverId] = useState(ticket?.driverId || ticket?.driver_id || currentUser?.id || '');
   const [reference, setReference] = useState(ticket?.reference || ticket?.pcn || '');
   const [amount, setAmount] = useState(
     ticket?.amount != null ? String(ticket.amount) :
@@ -2097,6 +2099,7 @@ export function TicketEditModal({ visible, ticket, vehicles, currentUser, token,
       const nowIso = new Date().toISOString();
       const common = {
         vehicle_id: vehicleId,
+        driver_id: driverId || null,
         pcn: reference.trim(),
         outstanding: num,
         date,
@@ -2109,7 +2112,6 @@ export function TicketEditModal({ visible, ticket, vehicles, currentUser, token,
       if (isNew) {
         const body = {
           id: `ticket-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-          driver_id: currentUser?.id || null,
           created_at: nowIso,
           ...common,
         };
@@ -2179,6 +2181,29 @@ export function TicketEditModal({ visible, ticket, vehicles, currentUser, token,
                 );
               })}
             </ScrollView>
+
+            {isAdmin && drivers.length > 0 ? (
+              <>
+                <Text style={styles.fieldLabel}>Driver (who got it)</Text>
+                <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4, marginBottom: 14 }}>
+                  {drivers.map(d => {
+                    const selected = d.id === driverId;
+                    return (
+                      <TouchableOpacity
+                        key={d.id}
+                        style={[adminStyles.chip, selected && adminStyles.chipSelected]}
+                        onPress={() => setDriverId(d.id)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[adminStyles.chipText, selected && adminStyles.chipTextSelected]}>
+                          {d.name || d.username}
+                        </Text>
+                      </TouchableOpacity>
+                    );
+                  })}
+                </ScrollView>
+              </>
+            ) : null}
 
             <Text style={styles.fieldLabel}>Appealing?</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
