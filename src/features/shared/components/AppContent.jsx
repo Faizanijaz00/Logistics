@@ -7,6 +7,7 @@ import { ModernMapPage } from '../../map';
 import { ModernFleetPage } from '../../fleet';
 import JourneyPlannerPage from '../../journeys/JourneyPlannerPage';
 import TicketsPage from '../../tickets/TicketsPage';
+import { BookingsPage } from '../../bookings/BookingsPage';
 import { MyProfilePage } from '../../profile';
 import { AdminOverviewPage } from '../../admin/AdminOverviewPage';
 import { FinancePage } from '../../admin/FinancePage';
@@ -18,6 +19,7 @@ function getPage(pathname) {
     case '/fleet':   return <ModernFleetPage />;
     case '/journeys': return <JourneyPlannerPage />;
     case '/tickets': return <TicketsPage />;
+    case '/bookings': return <BookingsPage />;
     case '/admin':   return <AdminOverviewPage />;
     case '/finance': return <FinancePage />;
     default:         return <MyProfilePage />;

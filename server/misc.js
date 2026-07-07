@@ -115,6 +115,7 @@ export function registerMiscRoutes(app, requireAuth) {
   crud(app, 'notifications', requireAuth);
   crud(app, 'emergencies', requireAuth);
   crud(app, 'saved_locations', requireAuth);
+  crud(app, 'bookings', requireAuth);
 
   // DELETE all activities (clear log)
   app.delete('/api/activities', requireAuth, async (req, res) => {

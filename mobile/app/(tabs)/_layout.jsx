@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { User, Map, Car, Route, ReceiptText, Clock } from 'lucide-react-native';
+import { User, Map, Car, Route, ReceiptText, Clock, CalendarClock } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
 
 export default function TabLayout() {
@@ -52,6 +52,13 @@ export default function TabLayout() {
         name="journeys"
         options={{
           href: null,
+        }}
+      />
+      <Tabs.Screen
+        name="bookings"
+        options={{
+          title: 'Bookings',
+          tabBarIcon: ({ color, size }) => <CalendarClock size={size} color={color} />,
         }}
       />
       <Tabs.Screen
