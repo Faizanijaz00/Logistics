@@ -264,7 +264,7 @@ export function CarSelectPage() {
               onMouseOver={(e) => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.color = '#000'; }}
               onMouseOut={(e) => { e.currentTarget.style.borderColor = '#d1d1d1'; e.currentTarget.style.color = '#666'; }}
             >
-              Not Driving
+              Skip
             </button>
           </div>
         </div>
