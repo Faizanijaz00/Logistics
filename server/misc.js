@@ -50,6 +50,20 @@ async function sb(path, options = {}) {
   return text ? JSON.parse(text) : null;
 }
 
+// The vehicle's last-known tracker position — used as a fallback for drive
+// start/end when the driver's phone didn't provide GPS (so drives don't show
+// "Unknown"). Returns { lat, lng } or null.
+async function vehiclePosition(vehicleId) {
+  if (!vehicleId) return null;
+  try {
+    const rows = await sb(`/rest/v1/vehicles?id=eq.${encodeURIComponent(vehicleId)}&select=position`);
+    const p = rows?.[0]?.position;
+    return (p && p.lat != null && p.lng != null) ? { lat: p.lat, lng: p.lng } : null;
+  } catch {
+    return null;
+  }
+}
+
 // Tables that use `timestamp` instead of `created_at` for ordering
 const TIMESTAMP_TABLES = new Set(['activities', 'notifications', 'emergencies']);
 
@@ -289,13 +303,16 @@ export function registerMiscRoutes(app, requireAuth) {
   app.post('/api/drives/start', requireAuth, async (req, res) => {
     try {
       const all = loadJsonFile('drives.json');
-      const startPos = req.body.startPosition || null; // { lat, lng } or null
-      // Fill in a human-readable address if the client only sent coordinates.
-      let startAddress = req.body.startAddress || null;
-      if (!startAddress && startPos) startAddress = await reverseGeocode(startPos.lat, startPos.lng);
       const now = new Date().toISOString();
       const driverId = req.body.driverId || req.user?.id || null;
       const vehicleId = req.body.vehicleId || null;
+      // Prefer the phone's GPS; fall back to the vehicle's tracker position so
+      // the drive still gets a start location instead of "Unknown".
+      let startPos = req.body.startPosition || null; // { lat, lng } or null
+      if (!startPos) startPos = await vehiclePosition(vehicleId);
+      // Fill in a human-readable address from the coordinates.
+      let startAddress = req.body.startAddress || null;
+      if (!startAddress && startPos) startAddress = await reverseGeocode(startPos.lat, startPos.lng);
 
       // A driver can only be on one drive, and a vehicle can only be driven by
       // one person, at a time. Auto-close any still-"ongoing" drive for this
@@ -339,7 +356,9 @@ export function registerMiscRoutes(app, requireAuth) {
       if (idx === -1) return res.status(404).json({ error: 'Drive not found' });
       const drive = all[idx];
       if (drive.endedAt) return res.status(409).json({ error: 'Drive already ended', drive });
-      const endPos = req.body.endPosition || null;
+      // Prefer the phone's GPS; fall back to the vehicle's tracker position.
+      let endPos = req.body.endPosition || null;
+      if (!endPos) endPos = await vehiclePosition(drive.vehicleId);
       let endAddress = req.body.endAddress || null;
       if (!endAddress && endPos) endAddress = await reverseGeocode(endPos.lat, endPos.lng);
       drive.endedAt = new Date().toISOString();

@@ -1,12 +1,24 @@
 import { useState, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, TextInput } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, TextInput, Modal, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Car, User, Clock, MapPin, Search, X } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
 import { SERVER_URL } from '../../src/config/api';
 import SkeletonList from '../../src/components/SkeletonList';
 import GeoText from '../../src/components/GeoText';
+
+const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
+
+// Static Mapbox map image showing the drive's start (green) + end (red) pins.
+function staticMapUrl(drive) {
+  const s = drive.startPosition, e = drive.endPosition;
+  const pins = [];
+  if (s?.lat != null && s?.lng != null) pins.push(`pin-s-a+018a16(${s.lng},${s.lat})`);
+  if (e?.lat != null && e?.lng != null) pins.push(`pin-s-b+c4001a(${e.lng},${e.lat})`);
+  if (!pins.length || !MAPBOX_TOKEN) return null;
+  return `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${pins.join(',')}/auto/600x300@2x?padding=50&access_token=${MAPBOX_TOKEN}`;
+}
 
 function formatDuration(ms) {
   if (ms == null || ms < 0) return '—';
@@ -36,6 +48,7 @@ export default function DrivesScreen() {
   const [error, setError] = useState(null);
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // all | ongoing | completed
+  const [selected, setSelected] = useState(null); // tapped drive → detail modal
 
   const load = useCallback(async () => {
     setError(null);
@@ -161,7 +174,7 @@ export default function DrivesScreen() {
           </View>
         ) : (
           filtered.map(d => (
-            <View key={d.id} style={[styles.card, !d.endedAt && styles.cardActive]}>
+            <TouchableOpacity key={d.id} style={[styles.card, !d.endedAt && styles.cardActive]} onPress={() => setSelected(d)} activeOpacity={0.7}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
                   <Car size={16} color="#000" />
@@ -216,10 +229,52 @@ export default function DrivesScreen() {
                   </View>
                 </View>
               )}
-            </View>
+            </TouchableOpacity>
           ))
         )}
       </ScrollView>
+
+      {/* Drive / journey detail */}
+      <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => setSelected(null)}>
+        <View style={styles.detailBackdrop}>
+          <View style={styles.detailSheet}>
+            {selected && (
+              <>
+                <View style={styles.detailHeader}>
+                  <Text style={styles.detailTitle}>{selected.vehicleName || 'Drive'}</Text>
+                  <TouchableOpacity onPress={() => setSelected(null)} hitSlop={8}><X size={20} color="#000" /></TouchableOpacity>
+                </View>
+                {staticMapUrl(selected) ? (
+                  <Image source={{ uri: staticMapUrl(selected) }} style={styles.detailMap} resizeMode="cover" />
+                ) : null}
+                <View style={styles.detailBody}>
+                  <View style={styles.row}><User size={14} color="#666" /><Text style={styles.rowText}>{selected.driverName || 'Unknown'}</Text></View>
+                  <View style={styles.row}><Clock size={14} color="#666" /><Text style={styles.rowText}>
+                    {formatTimestamp(selected.startedAt)} {selected.endedAt ? `→ ${formatTimestamp(selected.endedAt)}` : '→ ongoing'}
+                  </Text></View>
+                  {selected.endedAt ? (
+                    <View style={styles.row}><Clock size={14} color="#0061bd" /><Text style={[styles.rowText, { fontWeight: '600' }]}>Duration: {formatDuration(selected.durationMs)}</Text></View>
+                  ) : null}
+                  <View style={styles.row}>
+                    <MapPin size={14} color="#018a16" />
+                    <View style={styles.locCol}><Text style={styles.locLabel}>From</Text>
+                      <GeoText lat={selected.startPosition?.lat} lng={selected.startPosition?.lng} address={selected.startAddress} style={styles.rowText} numberOfLines={2} />
+                    </View>
+                  </View>
+                  {selected.endedAt ? (
+                    <View style={styles.row}>
+                      <MapPin size={14} color="#c4001a" />
+                      <View style={styles.locCol}><Text style={styles.locLabel}>To</Text>
+                        <GeoText lat={selected.endPosition?.lat} lng={selected.endPosition?.lng} address={selected.endAddress} style={styles.rowText} numberOfLines={2} />
+                      </View>
+                    </View>
+                  ) : null}
+                </View>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -257,4 +312,10 @@ const styles = StyleSheet.create({
   rowText: { fontSize: 13, color: '#444', flex: 1 },
   locCol: { flex: 1 },
   locLabel: { fontSize: 10, fontWeight: '700', color: '#999', letterSpacing: 0.5, textTransform: 'uppercase' },
+  detailBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
+  detailSheet: { backgroundColor: '#fff', borderTopLeftRadius: 18, borderTopRightRadius: 18, overflow: 'hidden', paddingBottom: 28 },
+  detailHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 16 },
+  detailTitle: { fontSize: 18, fontWeight: '700', color: '#000' },
+  detailMap: { width: '100%', height: 180, backgroundColor: '#eaeaea' },
+  detailBody: { padding: 16, gap: 2 },
 });
