@@ -12,6 +12,7 @@ import ReceiptPicker from '../../src/components/ReceiptPicker';
 import ReceiptViewer from '../../src/components/ReceiptViewer';
 import DateField from '../../src/components/DateField';
 import UpdateBanner from '../../src/components/UpdateBanner';
+import { captureReceiptPhoto, pickReceiptFromLibrary } from '../../src/lib/receipts';
 
 // Same Mapbox token the map uses — powers destination address autocomplete.
 const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
@@ -1465,6 +1466,24 @@ function FleetSection({ vehicles, authedFetch, onChanged }) {
   );
 }
 
+const vehiclePhotoStyles = StyleSheet.create({
+  photoBox: {
+    height: 160,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e5e7eb',
+    backgroundColor: '#f9fafb',
+    overflow: 'hidden',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 6,
+  },
+  photo: { width: '100%', height: '100%' },
+  photoPlaceholder: { alignItems: 'center', gap: 6 },
+  photoHint: { fontSize: 13, color: '#9ca3af', fontWeight: '500' },
+  removePhoto: { fontSize: 13, color: '#c4001a', fontWeight: '600', marginBottom: 10 },
+});
+
 function VehicleEditModal({ visible, vehicle, authedFetch, onClose, onSaved }) {
   const isNew = !vehicle;
   const [form, setForm] = useState({
@@ -1478,10 +1497,41 @@ function VehicleEditModal({ visible, vehicle, authedFetch, onClose, onSaved }) {
     insuranceExpiry: vehicle?.insurance?.expiry || '',
     taxExpiry: vehicle?.tax?.expiry || '',
     motExpiry: vehicle?.mot?.expiry || '',
+    imageId: vehicle?.imageId || '',
   });
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
   const [looking, setLooking] = useState(false);
+  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+
+  // Pick/take a vehicle photo, upload it to the PUBLIC vehicle-photos bucket,
+  // and store the returned public URL as the vehicle's imageId. Public (not
+  // signed) so the map WebView and web can load it by plain URL.
+  function pickPhoto() {
+    Alert.alert('Vehicle photo', 'Add a photo of the vehicle', [
+      { text: 'Take Photo', onPress: () => runPhoto(captureReceiptPhoto) },
+      { text: 'Choose from Library', onPress: () => runPhoto(pickReceiptFromLibrary) },
+      { text: 'Cancel', style: 'cancel' },
+    ]);
+  }
+
+  async function runPhoto(getPhoto) {
+    try {
+      const dataUri = await getPhoto();
+      if (!dataUri) return;
+      setUploadingPhoto(true);
+      setError('');
+      const { url } = await authedFetch('/api/upload-vehicle-photo', {
+        method: 'POST',
+        body: JSON.stringify({ imageData: dataUri }),
+      });
+      set('imageId', url);
+    } catch (e) {
+      setError(e.message || 'Photo upload failed');
+    } finally {
+      setUploadingPhoto(false);
+    }
+  }
 
   function set(key, value) {
     setForm(f => ({ ...f, [key]: value }));
@@ -1535,6 +1585,7 @@ function VehicleEditModal({ visible, vehicle, authedFetch, onClose, onSaved }) {
         insurance: { ...(vehicle?.insurance || {}), expiry: form.insuranceExpiry.trim() || null },
         tax: { ...(vehicle?.tax || {}), expiry: form.taxExpiry.trim() || null },
         mot: { ...(vehicle?.mot || {}), expiry: form.motExpiry.trim() || null },
+        imageId: form.imageId || null,
       };
       if (isNew) {
         await authedFetch('/api/vehicles', { method: 'POST', body: JSON.stringify(body) });
@@ -1574,6 +1625,30 @@ function VehicleEditModal({ visible, vehicle, authedFetch, onClose, onSaved }) {
             >
               {looking ? <ActivityIndicator size="small" color="#0061bd" /> : <Text style={adminStyles.lookupBtnText}>⟳ Auto-fill from DVLA (tax + MOT)</Text>}
             </TouchableOpacity>
+
+            <Text style={styles.fieldLabel}>Vehicle photo</Text>
+            <TouchableOpacity
+              style={vehiclePhotoStyles.photoBox}
+              onPress={pickPhoto}
+              disabled={uploadingPhoto}
+              activeOpacity={0.8}
+            >
+              {uploadingPhoto ? (
+                <ActivityIndicator color="#0061bd" />
+              ) : form.imageId ? (
+                <Image source={{ uri: form.imageId }} style={vehiclePhotoStyles.photo} resizeMode="cover" />
+              ) : (
+                <View style={vehiclePhotoStyles.photoPlaceholder}>
+                  <Car size={28} color="#9ca3af" />
+                  <Text style={vehiclePhotoStyles.photoHint}>Tap to add a photo</Text>
+                </View>
+              )}
+            </TouchableOpacity>
+            {form.imageId && !uploadingPhoto && (
+              <TouchableOpacity onPress={() => set('imageId', '')} activeOpacity={0.7}>
+                <Text style={vehiclePhotoStyles.removePhoto}>Remove photo</Text>
+              </TouchableOpacity>
+            )}
 
             <FormField label="Make" value={form.make} onChange={v => set('make', v)} />
             <FormField label="Model" value={form.model} onChange={v => set('model', v)} />

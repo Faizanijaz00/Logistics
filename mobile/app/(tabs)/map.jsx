@@ -15,6 +15,8 @@ import { useLayout } from '../../src/hooks/useLayout';
 // files fall back to a coloured dot via the <img> onerror handler.
 function getCarImageUrl(imageId) {
   if (!imageId) return null;
+  // Uploaded vehicle photos are stored as full public URLs — use them directly.
+  if (/^https?:\/\//i.test(imageId)) return imageId;
   return `${SERVER_URL}/cars/${imageId}.png`;
 }
 

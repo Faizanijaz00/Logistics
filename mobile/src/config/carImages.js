@@ -24,10 +24,13 @@ const localImages = {
 };
 
 /**
- * Returns a require() source for use in <Image source={...} />.
- * Returns null if no image found (caller should show Car icon fallback).
+ * Returns an <Image source={...} /> value for the given imageId.
+ * - A full http(s) URL (uploaded vehicle photo) → { uri } so it loads remotely.
+ * - A known bundled id → its require() source.
+ * - Otherwise null (caller shows the Car icon fallback).
  */
 export function getCarImage(imageId) {
   if (!imageId) return null;
+  if (/^https?:\/\//i.test(imageId)) return { uri: imageId };
   return localImages[imageId] || null;
 }

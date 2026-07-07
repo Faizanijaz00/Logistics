@@ -25,9 +25,12 @@ function VehicleCard({ vehicle, onSelect, onRemove, onEdit, carImages }) {
   const mobile = useIsMobile();
   const [isHovered, setIsHovered] = useState(false);
 
-  // Get the car image URL - null if none assigned
+  // Get the car image URL - null if none assigned.
+  // A full URL imageId is an uploaded vehicle photo — use it directly.
   const carImage = vehicle.imageId
-    ? carImages?.find(img => img.id === vehicle.imageId)?.url || null
+    ? (/^https?:\/\//i.test(vehicle.imageId)
+        ? vehicle.imageId
+        : carImages?.find(img => img.id === vehicle.imageId)?.url || null)
     : null;
 
   // Check expiry urgency for MOT, tax, insurance

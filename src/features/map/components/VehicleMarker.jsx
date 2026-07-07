@@ -101,9 +101,12 @@ export function VehicleMarker({ vehicle }) {
   const statusColor = getStatusColor(effectiveStatus);
   const position = { lat: vehicle.position.lat, lng: vehicle.position.lng };
 
-  // Use uploaded car image if available, otherwise SVG marker
+  // Use uploaded car image if available, otherwise SVG marker.
+  // A full URL imageId is an uploaded vehicle photo — use it directly.
   const carImageUrl = vehicle.imageId
-    ? carImages?.find(img => img.id === vehicle.imageId)?.url || null
+    ? (/^https?:\/\//i.test(vehicle.imageId)
+        ? vehicle.imageId
+        : carImages?.find(img => img.id === vehicle.imageId)?.url || null)
     : null;
 
   const carLabel = `${vehicle.make || ''} ${vehicle.model || ''}`.trim() || vehicle.licensePlate || '';

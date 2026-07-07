@@ -88,4 +88,36 @@ export function registerReceiptRoutes(app, requireAuth) {
       res.status(500).json({ error: 'Failed to sign receipt' });
     }
   });
+
+  // Upload a vehicle photo to the PUBLIC vehicle-photos bucket. Returns a plain
+  // public URL (so the map WebView + web can load it without signing).
+  app.post('/api/upload-vehicle-photo', requireAuth, async (req, res) => {
+    try {
+      const { imageData } = req.body;
+      if (!imageData) return res.status(400).json({ error: 'No imageData provided' });
+      const match = /^data:([^;]+);base64,/.exec(imageData);
+      const mime = match?.[1] || 'image/jpeg';
+      const ext = EXT_BY_MIME[mime];
+      if (!ext || ext === 'pdf') return res.status(400).json({ error: `Unsupported image type: ${mime}` });
+
+      const buffer = Buffer.from(imageData.replace(/^data:[^;]+;base64,/, ''), 'base64');
+      if (buffer.length > 15 * 1024 * 1024) return res.status(413).json({ error: 'File too large (max 15MB)' });
+
+      const path = `${Date.now()}-${Math.round(buffer.length)}.${ext}`;
+      const resp = await fetch(`${SUPABASE_URL}/storage/v1/object/vehicle-photos/${path}`, {
+        method: 'POST',
+        headers: { apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}`, 'Content-Type': mime, 'x-upsert': 'false' },
+        body: buffer,
+      });
+      if (!resp.ok) {
+        const text = await resp.text();
+        console.error('[VehiclePhoto] Upload failed:', resp.status, text);
+        return res.status(502).json({ error: 'Storage upload failed' });
+      }
+      res.status(201).json({ url: `${SUPABASE_URL}/storage/v1/object/public/vehicle-photos/${path}` });
+    } catch (err) {
+      console.error('[VehiclePhoto] Upload error:', err.message);
+      res.status(500).json({ error: 'Upload failed' });
+    }
+  });
 }

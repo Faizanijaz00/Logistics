@@ -70,7 +70,12 @@ export function LiveMap({ vehicles = [], filters = {} }) {
   const [ready, setReady] = useState(false);
 
   const imageUrlFor = useCallback(
-    (imageId) => (images || []).find((i) => i.id === imageId)?.url || null,
+    (imageId) => {
+      if (!imageId) return null;
+      // A full URL imageId is an uploaded vehicle photo — use it directly.
+      if (/^https?:\/\//i.test(imageId)) return imageId;
+      return (images || []).find((i) => i.id === imageId)?.url || null;
+    },
     [images]
   );
 
