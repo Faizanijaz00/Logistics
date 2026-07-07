@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Platform, Image, Modal, TextInput, Switch, ActivityIndicator, Alert, KeyboardAvoidingView, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Fuel, ReceiptText, AlertTriangle, LogOut, RefreshCw, MapPin, Navigation, X, Car, ChevronRight, ChevronDown, ChevronUp, Users, Route, Plus, Trash2, CheckCircle2, Clock } from 'lucide-react-native';
+import { Fuel, ReceiptText, AlertTriangle, LogOut, RefreshCw, MapPin, Navigation, X, Car, ChevronRight, ChevronDown, ChevronUp, Users, Route, Plus, Trash2, CheckCircle2, Clock, Coins } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
 import { useVehicleStore } from '../../src/store/vehicleStore';
 import { getCarImage } from '../../src/config/carImages';
@@ -165,6 +165,7 @@ function DriverHomeScreen() {
   const [showTicketModal, setShowTicketModal] = useState(false);
   const [showIssueModal, setShowIssueModal] = useState(false);
   const [showDestModal, setShowDestModal] = useState(false);
+  const [showChargeModal, setShowChargeModal] = useState(false);
   const [drivers, setDrivers] = useState([]);
   const { isUnfolded } = useLayout();
 
@@ -309,11 +310,11 @@ function DriverHomeScreen() {
                       </View>
                       <Text style={styles.actionLabel}>Report Issue</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={handleSwitchCar}>
-                      <View style={[styles.actionIcon, { backgroundColor: '#f0f9ff' }]}>
-                        <RefreshCw size={20} color="#0284c7" />
+                    <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={() => setShowChargeModal(true)}>
+                      <View style={[styles.actionIcon, { backgroundColor: '#f0fdf4' }]}>
+                        <Coins size={20} color="#018a16" />
                       </View>
-                      <Text style={styles.actionLabel}>Switch Car</Text>
+                      <Text style={styles.actionLabel}>Pay for Toll</Text>
                     </TouchableOpacity>
                   </View>
 
@@ -389,11 +390,11 @@ function DriverHomeScreen() {
                   </View>
                   <Text style={styles.actionLabel}>Report Issue</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={() => setShowPicker(true)}>
-                  <View style={[styles.actionIcon, { backgroundColor: '#f0f9ff' }]}>
-                    <RefreshCw size={20} color="#0284c7" />
+                <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={() => setShowChargeModal(true)}>
+                  <View style={[styles.actionIcon, { backgroundColor: '#f0fdf4' }]}>
+                    <Coins size={20} color="#018a16" />
                   </View>
-                  <Text style={styles.actionLabel}>Switch Car</Text>
+                  <Text style={styles.actionLabel}>Pay for Toll</Text>
                 </TouchableOpacity>
               </View>
 
@@ -479,6 +480,15 @@ function DriverHomeScreen() {
         vehicle={vehicle}
         token={token}
         onSaved={() => fetchVehicles()}
+      />
+
+      {/* Pay for Toll / Charge Modal */}
+      <ChargeModal
+        visible={showChargeModal}
+        onClose={() => setShowChargeModal(false)}
+        vehicle={vehicle}
+        user={user}
+        token={token}
       />
     </SafeAreaView>
   );
@@ -678,6 +688,130 @@ export function AddTicketModal({ visible, onClose, vehicle, user, token, vehicle
             {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save Ticket</Text>}
           </TouchableOpacity>
         </ScrollView>
+      </SafeAreaView>
+    </Modal>
+  );
+}
+
+// ── Pay for Toll / Charge Modal ────────────────────────────────────────────────
+// Logs a toll / airport charge / airport parking as a ticket-category record so
+// it lands in the Tickets tab alongside PCNs (with a `type` + amount + receipt).
+function ChargeModal({ visible, onClose, vehicle, user, token, vehicles = [], onSaved }) {
+  const selectedVehicleId = useAuthStore(s => s.selectedVehicleId);
+  const [type, setType] = useState('Toll');
+  const [amount, setAmount] = useState('');
+  const [receiptPath, setReceiptPath] = useState(null);
+  const [submitting, setSubmitting] = useState(false);
+  const CHARGE_TYPES = ['Toll', 'Airport Charge', 'Airport Parking'];
+
+  useEffect(() => {
+    if (visible) { setType('Toll'); setAmount(''); setReceiptPath(null); }
+  }, [visible]);
+
+  const effectiveVehicle = vehicle || vehicles.find(v => v.id === selectedVehicleId) || null;
+
+  async function handleSubmit() {
+    const numeric = parseFloat(amount);
+    if (isNaN(numeric) || numeric <= 0) {
+      Alert.alert('Invalid amount', 'Enter a valid amount.');
+      return;
+    }
+    setSubmitting(true);
+    try {
+      const nowIso = new Date().toISOString();
+      const meta = { kind: 'charge' };
+      if (receiptPath) meta.receipt_path = receiptPath;
+      const body = {
+        id: `ticket-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        vehicle_id: effectiveVehicle?.id || null,
+        driver_id: user?.id || null,
+        type,
+        outstanding: numeric,
+        date: nowIso.slice(0, 10),
+        notes: type,
+        status: 'Paid',
+        paid: true,
+        plan_for_contesting: JSON.stringify(meta),
+        created_at: nowIso,
+        updated_at: nowIso,
+      };
+      const resp = await fetch(`${SERVER_URL}/api/tickets`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to save charge');
+      }
+      onSaved?.();
+      onClose();
+      Alert.alert('Saved', `${type} of £${numeric.toFixed(2)} logged.`);
+    } catch (e) {
+      Alert.alert('Error', e.message);
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
+      <SafeAreaView style={styles.modalSafe}>
+        <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
+          <View style={styles.modalHeader}>
+            <View>
+              <Text style={styles.modalTitle}>Pay for Toll</Text>
+              <Text style={styles.modalSubtitle}>
+                {effectiveVehicle ? `${effectiveVehicle.make} ${effectiveVehicle.model}` : 'Log a charge'}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+              <X size={18} color="#000" />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
+            <Text style={styles.fieldLabel}>Charge type</Text>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
+              {CHARGE_TYPES.map(t => (
+                <TouchableOpacity
+                  key={t}
+                  onPress={() => setType(t)}
+                  style={[styles.severityChip, type === t && styles.severityChipActive]}
+                  activeOpacity={0.7}
+                >
+                  <Text style={[styles.severityChipText, type === t && styles.severityChipTextActive]}>{t}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <Text style={styles.fieldLabel}>Amount paid</Text>
+            <View style={styles.amountRow}>
+              <Text style={styles.currency}>£</Text>
+              <TextInput
+                style={styles.amountInput}
+                value={amount}
+                onChangeText={setAmount}
+                keyboardType="decimal-pad"
+                placeholder="0.00"
+                placeholderTextColor="#bbb"
+                autoFocus
+              />
+            </View>
+
+            <Text style={styles.fieldLabel}>Receipt (optional)</Text>
+            <ReceiptPicker kind="ticket" token={token} onChange={setReceiptPath} label="Attach receipt photo" />
+
+            <TouchableOpacity
+              style={[styles.primaryBtn, submitting && { opacity: 0.6 }, { marginTop: 16 }]}
+              onPress={handleSubmit}
+              disabled={submitting}
+              activeOpacity={0.85}
+            >
+              {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save Charge</Text>}
+            </TouchableOpacity>
+          </ScrollView>
+        </KeyboardAvoidingView>
       </SafeAreaView>
     </Modal>
   );
