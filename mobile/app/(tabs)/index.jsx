@@ -1511,13 +1511,18 @@ function VehicleEditModal({ visible, vehicle, authedFetch, onClose, onSaved }) {
   }
 
   async function handleSave() {
+    // Required by the DB (NOT NULL). DVLA fills make but not model, so guide
+    // the user to enter it rather than surfacing a raw Supabase error.
+    if (!form.licensePlate.trim()) { setError('License plate is required.'); return; }
+    if (!form.make.trim()) { setError('Make is required.'); return; }
+    if (!form.model.trim()) { setError('Model is required — DVLA doesn’t provide it, so enter it manually.'); return; }
     setSubmitting(true);
     setError('');
     try {
       const body = {
-        licensePlate: form.licensePlate.trim() || null,
-        make: form.make.trim() || null,
-        model: form.model.trim() || null,
+        licensePlate: form.licensePlate.trim(),
+        make: form.make.trim(),
+        model: form.model.trim(),
         year: form.year ? Number(form.year) : null,
         color: form.color.trim() || null,
         capacity: form.capacity ? Number(form.capacity) : null,
