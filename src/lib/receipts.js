@@ -36,6 +36,23 @@ export async function uploadReceipt(file, kind = 'ticket') {
   return (await resp.json()).path;
 }
 
+// Upload a vehicle photo (File from an <input type="file">) to the PUBLIC
+// vehicle-photos bucket. Returns a plain public URL (usable directly as an
+// <img> src / map marker). Throws on failure.
+export async function uploadVehiclePhoto(file) {
+  const imageData = await fileToDataUri(file);
+  const resp = await fetch(`${SERVER_URL}/api/upload-vehicle-photo`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${getToken()}` },
+    body: JSON.stringify({ imageData }),
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.error || 'Upload failed');
+  }
+  return (await resp.json()).url;
+}
+
 // Short-lived signed URL to view a stored receipt. Null on failure.
 export async function getReceiptUrl(path) {
   if (!path) return null;

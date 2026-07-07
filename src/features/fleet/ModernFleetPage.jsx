@@ -2,11 +2,92 @@ import { useState, useEffect, useCallback } from 'react';
 import { useVehicleStore, useCarImageStore, useAuthStore } from '../../store';
 import { Plus, Trash2, X, ChevronRight, Pencil, Image, Link, Search, Loader2, Upload } from 'lucide-react';
 import { lookupVehicle } from '../../services/vehicleLookupService';
+import { uploadVehiclePhoto } from '../../lib/receipts';
 import { useIsMobile } from '../../hooks/useIsMobile';
 import { SERVER_URL } from '../../config/api';
 
 // Default fallback car image
 const DEFAULT_CAR_IMAGE = '/cars/merc.png';
+
+// Car Image field for the Add/Edit Vehicle modals. Admins can upload their own
+// photo (stored in the public vehicle-photos bucket, imageId becomes a URL) or
+// pick from the bundled preset library (imageId becomes a preset id).
+function CarImageField({ imageId, carImages, onChange, onOpenPresets }) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState('');
+
+  const uploadedUrl = imageId && /^https?:\/\//i.test(imageId) ? imageId : null;
+  const preset = imageId && !uploadedUrl ? carImages?.find((img) => img.id === imageId) : null;
+  const previewUrl = uploadedUrl || preset?.url || null;
+
+  async function handleFile(e) {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setUploading(true);
+    setError('');
+    try {
+      const url = await uploadVehiclePhoto(file);
+      onChange(url);
+    } catch (err) {
+      setError(err.message || 'Upload failed');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const uploadLabelStyle = {
+    display: 'inline-flex', alignItems: 'center', gap: '6px',
+    padding: '8px 16px', fontSize: '12px', fontWeight: '500',
+    background: 'transparent', border: '1px solid #d1d1d1', color: '#333',
+    cursor: uploading ? 'wait' : 'pointer', borderRadius: '4px', flexShrink: 0,
+  };
+  const dashedBtnStyle = {
+    flex: 1, padding: '20px', fontSize: '14px', fontWeight: '500',
+    background: '#fafafa', border: '2px dashed #d1d1d1', color: '#666',
+    cursor: uploading ? 'wait' : 'pointer', borderRadius: '6px',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+  };
+
+  return (
+    <div style={{ marginTop: '16px' }}>
+      <label style={labelStyle}>Car Image</label>
+      {previewUrl ? (
+        <div style={{
+          display: 'flex', alignItems: 'center', gap: '12px',
+          padding: '12px 16px', background: '#fafafa', borderRadius: '6px',
+          border: '1px solid #f0f0f0', marginTop: '8px',
+        }}>
+          <img src={previewUrl} alt="" style={{ width: '80px', height: '50px', objectFit: 'cover', borderRadius: '4px', flexShrink: 0 }} />
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <p style={{ fontSize: '13px', fontWeight: '500', color: '#000', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {uploadedUrl ? 'Uploaded photo' : preset?.name}
+            </p>
+          </div>
+          <label style={uploadLabelStyle}>
+            <Upload style={{ width: '14px', height: '14px' }} />
+            {uploading ? 'Uploading…' : 'Upload'}
+            <input type="file" accept="image/*" onChange={handleFile} disabled={uploading} style={{ display: 'none' }} />
+          </label>
+          <button type="button" onClick={onOpenPresets} style={{ ...uploadLabelStyle, gap: 0 }}>Preset</button>
+        </div>
+      ) : (
+        <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+          <label style={dashedBtnStyle}>
+            <Upload style={{ width: '18px', height: '18px' }} />
+            {uploading ? 'Uploading…' : 'Upload Photo'}
+            <input type="file" accept="image/*" onChange={handleFile} disabled={uploading} style={{ display: 'none' }} />
+          </label>
+          <button type="button" onClick={onOpenPresets} style={dashedBtnStyle}>
+            <Image style={{ width: '18px', height: '18px' }} />
+            Choose Preset
+          </button>
+        </div>
+      )}
+      {error && <p style={{ color: '#c4001a', fontSize: '12px', marginTop: '6px' }}>{error}</p>}
+    </div>
+  );
+}
 
 // Helper: returns expiry status based on a date string (used in VehicleCard + VehicleDetail)
 function getExpiryStatus(dateStr) {
@@ -2233,59 +2314,12 @@ function AddVehicleModal({ onClose, onAdd, carImages }) {
                 </div>
 
                 {/* Image Selection */}
-                <div style={{ marginTop: '16px' }}>
-                  <label style={labelStyle}>Car Image</label>
-                  {formData.imageId && carImages?.find(img => img.id === formData.imageId) ? (
-                    <div style={{
-                      display: 'flex', alignItems: 'center', gap: '16px',
-                      padding: '12px 16px', background: '#fafafa', borderRadius: '6px',
-                      border: '1px solid #f0f0f0', marginTop: '8px',
-                    }}>
-                      <img
-                        src={carImages.find(img => img.id === formData.imageId).url}
-                        alt=""
-                        style={{ width: '80px', height: '50px', objectFit: 'contain', flexShrink: 0 }}
-                      />
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <p style={{ fontSize: '13px', fontWeight: '500', color: '#000', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {carImages.find(img => img.id === formData.imageId).name}
-                        </p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => setShowImagePicker(true)}
-                        style={{
-                          padding: '8px 16px', fontSize: '12px', fontWeight: '500',
-                          background: 'transparent', border: '1px solid #d1d1d1', color: '#333',
-                          cursor: 'pointer', borderRadius: '4px', flexShrink: 0,
-                          transition: 'all 0.2s',
-                        }}
-                        onMouseOver={(e) => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.color = '#000'; }}
-                        onMouseOut={(e) => { e.currentTarget.style.borderColor = '#d1d1d1'; e.currentTarget.style.color = '#333'; }}
-                      >
-                        Change
-                      </button>
-                    </div>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setShowImagePicker(true)}
-                      style={{
-                        width: '100%', marginTop: '8px',
-                        padding: '20px', fontSize: '14px', fontWeight: '500',
-                        background: '#fafafa', border: '2px dashed #d1d1d1', color: '#666',
-                        cursor: 'pointer', borderRadius: '6px',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-                        transition: 'all 0.2s',
-                      }}
-                      onMouseOver={(e) => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.color = '#000'; e.currentTarget.style.background = '#f0f0f0'; }}
-                      onMouseOut={(e) => { e.currentTarget.style.borderColor = '#d1d1d1'; e.currentTarget.style.color = '#666'; e.currentTarget.style.background = '#fafafa'; }}
-                    >
-                      <Image style={{ width: '18px', height: '18px' }} />
-                      Add Image
-                    </button>
-                  )}
-                </div>
+                <CarImageField
+                  imageId={formData.imageId}
+                  carImages={carImages}
+                  onChange={(id) => setFormData({ ...formData, imageId: id })}
+                  onOpenPresets={() => setShowImagePicker(true)}
+                />
               </div>
 
               {/* GPS Tracker Section */}
@@ -2730,59 +2764,12 @@ function EditVehicleModal({ vehicle, onClose, onSave, carImages }) {
               </div>
 
               {/* Image Selection */}
-              <div style={{ marginTop: '16px' }}>
-                <label style={labelStyle}>Car Image</label>
-                {formData.imageId && carImages?.find(img => img.id === formData.imageId) ? (
-                  <div style={{
-                    display: 'flex', alignItems: 'center', gap: '16px',
-                    padding: '12px 16px', background: '#fafafa', borderRadius: '6px',
-                    border: '1px solid #f0f0f0', marginTop: '8px',
-                  }}>
-                    <img
-                      src={carImages.find(img => img.id === formData.imageId).url}
-                      alt=""
-                      style={{ width: '80px', height: '50px', objectFit: 'contain', flexShrink: 0 }}
-                    />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <p style={{ fontSize: '13px', fontWeight: '500', color: '#000', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {carImages.find(img => img.id === formData.imageId).name}
-                      </p>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => setShowImagePicker(true)}
-                      style={{
-                        padding: '8px 16px', fontSize: '12px', fontWeight: '500',
-                        background: 'transparent', border: '1px solid #d1d1d1', color: '#333',
-                        cursor: 'pointer', borderRadius: '4px', flexShrink: 0,
-                        transition: 'all 0.2s',
-                      }}
-                      onMouseOver={(e) => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.color = '#000'; }}
-                      onMouseOut={(e) => { e.currentTarget.style.borderColor = '#d1d1d1'; e.currentTarget.style.color = '#333'; }}
-                    >
-                      Change
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setShowImagePicker(true)}
-                    style={{
-                      width: '100%', marginTop: '8px',
-                      padding: '20px', fontSize: '14px', fontWeight: '500',
-                      background: '#fafafa', border: '2px dashed #d1d1d1', color: '#666',
-                      cursor: 'pointer', borderRadius: '6px',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
-                      transition: 'all 0.2s',
-                    }}
-                    onMouseOver={(e) => { e.currentTarget.style.borderColor = '#000'; e.currentTarget.style.color = '#000'; e.currentTarget.style.background = '#f0f0f0'; }}
-                    onMouseOut={(e) => { e.currentTarget.style.borderColor = '#d1d1d1'; e.currentTarget.style.color = '#666'; e.currentTarget.style.background = '#fafafa'; }}
-                  >
-                    <Image style={{ width: '18px', height: '18px' }} />
-                    Add Image
-                  </button>
-                )}
-              </div>
+              <CarImageField
+                imageId={formData.imageId}
+                carImages={carImages}
+                onChange={(id) => setFormData({ ...formData, imageId: id })}
+                onOpenPresets={() => setShowImagePicker(true)}
+              />
             </div>
 
             {/* Specifications Section */}
