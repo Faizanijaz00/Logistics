@@ -94,6 +94,7 @@ function buildMapHTML(vehicles, userLocation) {
     var _map;
     var _markersById = {};
     var _popupById = {};
+    var _userMarker = null;
 
     function goToVehicle(id) {
       if (window.ReactNativeWebView) {
@@ -111,6 +112,20 @@ function buildMapHTML(vehicles, userLocation) {
         m.setLngLat([u.lng, u.lat]);
         var pop = _popupById[u.id];
         if (pop && m._buildInfo) pop.setHTML(m._buildInfo(u));
+      }
+    };
+
+    // Move/create the user's location dot without rebuilding the map (so a
+    // frequently-updating GPS doesn't reload the whole WebView).
+    window.updateUser = function(lat, lng) {
+      if (!_map || lat == null || lng == null) return;
+      if (!_userMarker) {
+        var uel = document.createElement('div');
+        uel.className = 'user-location-marker';
+        uel.innerHTML = '<div class="user-pulse"></div><div class="user-dot"></div>';
+        _userMarker = new mapboxgl.Marker({ element: uel }).setLngLat([lng, lat]).addTo(_map);
+      } else {
+        _userMarker.setLngLat([lng, lat]);
       }
     };
 
@@ -183,16 +198,9 @@ function buildMapHTML(vehicles, userLocation) {
         _markersById[v.id] = marker;
       });
 
-      // Render the user's own location dot LAST so it sits on top of the car
-      // markers (otherwise a car parked on the same spot hides it). It's the
-      // operator's position — never a vehicle. Doesn't force the fleet view;
-      // the "my location" button pans to it on demand.
-      if (userLat !== null && userLng !== null) {
-        var uel = document.createElement('div');
-        uel.className = 'user-location-marker';
-        uel.innerHTML = '<div class="user-pulse"></div><div class="user-dot"></div>';
-        new mapboxgl.Marker({ element: uel }).setLngLat([userLng, userLat]).addTo(_map);
-      }
+      // User location dot is added/updated via window.updateUser (injected from
+      // RN) so a moving GPS never rebuilds the map. Seed it if we have it now.
+      if (userLat !== null && userLng !== null) window.updateUser(userLat, userLng);
 
       // Focus on the fleet: fit multiple cars, or center a single car at street zoom.
       if (markers.length > 1) {
@@ -276,12 +284,13 @@ export default function MapScreen() {
 
   const source = useMemo(
     () => ({ html: buildMapHTML(vehiclesWithPos, userLocation) }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuild only when the
-    // set of vehicles (not their moving positions) or the user location changes.
-    [vehicleIdsKey, userLocation]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- rebuild ONLY when the
+    // set of vehicles changes. userLocation is intentionally excluded: a moving GPS
+    // updates the user dot via injectJavaScript (below), never a full WebView reload.
+    [vehicleIdsKey]
   );
 
-  // Push position updates live without reloading the WebView
+  // Push vehicle position updates live without reloading the WebView.
   useEffect(() => {
     if (!mapReady || !webViewRef.current) return;
     const payload = vehiclesWithPos.map(v => ({
@@ -295,6 +304,14 @@ export default function MapScreen() {
     const js = `if (window.updateMarkers) { updateMarkers(${JSON.stringify(payload)}); } true;`;
     webViewRef.current.injectJavaScript(js);
   }, [vehiclesWithPos, mapReady]);
+
+  // Move the user's location dot live (no WebView reload) as GPS updates.
+  useEffect(() => {
+    if (!mapReady || !webViewRef.current || !userLocation) return;
+    webViewRef.current.injectJavaScript(
+      `if (window.updateUser) { updateUser(${userLocation.lat}, ${userLocation.lng}); } true;`
+    );
+  }, [userLocation, mapReady]);
 
   function handleMessage(event) {
     const vehicleId = event.nativeEvent.data;
