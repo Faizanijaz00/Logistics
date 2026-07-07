@@ -11,6 +11,7 @@ import { SERVER_URL } from '../../src/config/api';
 import ReceiptPicker from '../../src/components/ReceiptPicker';
 import ReceiptViewer from '../../src/components/ReceiptViewer';
 import DateField from '../../src/components/DateField';
+import UpdateBanner from '../../src/components/UpdateBanner';
 
 // Same Mapbox token the map uses — powers destination address autocomplete.
 const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
@@ -243,6 +244,8 @@ function DriverHomeScreen() {
             <LogOut size={16} color="#c4001a" />
           </TouchableOpacity>
         </View>
+
+        <UpdateBanner />
 
         {isDriving && vehicle ? (
           isUnfolded ? (
@@ -1210,6 +1213,8 @@ function AdminHomeScreen() {
             <LogOut size={16} color="#c4001a" />
           </TouchableOpacity>
         </View>
+
+        <UpdateBanner />
 
         <AdminSection
           title="Fleet Management"
