@@ -142,7 +142,7 @@ export const useVehicleStore = create((set, get) => ({
     const v = vehicles.find((x) => x.id === vehicleId);
     const driverName = v?.currentDriver || v?.lastDriver || 'Unknown';
     logActivity(vehicleId, vehicles, 'driver_cleared', `${driverName} stopped driving${parkedAt ? `, parked at ${parkedAt}` : ''}`, { driverName, parkedAt });
-    const updates = { lastDriver: v?.currentDriver || v?.lastDriver || null, currentDriver: null, destination: null, route: null, status: 'parked', parkedAt: parkedAt || null };
+    const updates = { lastDriver: v?.currentDriver || v?.lastDriver || null, currentDriver: null, currentDriverId: null, destination: null, route: null, status: 'parked', parkedAt: parkedAt || null };
     set((state) => ({
       vehicles: state.vehicles.map((x) => x.id === vehicleId ? { ...x, ...updates } : x),
     }));

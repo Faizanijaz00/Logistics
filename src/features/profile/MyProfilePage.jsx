@@ -306,30 +306,15 @@ export function MyProfilePage() {
   };
 
   const handleConfirmStop = async () => {
-    if (!parkedLocation.trim()) return;
+    // Parking location is optional — you can just stop driving (deselect the
+    // car). If a location/coords were picked, we also record where it's parked.
     const location = parkedLocation.trim();
     const vehicleId = myVehicle?.id;
     if (vehicleId) {
       const { clearDriver, updateVehiclePosition } = useVehicleStore.getState();
-      clearDriver(vehicleId, location);
+      clearDriver(vehicleId, location || null);
       if (parkedCoords) {
         updateVehiclePosition(vehicleId, parkedCoords);
-      } else {
-        try {
-          const geocoder = new window.google.maps.Geocoder();
-          const result = await new Promise((resolve, reject) => {
-            geocoder.geocode({ address: location + ', UK' }, (results, status) => {
-              if (status === 'OK' && results[0]) resolve(results[0]);
-              else reject(new Error('Geocode failed'));
-            });
-          });
-          updateVehiclePosition(vehicleId, {
-            lat: result.geometry.location.lat(),
-            lng: result.geometry.location.lng(),
-          });
-        } catch (err) {
-          console.error('Failed to geocode parked location:', err);
-        }
       }
     }
     // Save nickname if provided
@@ -816,18 +801,14 @@ export function MyProfilePage() {
               >Cancel</button>
               <button
                 onClick={handleConfirmStop}
-                disabled={!parkedLocation.trim()}
                 style={{
                   flex: 1, padding: '12px', fontSize: '14px', fontWeight: '600',
-                  background: parkedLocation.trim() ? '#c4001a' : '#e8e8e8',
-                  border: 'none', borderRadius: '10px',
-                  color: parkedLocation.trim() ? '#fff' : '#aaa',
-                  cursor: parkedLocation.trim() ? 'pointer' : 'not-allowed',
-                  transition: 'all 0.2s',
+                  background: '#c4001a', border: 'none', borderRadius: '10px',
+                  color: '#fff', cursor: 'pointer', transition: 'all 0.2s',
                 }}
-                onMouseOver={(e) => { if (parkedLocation.trim()) e.currentTarget.style.background = '#a00015'; }}
-                onMouseOut={(e) => { if (parkedLocation.trim()) e.currentTarget.style.background = '#c4001a'; }}
-              >Confirm & Park</button>
+                onMouseOver={(e) => { e.currentTarget.style.background = '#a00015'; }}
+                onMouseOut={(e) => { e.currentTarget.style.background = '#c4001a'; }}
+              >{parkedLocation.trim() ? 'Confirm & Park' : 'Stop Driving'}</button>
             </div>
           </div>
         </div>
