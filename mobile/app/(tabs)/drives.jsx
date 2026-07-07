@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, TextInput, Modal, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -11,14 +11,37 @@ import UpdateInfo from '../../src/components/UpdateInfo';
 
 const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 
-// Static Mapbox map image showing the drive's start (green) + end (red) pins.
-function staticMapUrl(drive) {
-  const s = drive.startPosition, e = drive.endPosition;
-  const pins = [];
-  if (s?.lat != null && s?.lng != null) pins.push(`pin-s-a+018a16(${s.lng},${s.lat})`);
-  if (e?.lat != null && e?.lng != null) pins.push(`pin-s-b+c4001a(${e.lng},${e.lat})`);
-  if (!pins.length || !MAPBOX_TOKEN) return null;
-  return `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${pins.join(',')}/auto/600x300@2x?padding=50&access_token=${MAPBOX_TOKEN}`;
+// Encode [[lng,lat],...] as a Mapbox/Google polyline (precision 5) for the
+// Static Images API path overlay.
+function encodePolyline(points) {
+  let out = '';
+  let prevLat = 0, prevLng = 0;
+  const enc = (num) => {
+    let v = Math.round(num * 1e5);
+    v = v < 0 ? ~(v << 1) : (v << 1);
+    let s = '';
+    while (v >= 0x20) { s += String.fromCharCode((0x20 | (v & 0x1f)) + 63); v >>= 5; }
+    return s + String.fromCharCode(v + 63);
+  };
+  for (const [lng, lat] of points) {
+    out += enc(lat - prevLat) + enc(lng - prevLng);
+    prevLat = lat; prevLng = lng;
+  }
+  return out;
+}
+
+// Static Mapbox map: the route line (if we have breadcrumbs) + start (green) /
+// end (red) pins. `route` is [[lng,lat],...].
+function staticMapUrl(startPt, endPt, route) {
+  if (!MAPBOX_TOKEN) return null;
+  const overlays = [];
+  if (route && route.length >= 2) {
+    overlays.push(`path-4+0061bd-0.9(${encodeURIComponent(encodePolyline(route))})`);
+  }
+  if (startPt?.lat != null && startPt?.lng != null) overlays.push(`pin-s-a+018a16(${startPt.lng},${startPt.lat})`);
+  if (endPt?.lat != null && endPt?.lng != null) overlays.push(`pin-s-b+c4001a(${endPt.lng},${endPt.lat})`);
+  if (!overlays.length) return null;
+  return `https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/${overlays.join(',')}/auto/600x300@2x?padding=50&access_token=${MAPBOX_TOKEN}`;
 }
 
 function formatDuration(ms) {
@@ -50,6 +73,7 @@ export default function DrivesScreen() {
   const [query, setQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('all'); // all | ongoing | completed
   const [selected, setSelected] = useState(null); // tapped drive → detail modal
+  const [route, setRoute] = useState([]); // [[lng,lat],...] breadcrumbs for the selected drive
 
   const load = useCallback(async () => {
     setError(null);
@@ -81,6 +105,40 @@ export default function DrivesScreen() {
   );
 
   const onRefresh = () => { setRefreshing(true); load(); };
+
+  // When a drive is opened, pull its GPS breadcrumbs (for the drive's time
+  // window) so the detail can draw the route line.
+  useEffect(() => {
+    if (!selected?.vehicleId || !selected?.startedAt) { setRoute([]); return; }
+    let alive = true;
+    (async () => {
+      try {
+        const resp = await fetch(
+          `${SERVER_URL}/api/vehicles/${selected.vehicleId}/track?since=${encodeURIComponent(selected.startedAt)}&limit=500`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        if (!resp.ok) { if (alive) setRoute([]); return; }
+        const pts = await resp.json();
+        const start = new Date(selected.startedAt).getTime();
+        const end = selected.endedAt ? new Date(selected.endedAt).getTime() : Date.now();
+        const line = (Array.isArray(pts) ? pts : [])
+          .filter(p => {
+            const t = new Date(p.timestamp).getTime();
+            return p.lat != null && p.lng != null && t >= start - 60000 && t <= end + 60000;
+          })
+          .map(p => [p.lng, p.lat]);
+        if (alive) setRoute(line);
+      } catch {
+        if (alive) setRoute([]);
+      }
+    })();
+    return () => { alive = false; };
+  }, [selected, token]);
+
+  // Effective start/end: the drive's own position, or fall back to the first/
+  // last breadcrumb so From/To resolve even when the drive lacked GPS.
+  const startPt = selected?.startPosition || (route.length ? { lat: route[0][1], lng: route[0][0] } : null);
+  const endPt = selected?.endPosition || (route.length ? { lat: route[route.length - 1][1], lng: route[route.length - 1][0] } : null);
 
   const q = query.trim().toLowerCase();
   const filtered = drives.filter(d => {
@@ -246,8 +304,8 @@ export default function DrivesScreen() {
                   <Text style={styles.detailTitle}>{selected.vehicleName || 'Drive'}</Text>
                   <TouchableOpacity onPress={() => setSelected(null)} hitSlop={8}><X size={20} color="#000" /></TouchableOpacity>
                 </View>
-                {staticMapUrl(selected) ? (
-                  <Image source={{ uri: staticMapUrl(selected) }} style={styles.detailMap} resizeMode="cover" />
+                {staticMapUrl(startPt, endPt, route) ? (
+                  <Image source={{ uri: staticMapUrl(startPt, endPt, route) }} style={styles.detailMap} resizeMode="cover" />
                 ) : null}
                 <View style={styles.detailBody}>
                   <View style={styles.row}><User size={14} color="#666" /><Text style={styles.rowText}>{selected.driverName || 'Unknown'}</Text></View>
@@ -257,17 +315,20 @@ export default function DrivesScreen() {
                   {selected.endedAt ? (
                     <View style={styles.row}><Clock size={14} color="#0061bd" /><Text style={[styles.rowText, { fontWeight: '600' }]}>Duration: {formatDuration(selected.durationMs)}</Text></View>
                   ) : null}
+                  {route.length >= 2 ? (
+                    <View style={styles.row}><MapPin size={14} color="#0061bd" /><Text style={styles.rowText}>{route.length} GPS points along the route</Text></View>
+                  ) : null}
                   <View style={styles.row}>
                     <MapPin size={14} color="#018a16" />
                     <View style={styles.locCol}><Text style={styles.locLabel}>From</Text>
-                      <GeoText lat={selected.startPosition?.lat} lng={selected.startPosition?.lng} address={selected.startAddress} style={styles.rowText} numberOfLines={2} />
+                      <GeoText lat={startPt?.lat} lng={startPt?.lng} address={selected.startAddress} style={styles.rowText} numberOfLines={2} />
                     </View>
                   </View>
                   {selected.endedAt ? (
                     <View style={styles.row}>
                       <MapPin size={14} color="#c4001a" />
                       <View style={styles.locCol}><Text style={styles.locLabel}>To</Text>
-                        <GeoText lat={selected.endPosition?.lat} lng={selected.endPosition?.lng} address={selected.endAddress} style={styles.rowText} numberOfLines={2} />
+                        <GeoText lat={endPt?.lat} lng={endPt?.lng} address={selected.endAddress} style={styles.rowText} numberOfLines={2} />
                       </View>
                     </View>
                   ) : null}
