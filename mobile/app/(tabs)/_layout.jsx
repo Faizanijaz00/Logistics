@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { User, Map, Car, Route, ReceiptText, Clock, CalendarClock } from 'lucide-react-native';
+import { User, Map, Car, Clock, CalendarClock, Shield } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
 
 export default function TabLayout() {
@@ -69,10 +69,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="tickets"
+        name="admin"
         options={{
-          title: 'Tickets',
-          tabBarIcon: ({ color, size }) => <ReceiptText size={size} color={color} />,
+          title: 'Admin',
+          tabBarIcon: ({ color, size }) => <Shield size={size} color={color} />,
         }}
       />
     </Tabs>

@@ -1,23 +1,23 @@
 import { useState, useCallback } from 'react';
-import { useFocusEffect } from 'expo-router';
+import { useFocusEffect, useRouter } from 'expo-router';
 import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, TextInput } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { ReceiptText, Car, User, Calendar, AlertCircle, Clock, Plus, Search, X } from 'lucide-react-native';
+import { ReceiptText, Car, User, Calendar, AlertCircle, Clock, Plus, Search, X, ChevronLeft } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
 import { useVehicleStore } from '../../src/store/vehicleStore';
 import { SERVER_URL } from '../../src/config/api';
 import ReceiptViewer from '../../src/components/ReceiptViewer';
 import SkeletonList from '../../src/components/SkeletonList';
-import { AddTicketModal, TicketEditModal } from './index';
+import { AddTicketModal, TicketEditModal } from '../(tabs)/index';
 
 // Appeal/paid state isn't stored in its own columns — `status` carries paid/
 // appealing and the deadlines ride inside plan_for_contesting as JSON. Also
 // accept the older camelCase/snake fields so historical tickets still read.
-export function parseTicketMeta(t) {
+function parseTicketMeta(t) {
   let meta = {};
   const raw = t.plan_for_contesting;
   if (raw && typeof raw === 'string' && raw.trim().startsWith('{')) {
-    try { meta = JSON.parse(raw); } catch {}
+    try { meta = JSON.parse(raw); } catch { /* keep defaults */ }
   }
   const appealing = t.appealing || meta.appealing || (t.status === 'Appealing' ? 'yes' : 'undecided');
   const appealDeadline = t.appeal_deadline || t.appealDeadline || meta.appeal_deadline || null;
@@ -40,6 +40,7 @@ function formatCurrency(n) {
 }
 
 export default function TicketsScreen() {
+  const router = useRouter();
   const token = useAuthStore(s => s.token);
   const user = useAuthStore(s => s.user);
   const { vehicles } = useVehicleStore();
@@ -150,6 +151,9 @@ export default function TicketsScreen() {
     <SafeAreaView style={styles.safe} edges={['top']}>
       <View style={styles.header}>
         <View style={styles.headerRow}>
+          <TouchableOpacity onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
+            <ChevronLeft size={24} color="#000" />
+          </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.headerTitle}>Tickets & Fines</Text>
             <Text style={styles.headerSub}>
@@ -338,6 +342,7 @@ const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#f5f5f5' },
   header: { paddingHorizontal: 20, paddingTop: 8, paddingBottom: 14, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#ececec' },
   headerRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  backBtn: { marginLeft: -4 },
   headerTitle: { fontSize: 22, fontWeight: '700', color: '#000' },
   headerSub: { fontSize: 13, color: '#888', marginTop: 2 },
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#000', paddingHorizontal: 14, paddingVertical: 9, borderRadius: 10 },

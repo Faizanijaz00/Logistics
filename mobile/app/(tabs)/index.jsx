@@ -1762,7 +1762,7 @@ const TAB_OPTIONS = [
   { value: '/', label: 'Home' },
   { value: '/fleet', label: 'Fleet' },
   { value: '/journeys', label: 'Journeys' },
-  { value: '/tickets', label: 'Tickets' },
+  { value: '/admin', label: 'Admin' },
   { value: '/map', label: 'Map' },
 ];
 
