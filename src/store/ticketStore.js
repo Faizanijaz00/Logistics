@@ -53,6 +53,20 @@ export const useTicketStore = create((set, get) => ({
     return ticket;
   },
 
+  // Create a full fine record from the wizard — passes every field through
+  // (unlike createTicket, which only knows the legacy flat shape).
+  createFine: async (record) => {
+    const fine = {
+      id: `ticket-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+      created_at: now(),
+      updated_at: now(),
+      ...record,
+    };
+    set((s) => ({ tickets: [fine, ...s.tickets] }));
+    const saved = await api('POST', '/api/tickets', fine);
+    return saved || fine;
+  },
+
   updateTicket: (id, updates) => {
     set((s) => ({
       tickets: s.tickets.map((t) =>

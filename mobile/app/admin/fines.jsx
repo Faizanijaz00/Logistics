@@ -27,6 +27,24 @@ function parseTicketMeta(t) {
   return { appealing, appealDeadline, paymentDeadline, paid, receiptPath };
 }
 
+// Derive the tracker-facing fields, tolerating both the new wizard schema
+// (current_stage/key_deadline_date/action_status) and legacy tickets.
+function deriveFine(t) {
+  const meta = parseTicketMeta(t);
+  const stage = t.current_stage || t.status || 'PCN issued';
+  const deadline = t.key_deadline_date || meta.paymentDeadline || meta.appealDeadline || null;
+  const actionStatus = t.action_status || (t.action_taken ? 'actioned' : 'needs_action');
+  return { stage, deadline, actionStatus, issuerType: t.issuer_type || null, ticketType: t.ticket_type || null };
+}
+
+// Days from today until a YYYY-MM-DD / ISO deadline (null-safe). Negative = overdue.
+function daysUntil(iso) {
+  if (!iso) return Infinity;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return Infinity;
+  return Math.ceil((d.getTime() - Date.now()) / 86400000);
+}
+
 function formatDate(iso) {
   if (!iso) return '—';
   const d = new Date(iso);
@@ -136,7 +154,18 @@ export default function TicketsScreen() {
     return haystack.includes(q);
   };
 
-  const filtered = visible.filter(t => matchesStatus(t) && matchesQuery(t));
+  const filtered = visible
+    .filter(t => matchesStatus(t) && matchesQuery(t))
+    // Most urgent first: soonest key_deadline_date at the top (no-deadline last).
+    .sort((a, b) => daysUntil(deriveFine(a).deadline) - daysUntil(deriveFine(b).deadline));
+
+  // Flip needs_action ⇄ actioned (separate from the enforcement stage).
+  const toggleActionStatus = async (t) => {
+    const next = deriveFine(t).actionStatus === 'actioned' ? 'needs_action' : 'actioned';
+    setTickets(ts => ts.map(x => x.id === t.id ? { ...x, action_status: next } : x));
+    try { await authedFetch(`/api/tickets/${t.id}`, { method: 'PATCH', body: JSON.stringify({ action_status: next }) }); }
+    catch { load(); }
+  };
 
   const totalOutstanding = filtered.reduce((sum, t) => sum + (Number(t.outstanding ?? t.amount) || 0), 0);
 
@@ -160,9 +189,9 @@ export default function TicketsScreen() {
               {filtered.length} ticket{filtered.length === 1 ? '' : 's'} · {formatCurrency(totalOutstanding)} outstanding
             </Text>
           </View>
-          <TouchableOpacity style={styles.addBtn} onPress={() => setShowAdd(true)} activeOpacity={0.85}>
+          <TouchableOpacity style={styles.addBtn} onPress={() => router.push('/admin/fine-wizard')} activeOpacity={0.85}>
             <Plus size={18} color="#fff" />
-            <Text style={styles.addBtnText}>Add</Text>
+            <Text style={styles.addBtnText}>Add new fine</Text>
           </TouchableOpacity>
         </View>
 
@@ -243,6 +272,9 @@ export default function TicketsScreen() {
             const dateStr = t.date || t.createdAt || t.created_at;
             const reason = t.notes || t.reason || '';
             const { appealing, appealDeadline, paymentDeadline, paid, receiptPath } = parseTicketMeta(t);
+            const { stage, deadline, actionStatus, issuerType } = deriveFine(t);
+            const dLeft = daysUntil(deadline);
+            const deadlineColor = dLeft < 0 ? '#c4001a' : dLeft <= 7 ? '#cc7700' : '#0061bd';
             return (
               <TouchableOpacity
                 key={t.id}
@@ -254,7 +286,39 @@ export default function TicketsScreen() {
                   <Text style={styles.ref}>{ref}</Text>
                   <Text style={[styles.amount, paid && styles.amountPaid]}>{formatCurrency(amount)}</Text>
                 </View>
-                {paid ? <Text style={styles.paidBadge}>PAID</Text> : null}
+
+                {/* Stage + action-status row */}
+                <View style={styles.badgeRow}>
+                  <View style={styles.stageBadge}>
+                    <Text style={styles.stageBadgeText}>{stage}</Text>
+                  </View>
+                  {issuerType ? (
+                    <View style={styles.issuerBadge}>
+                      <Text style={styles.issuerBadgeText}>{issuerType === 'government' ? 'Gov' : 'Private'}</Text>
+                    </View>
+                  ) : null}
+                  <TouchableOpacity
+                    onPress={(e) => { e.stopPropagation?.(); toggleActionStatus(t); }}
+                    style={[styles.actionPill, actionStatus === 'actioned' ? styles.actionDone : styles.actionNeeded]}
+                  >
+                    <Text style={[styles.actionPillText, { color: actionStatus === 'actioned' ? '#018a16' : '#c4001a' }]}>
+                      {actionStatus === 'actioned' ? '✓ Actioned' : '● Needs action'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+
+                {deadline ? (
+                  <View style={styles.row}>
+                    <Clock size={14} color={deadlineColor} />
+                    <Text style={[styles.rowText, { color: deadlineColor, fontWeight: '600' }]}>
+                      {dLeft < 0 ? `Overdue by ${Math.abs(dLeft)}d` : dLeft === 0 ? 'Due today' : `Due in ${dLeft}d`} · {formatDate(deadline)}
+                    </Text>
+                  </View>
+                ) : null}
+
+                {t.recommended_action ? (
+                  <Text style={styles.reason} numberOfLines={2}>→ {t.recommended_action}</Text>
+                ) : null}
 
                 {v ? (
                   <View style={styles.row}>
@@ -365,6 +429,15 @@ const styles = StyleSheet.create({
   card: { backgroundColor: '#fff', borderRadius: 12, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#ececec' },
   cardPaid: { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' },
   cardHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
+  badgeRow: { flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 6, marginBottom: 4 },
+  stageBadge: { backgroundColor: '#eef2ff', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6 },
+  stageBadgeText: { fontSize: 12, fontWeight: '600', color: '#3730a3' },
+  issuerBadge: { backgroundColor: '#f1f5f9', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  issuerBadgeText: { fontSize: 12, fontWeight: '600', color: '#475569' },
+  actionPill: { marginLeft: 'auto', paddingHorizontal: 9, paddingVertical: 4, borderRadius: 6, borderWidth: 1 },
+  actionNeeded: { backgroundColor: '#fef2f2', borderColor: '#fecaca' },
+  actionDone: { backgroundColor: '#f0fdf4', borderColor: '#bbf7d0' },
+  actionPillText: { fontSize: 12, fontWeight: '700' },
   ref: { fontSize: 15, fontWeight: '700', color: '#000', fontFamily: 'monospace' },
   amount: { fontSize: 16, fontWeight: '700', color: '#c4001a' },
   amountPaid: { color: '#018a16' },

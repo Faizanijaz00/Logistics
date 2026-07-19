@@ -6,7 +6,7 @@ import { useAuthStore } from '../../../store';
 import { ModernMapPage } from '../../map';
 import { ModernFleetPage } from '../../fleet';
 import JourneyPlannerPage from '../../journeys/JourneyPlannerPage';
-import TicketsPage from '../../tickets/TicketsPage';
+import FinesPage from '../../fines/FinesPage';
 import { BookingsPage } from '../../bookings/BookingsPage';
 import { MyProfilePage } from '../../profile';
 import { AdminOverviewPage } from '../../admin/AdminOverviewPage';
@@ -18,7 +18,8 @@ function getPage(pathname) {
     case '/map':     return <ModernMapPage />;
     case '/fleet':   return <ModernFleetPage />;
     case '/journeys': return <JourneyPlannerPage />;
-    case '/tickets': return <TicketsPage />;
+    case '/tickets': return <FinesPage />;
+    case '/fines':   return <FinesPage />;
     case '/bookings': return <BookingsPage />;
     case '/admin':   return <AdminOverviewPage />;
     case '/finance': return <FinancePage />;

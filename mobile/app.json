@@ -3,6 +3,7 @@
     "name": "Logistics",
     "slug": "logistics",
     "version": "1.0.0",
+    "platforms": ["ios", "android"],
     "orientation": "portrait",
     "icon": "./assets/icon.png",
     "userInterfaceStyle": "light",
@@ -16,7 +17,8 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.princypl.logistics",
       "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
+        "ITSAppUsesNonExemptEncryption": false,
+        "UIBackgroundModes": ["location", "fetch", "remote-notification"]
       }
     },
     "android": {
@@ -26,7 +28,13 @@
       },
       "package": "com.logistics.app",
       "permissions": [
-        "android.permission.RECORD_AUDIO"
+        "android.permission.RECORD_AUDIO",
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION",
+        "android.permission.FOREGROUND_SERVICE",
+        "android.permission.FOREGROUND_SERVICE_LOCATION",
+        "android.permission.POST_NOTIFICATIONS"
       ]
     },
     "plugins": [
@@ -36,6 +44,22 @@
         {
           "photosPermission": "Allow Logistics to access your photos so you can attach fuel receipts, ticket notices, and issue photos.",
           "cameraPermission": "Allow Logistics to use the camera so you can photograph fuel receipts, ticket notices, and issues."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Logistics to use your location, even in the background, so it can ask if you're driving a vehicle when you reach it and mark the drive finished when you leave.",
+          "locationWhenInUsePermission": "Allow Logistics to use your location so the car you're driving shows on the live map.",
+          "isIosBackgroundLocationEnabled": true,
+          "isAndroidBackgroundLocationEnabled": true
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/android-icon-foreground.png",
+          "color": "#000000"
         }
       ],
       "@react-native-community/datetimepicker"
