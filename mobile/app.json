@@ -18,7 +18,7 @@
       "bundleIdentifier": "com.princypl.logistics",
       "infoPlist": {
         "ITSAppUsesNonExemptEncryption": false,
-        "UIBackgroundModes": ["location", "fetch", "remote-notification"]
+        "UIBackgroundModes": ["location"]
       }
     },
     "android": {
