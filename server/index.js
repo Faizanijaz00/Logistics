@@ -19,6 +19,7 @@ import { registerPaymentRoutes } from './payments.js';
 import { registerSopRoutes } from './sops.js';
 import { registerMaintenanceRoutes } from './maintenance.js';
 import { registerInventoryRoutes } from './inventory.js';
+import { registerRideRoutes } from './rides.js';
 import { startTracking, stopTracking, getTrackingStatus } from './tracking.js';
 
 const app = express();
@@ -64,6 +65,7 @@ registerPaymentRoutes(app, requireAuth);
 registerSopRoutes(app, requireAuth);
 registerMaintenanceRoutes(app, requireAuth);
 registerInventoryRoutes(app, requireAuth);
+registerRideRoutes(app, requireAuth);
 
 // --- REST endpoints ---
 

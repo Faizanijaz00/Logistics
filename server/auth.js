@@ -239,6 +239,52 @@ export function registerAuthRoutes(app) {
     }
   });
 
+  // Public rider self-signup — "normal people" who book rides. Always creates a
+  // 'rider' account (never driver/admin). No auth required.
+  app.post('/api/auth/signup', async (req, res) => {
+    const { username, password, name } = req.body || {};
+    if (!username || !password || !name) {
+      return res.status(400).json({ error: 'Username, password, and name required' });
+    }
+    if (!supabaseAvailable) return res.status(503).json({ error: 'Signup unavailable' });
+    try {
+      const hash = await sb('/rest/v1/rpc/hash_password', {
+        method: 'POST',
+        body: JSON.stringify({ p_password: password }),
+      });
+      const id = `user-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      const rows = await sb('/rest/v1/users', {
+        method: 'POST',
+        headers: { 'Prefer': 'return=representation' },
+        body: JSON.stringify({ id, username, password_hash: hash, name, role: 'rider' }),
+      });
+      const user = rows[0];
+      const token = signToken(user);
+      res.status(201).json({ token, user: { ...sanitizeUser(user), disabledTabs: [] } });
+    } catch (err) {
+      if (err.message.includes('duplicate') || err.message.includes('unique')) {
+        return res.status(409).json({ error: 'Username already exists' });
+      }
+      console.error('[Auth] Signup error:', err.message);
+      res.status(500).json({ error: 'Failed to sign up' });
+    }
+  });
+
+  // Save the current user's Expo push token (drivers get ride notifications).
+  app.post('/api/auth/push-token', requireAuth, async (req, res) => {
+    const { pushToken } = req.body || {};
+    try {
+      await sb(`/rest/v1/users?id=eq.${encodeURIComponent(req.user.id)}`, {
+        method: 'PATCH',
+        body: JSON.stringify({ push_token: pushToken || null }),
+      });
+      res.json({ ok: true });
+    } catch (err) {
+      console.error('[Auth] push-token error:', err.message);
+      res.status(500).json({ error: 'Failed to save push token' });
+    }
+  });
+
   // Update user (admin only) — name, role, username
   app.patch('/api/auth/users/:id', requireAuth, requireRole('admin'), async (req, res) => {
     const { id } = req.params;
@@ -246,8 +292,8 @@ export function registerAuthRoutes(app) {
     const updates = {};
     if (name !== undefined) updates.name = name;
     if (role !== undefined) {
-      if (role !== 'admin' && role !== 'driver') {
-        return res.status(400).json({ error: 'role must be admin or driver' });
+      if (role !== 'admin' && role !== 'driver' && role !== 'rider') {
+        return res.status(400).json({ error: 'role must be admin, driver, or rider' });
       }
       updates.role = role;
     }
