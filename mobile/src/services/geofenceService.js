@@ -99,17 +99,51 @@ function regionsFor(vehicles) {
     }));
 }
 
-// Ask for Always-location + notification permission, then (re)start geofencing
-// around the current fleet positions. Returns true if geofencing is running.
+// Request location permission AT MOST ONCE per app session. On every later call
+// we only *check* status (no dialog) — otherwise Android re-prompts every time
+// the vehicle list refreshes. Returns true if Always-location is granted.
+let _permAsked = false;
+async function ensureLocationPerms() {
+  let fg = await Location.getForegroundPermissionsAsync();
+  if (fg.status !== 'granted') {
+    if (_permAsked || !fg.canAskAgain) return false;
+    fg = await Location.requestForegroundPermissionsAsync();
+  }
+  if (fg.status !== 'granted') { _permAsked = true; return false; }
+
+  let bg = await Location.getBackgroundPermissionsAsync();
+  if (bg.status !== 'granted') {
+    if (_permAsked || !bg.canAskAgain) { _permAsked = true; return false; }
+    bg = await Location.requestBackgroundPermissionsAsync();
+  }
+  _permAsked = true;
+  return bg.status === 'granted';
+}
+
+// A stable signature of the region set (positions rounded to ~11m) so we only
+// restart geofencing when it meaningfully changes — not on every position tick.
+function regionSignature(regions) {
+  return regions
+    .map(r => `${r.identifier}:${r.latitude.toFixed(4)},${r.longitude.toFixed(4)}`)
+    .sort()
+    .join('|');
+}
+let _lastSig = null;
+
+// (Re)start geofencing around the current fleet positions. Returns true if
+// geofencing is running. Idempotent: repeated calls with the same regions are
+// no-ops and never trigger a permission dialog.
 export async function startDriveGeofencing(vehicles) {
   try {
     const regions = regionsFor(vehicles);
     if (regions.length === 0) return false;
 
-    const fg = await Location.requestForegroundPermissionsAsync();
-    if (fg.status !== 'granted') return false;
-    const bg = await Location.requestBackgroundPermissionsAsync();
-    if (bg.status !== 'granted') return false;
+    const sig = regionSignature(regions);
+    const already = await Location.hasStartedGeofencingAsync(GEOFENCE_TASK).catch(() => false);
+    // Nothing changed and we're already running → do nothing (no perm prompt).
+    if (already && sig === _lastSig) return true;
+
+    if (!(await ensureLocationPerms())) return false;
     await ensureNotificationsReady();
 
     // Persist id→name so the background task can label notifications.
@@ -117,10 +151,9 @@ export async function startDriveGeofencing(vehicles) {
     for (const v of vehicles) names[v.id] = [v.make, v.model].filter(Boolean).join(' ') || v.licensePlate || 'vehicle';
     await AsyncStorage.setItem(NAMES_KEY, JSON.stringify(names));
 
-    // Restart cleanly so region set reflects the latest positions.
-    const already = await Location.hasStartedGeofencingAsync(GEOFENCE_TASK).catch(() => false);
     if (already) await Location.stopGeofencingAsync(GEOFENCE_TASK).catch(() => {});
     await Location.startGeofencingAsync(GEOFENCE_TASK, regions);
+    _lastSig = sig;
     return true;
   } catch {
     return false;
