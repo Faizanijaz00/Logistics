@@ -3004,10 +3004,10 @@ const adminStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#f5f5f5' },
   scroll: { flex: 1 },
-  // paddingBottom clears the 88px bottom tab bar so the last action row
-  // (Stop Driving / Switch Vehicle) is fully scrollable into view.
-  content: { padding: 20, paddingBottom: 120 },
-  contentUnfolded: { padding: 28, paddingBottom: 128 },
+  // The tab navigator already reserves space for the bottom bar, so this is
+  // just breathing room under the last item (was over-padded at 120).
+  content: { padding: 20, paddingBottom: 48 },
+  contentUnfolded: { padding: 28, paddingBottom: 56 },
 
   header: {
     flexDirection: 'row',
