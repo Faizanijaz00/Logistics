@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { SERVER_URL, SUPABASE_URL, SUPABASE_ANON_KEY } from '../config/api';
+import { showDrivingNotification, clearDrivingNotification } from '../services/driveNotification';
 
 // Live location watcher handle (module-level so it survives store re-renders).
 // While a driver is on a journey we push their phone GPS to the vehicle's
@@ -16,6 +17,7 @@ export const useAuthStore = create(
       loading: false,
       error: null,
       selectedVehicleId: null,
+      selectedVehicleName: null,
       isDriving: false,
       activeDriveId: null,
 
@@ -71,8 +73,11 @@ export const useAuthStore = create(
 
       // Re-arm location tracking after an app relaunch if a drive is in progress.
       resumeDriving: () => {
-        const { isDriving, selectedVehicleId } = get();
-        if (isDriving && selectedVehicleId) get()._startLocationTracking();
+        const { isDriving, selectedVehicleId, selectedVehicleName } = get();
+        if (isDriving && selectedVehicleId) {
+          get()._startLocationTracking();
+          showDrivingNotification(selectedVehicleName || '');
+        }
       },
 
       // Reconcile local driving state against the shared server truth so every
@@ -163,8 +168,9 @@ export const useAuthStore = create(
 
       selectVehicle: async (vehicleId, vehicleName) => {
         // Optimistic: update UI instantly, then talk to the server in the background.
-        set({ selectedVehicleId: vehicleId, isDriving: true });
+        set({ selectedVehicleId: vehicleId, selectedVehicleName: vehicleName || null, isDriving: true });
         get()._startLocationTracking();
+        showDrivingNotification(vehicleName || '');
         const { token } = get();
         if (!token) return;
         fetch(`${SERVER_URL}/api/auth/select-vehicle`, {
@@ -178,8 +184,9 @@ export const useAuthStore = create(
       stopDriving: async () => {
         // Clear UI state immediately so the button responds instantly, then end
         // the drive + release the vehicle in the background.
-        set({ selectedVehicleId: null, isDriving: false });
+        set({ selectedVehicleId: null, selectedVehicleName: null, isDriving: false });
         get()._stopLocationTracking();
+        clearDrivingNotification();
         get()._endDrive();
         const { token } = get();
         if (!token) return;
@@ -193,8 +200,9 @@ export const useAuthStore = create(
       switchVehicle: async (vehicleId, vehicleName) => {
         get()._stopLocationTracking();
         get()._endDrive(); // captures + clears the old drive id synchronously
-        set({ selectedVehicleId: vehicleId, isDriving: true });
+        set({ selectedVehicleId: vehicleId, selectedVehicleName: vehicleName || null, isDriving: true });
         get()._startLocationTracking();
+        showDrivingNotification(vehicleName || '');
         const { token } = get();
         if (token) {
           fetch(`${SERVER_URL}/api/auth/select-vehicle`, {
@@ -270,7 +278,7 @@ export const useAuthStore = create(
     {
       name: 'auth-storage',
       storage: createJSONStorage(() => AsyncStorage),
-      partialize: (state) => ({ token: state.token, user: state.user, selectedVehicleId: state.selectedVehicleId, isDriving: state.isDriving, activeDriveId: state.activeDriveId }),
+      partialize: (state) => ({ token: state.token, user: state.user, selectedVehicleId: state.selectedVehicleId, selectedVehicleName: state.selectedVehicleName, isDriving: state.isDriving, activeDriveId: state.activeDriveId }),
     }
   )
 );
