@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
   ActivityIndicator, Alert, RefreshControl, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -41,7 +41,6 @@ export default function RiderScreen() {
 
   const [pickup, setPickup] = useState(null);
   const [destination, setDestination] = useState(null);
-  const [notes, setNotes] = useState('');
   const [scheduledFor, setScheduledFor] = useState(null);
   const [showPicker, setShowPicker] = useState(false);
   const [locating, setLocating] = useState(false);
@@ -68,6 +67,9 @@ export default function RiderScreen() {
   }, [token]);
 
   useFocusEffect(useCallback(() => { loadRides(); loadVehicles(); }, [loadRides, loadVehicles]));
+
+  // Auto-capture the rider's current location as the pickup on first load.
+  useEffect(() => { if (!pickup) useMyLocation(); }, []);
 
   useEffect(() => {
     if (pickup?.lat == null || destination?.lat == null) { setEstimate(null); return; }
@@ -112,7 +114,6 @@ export default function RiderScreen() {
           destination_address: destination.address,
           destination_lat: destination.lat ?? null,
           destination_lng: destination.lng ?? null,
-          notes: notes.trim() || null,
           scheduled_for: scheduledFor ? scheduledFor.toISOString() : null,
           est_duration_min: estimate?.durationMin ?? null,
           est_distance_km: estimate ? Math.round(estimate.distanceKm * 10) / 10 : null,
@@ -121,7 +122,7 @@ export default function RiderScreen() {
         }),
       });
       if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || `Request failed (${res.status})`); }
-      setDestination(null); setPickup(null); setNotes(''); setScheduledFor(null); setChoice('flexible');
+      setDestination(null); setScheduledFor(null); setChoice('flexible');
       Alert.alert('Ride requested', 'Nearby drivers have been notified.');
       loadRides();
     } catch (e) {
@@ -164,11 +165,18 @@ export default function RiderScreen() {
         />
 
         <View style={styles.card}>
-          <AddressAutocomplete label="Pickup" placeholder="Pickup location" value={pickup?.address || ''} onSelect={setPickup} />
-          <TouchableOpacity style={styles.locBtn} onPress={useMyLocation} disabled={locating}>
-            {locating ? <ActivityIndicator size="small" color="#0061bd" /> : <Crosshair size={15} color="#0061bd" />}
-            <Text style={styles.locBtnText}>Use my current location</Text>
-          </TouchableOpacity>
+          <View style={styles.pickupRow}>
+            <MapPin size={18} color="#018a16" />
+            <View style={{ flex: 1 }}>
+              <Text style={styles.pickupLabel}>Pickup</Text>
+              <Text style={styles.pickupValue} numberOfLines={1}>
+                {pickup?.address || (locating ? 'Getting your location…' : 'Location unavailable')}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={useMyLocation} hitSlop={8} disabled={locating}>
+              {locating ? <ActivityIndicator size="small" color="#0061bd" /> : <Crosshair size={18} color="#0061bd" />}
+            </TouchableOpacity>
+          </View>
 
           {showPicker && (
             <DateTimePicker
@@ -228,11 +236,7 @@ export default function RiderScreen() {
           </>
         )}
 
-        {/* Notes */}
-        <Text style={[styles.label, { marginTop: 16 }]}>Notes (optional)</Text>
-        <TextInput style={styles.notes} value={notes} onChangeText={setNotes} placeholder="Anything the driver should know?" placeholderTextColor="#aaa" multiline />
-
-        <TouchableOpacity style={[styles.book, !canBook && styles.bookDisabled]} disabled={!canBook} onPress={book}>
+        <TouchableOpacity style={[styles.book, !canBook && styles.bookDisabled, { marginTop: 20 }]} disabled={!canBook} onPress={book}>
           {submitting ? <ActivityIndicator color="#fff" /> : (<><Navigation size={18} color="#fff" /><Text style={styles.bookText}>Request ride</Text></>)}
         </TouchableOpacity>
 
@@ -272,8 +276,9 @@ const styles = StyleSheet.create({
   laterBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: '#fff', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 20 },
   laterText: { fontSize: 14, fontWeight: '600', color: '#000' },
   card: { backgroundColor: '#fff', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#ececec', marginTop: 14 },
-  locBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 2 },
-  locBtnText: { color: '#0061bd', fontSize: 13, fontWeight: '600' },
+  pickupRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  pickupLabel: { fontSize: 12, color: '#888', fontWeight: '600' },
+  pickupValue: { fontSize: 15, color: '#000', fontWeight: '600', marginTop: 1 },
   clearLater: { color: '#888', fontSize: 12, marginTop: 10 },
   estimate: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#eef4ff', borderRadius: 12, padding: 12, marginTop: 14 },
   estimateText: { fontSize: 14, color: '#1e40af', fontWeight: '600' },
