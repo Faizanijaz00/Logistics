@@ -3004,8 +3004,10 @@ const adminStyles = StyleSheet.create({
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: '#f5f5f5' },
   scroll: { flex: 1 },
-  content: { padding: 20, paddingBottom: 40 },
-  contentUnfolded: { padding: 28, paddingBottom: 48 },
+  // paddingBottom clears the 88px bottom tab bar so the last action row
+  // (Stop Driving / Switch Vehicle) is fully scrollable into view.
+  content: { padding: 20, paddingBottom: 120 },
+  contentUnfolded: { padding: 28, paddingBottom: 128 },
 
   header: {
     flexDirection: 'row',
