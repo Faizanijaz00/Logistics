@@ -47,12 +47,19 @@ function AuthGate({ children }) {
 
   useEffect(() => {
     const inAuth = segments[0] === 'login';
+    const inRider = segments[0] === 'rider';
+    const isRider = user?.role === 'rider';
     if (!token && !inAuth) {
       router.replace('/login');
     } else if (token && inAuth) {
+      router.replace(isRider ? '/rider' : '/(tabs)');
+    } else if (token && isRider && !inRider) {
+      // Riders only ever see the booking view.
+      router.replace('/rider');
+    } else if (token && !isRider && inRider) {
       router.replace('/(tabs)');
     }
-  }, [token, segments]);
+  }, [token, user, segments]);
 
   // Fetch vehicles from backend whenever authenticated
   useEffect(() => {
@@ -60,6 +67,13 @@ function AuthGate({ children }) {
       useVehicleStore.getState().fetchVehicles();
     }
   }, [token]);
+
+  // Drivers/admins register for ride-request push notifications.
+  useEffect(() => {
+    if (token && user && user.role !== 'rider') {
+      useAuthStore.getState().registerPushToken();
+    }
+  }, [token, user]);
 
   // (Re)arm background geofencing around the fleet whenever the vehicle list
   // (and thus their parked positions) changes while authenticated.
@@ -86,6 +100,7 @@ export default function RootLayout() {
       <Stack screenOptions={{ headerShown: false }}>
         <Stack.Screen name="login" />
         <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="rider" />
       </Stack>
     </AuthGate>
   );

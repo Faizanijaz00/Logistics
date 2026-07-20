@@ -51,6 +51,11 @@ export function registerRideRoutes(app, requireAuth) {
         destination_lat: b.destination_lat ?? null,
         destination_lng: b.destination_lng ?? null,
         notes: b.notes || null,
+        scheduled_for: b.scheduled_for || null,
+        est_duration_min: b.est_duration_min ?? null,
+        est_distance_km: b.est_distance_km ?? null,
+        vehicle_preference: b.vehicle_preference || 'flexible',
+        vehicle_preference_name: b.vehicle_preference_name || 'Flexible',
         status: 'pending',
         created_at: new Date().toISOString(),
       };

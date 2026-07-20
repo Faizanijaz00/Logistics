@@ -235,6 +235,51 @@ export const useAuthStore = create(
         }
       },
 
+      // Public rider self-signup (role forced to 'rider' server-side).
+      signup: async (username, password, name) => {
+        set({ loading: true, error: null });
+        try {
+          const resp = await fetch(`${SERVER_URL}/api/auth/signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ username, password, name }),
+          });
+          if (!resp.ok) {
+            const err = await resp.json().catch(() => ({}));
+            throw new Error(err.error || 'Signup failed');
+          }
+          const data = await resp.json();
+          set({ token: data.token, user: data.user, loading: false });
+          return data;
+        } catch (err) {
+          set({ loading: false, error: err.message });
+          throw err;
+        }
+      },
+
+      // Drivers/admins register their Expo push token so they receive ride
+      // requests. Guarded so it no-ops where expo-notifications isn't present.
+      registerPushToken: async () => {
+        try {
+          const { token, user } = get();
+          if (!token || user?.role === 'rider') return;
+          const Notifications = await import('expo-notifications');
+          const Constants = (await import('expo-constants')).default;
+          const projectId = Constants?.expoConfig?.extra?.eas?.projectId;
+          let perm = await Notifications.getPermissionsAsync();
+          if (!perm.granted) perm = await Notifications.requestPermissionsAsync();
+          if (!perm.granted) return;
+          const result = await Notifications.getExpoPushTokenAsync(projectId ? { projectId } : undefined);
+          const pushToken = result?.data;
+          if (!pushToken) return;
+          await fetch(`${SERVER_URL}/api/auth/push-token`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ pushToken }),
+          });
+        } catch { /* no-op */ }
+      },
+
       logout: () => {
         // Release any vehicle this driver was holding + close any open drive on
         // the server BEFORE we drop the token, otherwise the car stays stuck as
