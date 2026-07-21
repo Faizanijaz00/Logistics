@@ -1,10 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
 import { User, Map, Car, Clock, CalendarClock, Shield, Navigation, Menu, LogOut, Route, Sun, Moon } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
 import { useThemeStore, useTheme } from '../../src/store/themeStore';
 import MenuDrawer from '../../src/components/MenuDrawer';
+
+// Open the app on the Rides tab by default (the "Faizan" home tab stays put).
+export const unstable_settings = { initialRouteName: 'rides' };
 
 export default function TabLayout() {
   const user = useAuthStore(s => s.user);
@@ -14,6 +17,14 @@ export default function TabLayout() {
   const mode = useThemeStore(s => s.mode);
   const toggleTheme = useThemeStore(s => s.toggle);
   const [menuOpen, setMenuOpen] = useState(false);
+
+  // Land on Rides when the tab group first mounts (tab switches don't remount
+  // the layout, so this doesn't fight manual navigation to other tabs).
+  useEffect(() => {
+    const id = setTimeout(() => router.replace('/(tabs)/rides'), 0);
+    return () => clearTimeout(id);
+  }, []);
+
   const homeLabel = user?.role === 'admin' ? 'Home' : (user?.name || 'Drive');
   const isAdmin = user?.role === 'admin';
 
