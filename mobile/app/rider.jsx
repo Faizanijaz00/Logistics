@@ -100,6 +100,19 @@ export default function RiderScreen() {
     return () => clearInterval(iv);
   }, [activeRide?.id, loadRides]);
 
+  // Live ETA from the driver's current position to the next target.
+  const [trackEta, setTrackEta] = useState(null);
+  useEffect(() => {
+    if (!activeRide || activeRide.driver_lat == null) { setTrackEta(null); return; }
+    const target = activeRide.status === 'accepted'
+      ? { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng }
+      : { lat: activeRide.destination_lat, lng: activeRide.destination_lng };
+    if (target.lat == null) return;
+    let alive = true;
+    getRouteEstimate({ lat: activeRide.driver_lat, lng: activeRide.driver_lng }, target).then(e => { if (alive && e) setTrackEta(e); });
+    return () => { alive = false; };
+  }, [activeRide?.id, activeRide?.status, activeRide?.driver_lat, activeRide?.driver_lng]);
+
   const chosenVehicle = choice === 'flexible' ? null : vehicles.find(v => v.id === choice);
   const arrival = estimate ? new Date((scheduledFor ? scheduledFor.getTime() : Date.now()) + estimate.durationMin * 60000) : null;
 
@@ -218,7 +231,7 @@ export default function RiderScreen() {
           </Text>
           <Text style={[styles.trackSub, { color: t.subtext }]} numberOfLines={1}>
             {onWay ? `Meet at ${activeRide.pickup_address || 'your pickup'}` : `Heading to ${activeRide.destination_address}`}
-            {activeRide.est_duration_min ? ` · ~${activeRide.est_duration_min} min` : ''}
+            {(trackEta?.durationMin ?? activeRide.est_duration_min) ? ` · ~${trackEta?.durationMin ?? activeRide.est_duration_min} min` : ''}
           </Text>
           <View style={[styles.driverCard, { backgroundColor: t.card, borderColor: t.border }]}>
             <View style={[styles.driverImg, { backgroundColor: t.inputBg }]}>

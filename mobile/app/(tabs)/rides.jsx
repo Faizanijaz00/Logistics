@@ -85,16 +85,27 @@ export default function RidesScreen() {
   // The ride the driver is currently handling → drives the navigation view.
   const activeRide = mine.find(r => r.status === 'accepted' || r.status === 'in_progress');
 
-  const [routeEst, setRouteEst] = useState(null);
+  // Live ETA/distance recomputed from the driver's CURRENT position to the next
+  // target (pickup while heading there, destination once the trip's underway).
+  const [driverLoc, setDriverLoc] = useState(null);
+  const [liveEta, setLiveEta] = useState(null);
+  const etaThrottle = useRef(0);
   useEffect(() => {
-    if (!activeRide || activeRide.pickup_lat == null || activeRide.destination_lat == null) { setRouteEst(null); return; }
+    if (!activeRide || !driverLoc) return;
+    const now = Date.now();
+    if (now - etaThrottle.current < 9000) return; // don't hammer the Directions API
+    etaThrottle.current = now;
+    const target = activeRide.status === 'accepted'
+      ? { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng }
+      : { lat: activeRide.destination_lat, lng: activeRide.destination_lng };
+    if (target.lat == null) return;
     let alive = true;
-    getRouteEstimate(
-      { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng },
-      { lat: activeRide.destination_lat, lng: activeRide.destination_lng },
-    ).then(e => { if (alive) setRouteEst(e); });
+    getRouteEstimate(driverLoc, target).then(e => { if (alive && e) setLiveEta(e); });
     return () => { alive = false; };
-  }, [activeRide?.id, activeRide?.pickup_lat, activeRide?.destination_lat]);
+  }, [driverLoc, activeRide?.id, activeRide?.status]);
+  // Reset the live ETA when switching phase/ride so it recomputes fresh.
+  useEffect(() => { setLiveEta(null); etaThrottle.current = 0; }, [activeRide?.id, activeRide?.status]);
+  const eta = liveEta || null;
 
   const mapUrl = loc && MAPBOX_TOKEN
     ? `https://api.mapbox.com/styles/v1/mapbox/${t.mapStyle}/static/pin-s+2563eb(${loc.lng},${loc.lat})/${loc.lng},${loc.lat},13,0/${SCREEN_W}x600@2x?access_token=${MAPBOX_TOKEN}`
@@ -160,7 +171,7 @@ export default function RidesScreen() {
               destination={{ lat: activeRide.destination_lat, lng: activeRide.destination_lng }}
               mapStyle={t.mapStyle}
               accent={t.accent}
-              onLocation={(c) => shareDriverLocation(activeRide.id, c)}
+              onLocation={(c) => { setDriverLoc(c); shareDriverLocation(activeRide.id, c); }}
             />
           ) : (
             <View style={[styles.navMap, styles.center, { backgroundColor: t.inputBg }]}>
@@ -168,9 +179,9 @@ export default function RidesScreen() {
               <Text style={{ color: t.subtext, marginTop: 8 }}>No map coordinates for this ride</Text>
             </View>
           )}
-          {routeEst && (
+          {eta && (
             <View style={[styles.etaPill, { backgroundColor: t.card }]}>
-              <Text style={[styles.etaMin, { color: t.text }]}>{routeEst.durationMin}</Text>
+              <Text style={[styles.etaMin, { color: t.text }]}>{eta.durationMin}</Text>
               <Text style={[styles.etaUnit, { color: t.subtext }]}>min</Text>
             </View>
           )}
@@ -186,7 +197,7 @@ export default function RidesScreen() {
               <Text style={[styles.navRiderName, { color: t.text }]}>{activeRide.rider_name || 'Rider'}</Text>
               <Text style={[styles.navRoute, { color: t.subtext }]} numberOfLines={1}>{activeRide.pickup_address || 'Pickup'} → {activeRide.destination_address}</Text>
             </View>
-            {routeEst && <Text style={[styles.navDist, { color: t.subtext }]}>{routeEst.distanceKm.toFixed(1)} km</Text>}
+            {eta && <Text style={[styles.navDist, { color: t.subtext }]}>{eta.distanceKm.toFixed(1)} km</Text>}
           </View>
 
           {accepted ? (
