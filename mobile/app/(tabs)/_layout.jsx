@@ -26,14 +26,14 @@ export default function TabLayout() {
   }, []);
 
   const homeLabel = user?.role === 'admin' ? 'Home' : (user?.name || 'Drive');
-  const isAdmin = user?.role === 'admin';
 
   // Secondary destinations live in the drawer to keep the bottom bar uncluttered.
+  // Admin hub (Fines/Payments/SOPs/Maintenance/Inventory) is available to drivers too.
   const drawerItems = [
+    { label: 'Admin', icon: Shield, onPress: () => router.push('/(tabs)/admin') },
     { label: 'Bookings', icon: CalendarClock, onPress: () => router.push('/(tabs)/bookings') },
     { label: 'Drives', icon: Clock, onPress: () => router.push('/(tabs)/drives') },
     { label: 'Journeys', icon: Route, onPress: () => router.push('/(tabs)/journeys') },
-    ...(isAdmin ? [{ label: 'Admin', icon: Shield, onPress: () => router.push('/(tabs)/admin') }] : []),
     { label: mode === 'dark' ? 'Light mode' : 'Dark mode', icon: mode === 'dark' ? Sun : Moon, onPress: () => toggleTheme() },
     { label: 'Log out', icon: LogOut, danger: true, onPress: () => logout() },
   ];
