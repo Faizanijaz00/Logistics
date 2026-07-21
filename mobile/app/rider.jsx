@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useFocusEffect } from 'expo-router';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Image, Dimensions,
-  ActivityIndicator, Alert, RefreshControl, Platform,
+  ActivityIndicator, Alert, RefreshControl, Modal, Pressable,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -38,6 +38,7 @@ export default function RiderScreen() {
   const [destination, setDestination] = useState(null);
   const [scheduledFor, setScheduledFor] = useState(null);
   const [showPicker, setShowPicker] = useState(false);
+  const [draftTime, setDraftTime] = useState(new Date());
   const [locating, setLocating] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [rides, setRides] = useState([]);
@@ -132,6 +133,38 @@ export default function RiderScreen() {
   const btnBg = isDark ? '#fff' : '#000';
   const btnFg = isDark ? '#000' : '#fff';
 
+  const openScheduler = () => { setDraftTime(scheduledFor || new Date()); setShowPicker(true); };
+
+  // Clean scheduling sheet (replaces the raw inline picker). Rendered in both views.
+  const scheduleModal = (
+    <Modal visible={showPicker} transparent animationType="slide" onRequestClose={() => setShowPicker(false)}>
+      <Pressable style={styles.modalOverlay} onPress={() => setShowPicker(false)} />
+      <View style={[styles.modalSheet, { backgroundColor: t.card }]}>
+        <Text style={[styles.modalTitle, { color: t.text }]}>Schedule for later</Text>
+        <View style={styles.pickerWrap}>
+          <DateTimePicker
+            value={draftTime} mode="datetime" display="spinner" minimumDate={new Date()} themeVariant={t.mode}
+            textColor={t.text}
+            onChange={(_, d) => { if (d) setDraftTime(d); }}
+          />
+        </View>
+        <View style={styles.modalBtns}>
+          {scheduledFor && (
+            <TouchableOpacity style={[styles.modalBtn, { backgroundColor: t.inputBg }]} onPress={() => { setScheduledFor(null); setShowPicker(false); }}>
+              <Text style={[styles.modalBtnText, { color: '#c4001a' }]}>Clear</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={[styles.modalBtn, { backgroundColor: t.inputBg }]} onPress={() => setShowPicker(false)}>
+            <Text style={[styles.modalBtnText, { color: t.text }]}>Cancel</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.modalBtn, { backgroundColor: btnBg, flex: 1.4 }]} onPress={() => { setScheduledFor(draftTime); setShowPicker(false); }}>
+            <Text style={[styles.modalBtnText, { color: btnFg }]}>Set pickup time</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+
   // ── Ride option card ──────────────────────────────────────────────
   const RideCard = ({ id, title, subtitle, image, iconBg, Icon, iconColor }) => {
     const active = choice === id;
@@ -185,15 +218,12 @@ export default function RiderScreen() {
           <TouchableOpacity style={[styles.continue, { backgroundColor: btnBg }, submitting && { opacity: 0.5 }]} disabled={submitting} onPress={book}>
             {submitting ? <ActivityIndicator color={btnFg} /> : <Text style={[styles.continueText, { color: btnFg }]}>Continue</Text>}
           </TouchableOpacity>
-          <TouchableOpacity style={[styles.laterRound, { backgroundColor: t.card, borderColor: t.border }]} onPress={() => setShowPicker(true)}>
+          <TouchableOpacity style={[styles.laterRound, { backgroundColor: t.card, borderColor: t.border }]} onPress={openScheduler}>
             <Calendar size={20} color={t.text} />
           </TouchableOpacity>
         </View>
         {scheduledFor && <Text style={[styles.scheduledNote, { color: t.subtext, backgroundColor: t.bg }]}>Scheduled for {fmtWhen(scheduledFor.toISOString())}</Text>}
-        {showPicker && (
-          <DateTimePicker value={scheduledFor || new Date()} mode="datetime" minimumDate={new Date()} themeVariant={t.mode}
-            onChange={(e, d) => { setShowPicker(Platform.OS === 'ios'); if (e.type === 'set' && d) setScheduledFor(d); if (e.type === 'dismissed') setShowPicker(false); }} />
-        )}
+        {scheduleModal}
       </SafeAreaView>
     );
   }
@@ -222,7 +252,7 @@ export default function RiderScreen() {
         <View style={styles.searchZone}>
           <AddressAutocomplete big leftIcon={Search} placeholder="Where to?" value={destination?.address || ''} onSelect={setDestination} proximity={pickup}
             rightAccessory={(
-              <TouchableOpacity style={[styles.laterBtn, { backgroundColor: t.inputBg }]} onPress={() => setShowPicker(true)} activeOpacity={0.8}>
+              <TouchableOpacity style={[styles.laterBtn, { backgroundColor: t.inputBg }]} onPress={openScheduler} activeOpacity={0.8}>
                 <Calendar size={15} color={t.text} /><Text style={[styles.laterText, { color: t.text }]}>{scheduledFor ? shortTime(scheduledFor) : 'Later'}</Text>
               </TouchableOpacity>
             )} />
@@ -275,10 +305,7 @@ export default function RiderScreen() {
             })}
         </View>
       </ScrollView>
-      {showPicker && (
-        <DateTimePicker value={scheduledFor || new Date()} mode="datetime" minimumDate={new Date()} themeVariant={t.mode}
-          onChange={(e, d) => { setShowPicker(Platform.OS === 'ios'); if (e.type === 'set' && d) setScheduledFor(d); if (e.type === 'dismissed') setShowPicker(false); }} />
-      )}
+      {scheduleModal}
     </SafeAreaView>
   );
 }
@@ -338,4 +365,12 @@ const styles = StyleSheet.create({
   continueText: { fontSize: 17, fontWeight: '700' },
   laterRound: { width: 56, height: 56, borderRadius: 28, borderWidth: 1, alignItems: 'center', justifyContent: 'center' },
   scheduledNote: { textAlign: 'center', fontSize: 12, paddingBottom: 8 },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
+  modalSheet: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 20, paddingBottom: 36 },
+  modalTitle: { fontSize: 18, fontWeight: '700', textAlign: 'center', marginBottom: 6 },
+  pickerWrap: { alignItems: 'center' },
+  modalBtns: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  modalBtn: { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
+  modalBtnText: { fontSize: 15, fontWeight: '700' },
 });
+
