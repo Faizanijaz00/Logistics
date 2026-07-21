@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Alert, Image, Dimensions, Modal, Pressable, Linking, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Alert, Image, Dimensions, Modal, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MapPin, User, ArrowRight, Car, Check, X, Navigation2, CheckCircle } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
@@ -9,6 +9,7 @@ import { useTheme } from '../../src/store/themeStore';
 import { SERVER_URL } from '../../src/config/api';
 import { getCarImage } from '../../src/config/carImages';
 import { getRouteEstimate } from '../../src/lib/directions';
+import NavMapView from '../../src/components/NavMapView';
 
 const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 const SCREEN_W = Math.round(Dimensions.get('window').width);
@@ -95,15 +96,6 @@ export default function RidesScreen() {
     return () => { alive = false; };
   }, [activeRide?.id, activeRide?.pickup_lat, activeRide?.destination_lat]);
 
-  const openMaps = (r) => {
-    const dLat = r.destination_lat, dLng = r.destination_lng;
-    const daddr = (dLat != null && dLng != null) ? `${dLat},${dLng}` : encodeURIComponent(r.destination_address || '');
-    const url = Platform.OS === 'ios'
-      ? `http://maps.apple.com/?daddr=${daddr}&dirflg=d`
-      : `https://www.google.com/maps/dir/?api=1&destination=${daddr}&travelmode=driving`;
-    Linking.openURL(url).catch(() => Alert.alert('Could not open maps'));
-  };
-
   const mapUrl = loc && MAPBOX_TOKEN
     ? `https://api.mapbox.com/styles/v1/mapbox/${t.mapStyle}/static/pin-s+2563eb(${loc.lng},${loc.lat})/${loc.lng},${loc.lat},13,0/${SCREEN_W}x600@2x?access_token=${MAPBOX_TOKEN}`
     : null;
@@ -145,17 +137,22 @@ export default function RidesScreen() {
   if (activeRide) {
     const accepted = activeRide.status === 'accepted';
     const hasCoords = activeRide.pickup_lat != null && activeRide.destination_lat != null;
-    const navMapUrl = MAPBOX_TOKEN && hasCoords
-      ? `https://api.mapbox.com/styles/v1/mapbox/${t.mapStyle}/static/`
-        + `${routeEst?.geometry ? `path-5+2563eb-0.9(${encodeURIComponent(routeEst.geometry)}),` : ''}`
-        + `pin-s+16a34a(${activeRide.pickup_lng},${activeRide.pickup_lat}),pin-s+dc2626(${activeRide.destination_lng},${activeRide.destination_lat})`
-        + `/auto/${SCREEN_W}x380@2x?access_token=${MAPBOX_TOKEN}&padding=60`
-      : (loc && MAPBOX_TOKEN ? `https://api.mapbox.com/styles/v1/mapbox/${t.mapStyle}/static/pin-s+2563eb(${loc.lng},${loc.lat})/${loc.lng},${loc.lat},13,0/${SCREEN_W}x380@2x?access_token=${MAPBOX_TOKEN}` : null);
     return (
       <SafeAreaView style={[styles.safe, { backgroundColor: t.bg }]} edges={['top']}>
         <View style={styles.navMapWrap}>
-          {navMapUrl ? <Image source={{ uri: navMapUrl }} style={styles.navMap} resizeMode="cover" />
-            : <View style={[styles.navMap, styles.center, { backgroundColor: t.inputBg }]}><ActivityIndicator color={t.subtext} /></View>}
+          {hasCoords ? (
+            <NavMapView
+              pickup={{ lat: activeRide.pickup_lat, lng: activeRide.pickup_lng }}
+              destination={{ lat: activeRide.destination_lat, lng: activeRide.destination_lng }}
+              mapStyle={t.mapStyle}
+              accent={t.accent}
+            />
+          ) : (
+            <View style={[styles.navMap, styles.center, { backgroundColor: t.inputBg }]}>
+              <Navigation2 size={28} color={t.subtext} />
+              <Text style={{ color: t.subtext, marginTop: 8 }}>No map coordinates for this ride</Text>
+            </View>
+          )}
           {routeEst && (
             <View style={[styles.etaPill, { backgroundColor: t.card }]}>
               <Text style={[styles.etaMin, { color: t.text }]}>{routeEst.durationMin}</Text>
@@ -165,7 +162,6 @@ export default function RidesScreen() {
         </View>
 
         <View style={[styles.navSheet, { backgroundColor: t.bg }]}>
-          <View style={styles.handle}><View style={[styles.handleBar, { backgroundColor: t.border }]} /></View>
           <Text style={[styles.navPhase, { color: t.accent }]}>{accepted ? 'HEAD TO PICKUP' : 'DRIVE TO DESTINATION'}</Text>
           <Text style={[styles.navAddr, { color: t.text }]}>{accepted ? (activeRide.pickup_address || 'Pickup') : activeRide.destination_address}</Text>
 
@@ -178,16 +174,13 @@ export default function RidesScreen() {
             {routeEst && <Text style={[styles.navDist, { color: t.subtext }]}>{routeEst.distanceKm.toFixed(1)} km</Text>}
           </View>
 
-          <TouchableOpacity style={[styles.navBtn, { backgroundColor: t.accent }]} onPress={() => openMaps(activeRide)}>
-            <Navigation2 size={20} color="#fff" /><Text style={styles.navBtnText}>Navigate</Text>
-          </TouchableOpacity>
           {accepted ? (
-            <TouchableOpacity style={[styles.navBtn2, { backgroundColor: t.card, borderColor: t.border }]} disabled={busyId === activeRide.id} onPress={() => update(activeRide, 'in_progress')}>
-              {busyId === activeRide.id ? <ActivityIndicator color={t.text} /> : <Text style={[styles.navBtn2Text, { color: t.text }]}>Start ride</Text>}
+            <TouchableOpacity style={[styles.navBtn, { backgroundColor: t.accent }]} disabled={busyId === activeRide.id} onPress={() => update(activeRide, 'in_progress')}>
+              {busyId === activeRide.id ? <ActivityIndicator color="#fff" /> : <Text style={styles.navBtnText}>Start ride</Text>}
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity style={[styles.navBtn2, { backgroundColor: '#018a16', borderColor: '#018a16' }]} disabled={busyId === activeRide.id} onPress={() => update(activeRide, 'completed')}>
-              {busyId === activeRide.id ? <ActivityIndicator color="#fff" /> : <><CheckCircle size={18} color="#fff" /><Text style={[styles.navBtn2Text, { color: '#fff' }]}>Complete ride</Text></>}
+            <TouchableOpacity style={[styles.navBtn, { backgroundColor: '#018a16' }]} disabled={busyId === activeRide.id} onPress={() => update(activeRide, 'completed')}>
+              {busyId === activeRide.id ? <ActivityIndicator color="#fff" /> : <><CheckCircle size={18} color="#fff" /><Text style={styles.navBtnText}>Complete ride</Text></>}
             </TouchableOpacity>
           )}
         </View>
