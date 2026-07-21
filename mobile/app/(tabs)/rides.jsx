@@ -1,9 +1,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Alert, Image, Dimensions } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Alert, Image, Dimensions, Modal, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MapPin, User, ArrowRight } from 'lucide-react-native';
+import { MapPin, User, ArrowRight, Car, Check, X } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
+import { useVehicleStore } from '../../src/store/vehicleStore';
 import { useTheme } from '../../src/store/themeStore';
 import { SERVER_URL } from '../../src/config/api';
 
@@ -19,14 +20,18 @@ function fmtWhen(iso) { return iso ? new Date(iso).toLocaleString('en-GB', { day
 export default function RidesScreen() {
   const token = useAuthStore(s => s.token);
   const user = useAuthStore(s => s.user);
+  const selectedVehicleId = useAuthStore(s => s.selectedVehicleId);
+  const selectedVehicleName = useAuthStore(s => s.selectedVehicleName);
+  const selectVehicle = useAuthStore(s => s.selectVehicle);
+  const vehicles = useVehicleStore(s => s.vehicles);
   const t = useTheme();
 
-  const [online, setOnline] = useState(false);
   const [loc, setLoc] = useState(null);
   const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [busyId, setBusyId] = useState(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
 
   const load = useCallback(async () => {
     try {
@@ -52,12 +57,11 @@ export default function RidesScreen() {
     })();
   }, []);
 
-  // Poll for new requests while online.
+  // Poll for new requests periodically.
   useEffect(() => {
-    if (!online) return;
     const iv = setInterval(load, 12000);
     return () => clearInterval(iv);
-  }, [online, load]);
+  }, [load]);
 
   const update = async (ride, status) => {
     setBusyId(ride.id);
@@ -114,16 +118,16 @@ export default function RidesScreen() {
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: t.bg }]} edges={['top']}>
-      {/* Map with GO button */}
+      {/* Map with Select-vehicle button */}
       <View style={styles.mapWrap}>
         {mapUrl ? <Image source={{ uri: mapUrl }} style={styles.map} resizeMode="cover" />
           : <View style={[styles.map, styles.center, { backgroundColor: t.inputBg }]}><ActivityIndicator color={t.subtext} /></View>}
-        <TouchableOpacity
-          style={[styles.go, online ? styles.goOnline : styles.goOffline]}
-          activeOpacity={0.85}
-          onPress={() => { setOnline(o => !o); if (!online) load(); }}
-        >
-          <Text style={styles.goText}>{online ? 'STOP' : 'GO'}</Text>
+        <TouchableOpacity style={[styles.vehBtn, { backgroundColor: t.card }]} activeOpacity={0.85} onPress={() => setPickerOpen(true)}>
+          <Car size={20} color={t.accent} />
+          <Text style={[styles.vehBtnText, { color: t.text }]} numberOfLines={1}>
+            {selectedVehicleName ? selectedVehicleName : 'Select vehicle'}
+          </Text>
+          {selectedVehicleName ? <Text style={[styles.vehBtnSub, { color: t.subtext }]}>Change</Text> : null}
         </TouchableOpacity>
       </View>
 
@@ -131,26 +135,50 @@ export default function RidesScreen() {
       <View style={[styles.sheet, { backgroundColor: t.bg }]}>
         <View style={styles.handle}><View style={[styles.handleBar, { backgroundColor: t.border }]} /></View>
         <View style={styles.statusRow}>
-          <View style={[styles.dot, { backgroundColor: online ? '#018a16' : t.subtext }]} />
-          <Text style={[styles.statusText, { color: t.text }]}>{online ? "You're online" : "You're offline"}</Text>
-          <Text style={[styles.statusSub, { color: t.subtext }]}>{online ? `${pending.length} nearby` : 'Tap GO to receive rides'}</Text>
+          <View style={[styles.dot, { backgroundColor: selectedVehicleId ? '#018a16' : t.subtext }]} />
+          <Text style={[styles.statusText, { color: t.text }]}>{selectedVehicleId ? selectedVehicleName : 'No vehicle selected'}</Text>
+          <Text style={[styles.statusSub, { color: t.subtext }]}>{pending.length} request{pending.length === 1 ? '' : 's'}</Text>
         </View>
 
         <ScrollView contentContainerStyle={styles.list} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
           {loading ? <ActivityIndicator style={{ marginTop: 24 }} color={t.text} /> : (
             <>
               {mine.map(r => <RideCard key={r.id} r={r} />)}
-              {online ? (
-                pending.length === 0
-                  ? <Text style={[styles.empty, { color: t.subtext }]}>Waiting for ride requests…</Text>
-                  : pending.map(r => <RideCard key={r.id} r={r} />)
-              ) : (
-                mine.length === 0 && <Text style={[styles.empty, { color: t.subtext }]}>Go online to see incoming ride requests.</Text>
-              )}
+              {pending.length === 0
+                ? (mine.length === 0 && <Text style={[styles.empty, { color: t.subtext }]}>No ride requests right now.</Text>)
+                : pending.map(r => <RideCard key={r.id} r={r} />)}
             </>
           )}
         </ScrollView>
       </View>
+
+      {/* Vehicle picker */}
+      <Modal visible={pickerOpen} transparent animationType="slide" onRequestClose={() => setPickerOpen(false)}>
+        <Pressable style={styles.overlay} onPress={() => setPickerOpen(false)} />
+        <View style={[styles.pickerSheet, { backgroundColor: t.card }]}>
+          <View style={styles.pickerHead}>
+            <Text style={[styles.pickerTitle, { color: t.text }]}>Select vehicle</Text>
+            <TouchableOpacity onPress={() => setPickerOpen(false)} hitSlop={10}><X size={22} color={t.subtext} /></TouchableOpacity>
+          </View>
+          <ScrollView style={{ maxHeight: 380 }}>
+            {vehicles.map(v => {
+              const active = v.id === selectedVehicleId;
+              return (
+                <TouchableOpacity key={v.id} style={[styles.vehRow, { borderBottomColor: t.border }]} activeOpacity={0.7}
+                  onPress={() => { selectVehicle(v.id, `${v.make} ${v.model}`); setPickerOpen(false); }}>
+                  <View style={[styles.vehIcon, { backgroundColor: t.inputBg }]}><Car size={20} color={t.subtext} /></View>
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.vehName, { color: t.text }]}>{v.make} {v.model}</Text>
+                    {v.licensePlate ? <Text style={[styles.vehPlate, { color: t.subtext }]}>{v.licensePlate}</Text> : null}
+                  </View>
+                  {active && <Check size={20} color={t.accent} />}
+                </TouchableOpacity>
+              );
+            })}
+            {vehicles.length === 0 && <Text style={[styles.empty, { color: t.subtext }]}>No vehicles available.</Text>}
+          </ScrollView>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -160,10 +188,17 @@ const styles = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center' },
   mapWrap: { flex: 1 },
   map: { width: '100%', height: '100%' },
-  go: { position: 'absolute', bottom: 24, alignSelf: 'center', width: 84, height: 84, borderRadius: 42, alignItems: 'center', justifyContent: 'center', shadowColor: '#000', shadowOpacity: 0.3, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 8, borderWidth: 4, borderColor: 'rgba(255,255,255,0.6)' },
-  goOffline: { backgroundColor: '#2563eb' },
-  goOnline: { backgroundColor: '#c4001a' },
-  goText: { color: '#fff', fontSize: 22, fontWeight: '800', letterSpacing: 1 },
+  vehBtn: { position: 'absolute', bottom: 22, alignSelf: 'center', flexDirection: 'row', alignItems: 'center', gap: 10, paddingHorizontal: 20, paddingVertical: 14, borderRadius: 28, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 8, maxWidth: '86%' },
+  vehBtnText: { fontSize: 16, fontWeight: '700', flexShrink: 1 },
+  vehBtnSub: { fontSize: 13, fontWeight: '600' },
+  overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)' },
+  pickerSheet: { position: 'absolute', left: 0, right: 0, bottom: 0, borderTopLeftRadius: 22, borderTopRightRadius: 22, padding: 16, paddingBottom: 36 },
+  pickerHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
+  pickerTitle: { fontSize: 18, fontWeight: '700' },
+  vehRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1 },
+  vehIcon: { width: 44, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  vehName: { fontSize: 16, fontWeight: '700' },
+  vehPlate: { fontSize: 13, marginTop: 1 },
   sheet: { height: '46%', borderTopLeftRadius: 22, borderTopRightRadius: 22, marginTop: -20, paddingHorizontal: 16 },
   handle: { alignItems: 'center', paddingTop: 8, paddingBottom: 4 },
   handleBar: { width: 40, height: 4, borderRadius: 2 },
