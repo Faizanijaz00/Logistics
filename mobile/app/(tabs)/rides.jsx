@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Alert, Image, Dimensions, Modal, Pressable } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -100,6 +100,20 @@ export default function RidesScreen() {
     ? `https://api.mapbox.com/styles/v1/mapbox/${t.mapStyle}/static/pin-s+2563eb(${loc.lng},${loc.lat})/${loc.lng},${loc.lat},13,0/${SCREEN_W}x600@2x?access_token=${MAPBOX_TOKEN}`
     : null;
 
+  // Share the driver's live location to the active ride so the rider can track
+  // the car — throttled to ~every 8s.
+  const lastPush = useRef(0);
+  const shareDriverLocation = (rideId, c) => {
+    const now = Date.now();
+    if (now - lastPush.current < 8000) return;
+    lastPush.current = now;
+    fetch(`${SERVER_URL}/api/rides/${rideId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify({ driver_lat: c.lat, driver_lng: c.lng }),
+    }).catch(() => {});
+  };
+
   const RideCard = ({ r }) => {
     const c = STATUS_COLORS[r.status] || STATUS_COLORS.pending;
     const isMine = r.assigned_driver_id === user?.id;
@@ -146,6 +160,7 @@ export default function RidesScreen() {
               destination={{ lat: activeRide.destination_lat, lng: activeRide.destination_lng }}
               mapStyle={t.mapStyle}
               accent={t.accent}
+              onLocation={(c) => shareDriverLocation(activeRide.id, c)}
             />
           ) : (
             <View style={[styles.navMap, styles.center, { backgroundColor: t.inputBg }]}>

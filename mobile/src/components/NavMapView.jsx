@@ -6,9 +6,12 @@ import { LocateFixed } from 'lucide-react-native';
 const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 
 // Interactive in-app navigation map (Mapbox GL in a WebView, same engine as the
-// Map tab). Draws the driving route pickup→destination, shows the driver's live
-// location as a moving dot, and follows it. No external maps app needed.
-export default function NavMapView({ pickup, destination, mapStyle = 'streets-v12', accent = '#2563eb' }) {
+// Map tab). Draws the driving route pickup→destination and plots a moving dot.
+//  • Driver mode (default): watches the device GPS, follows it, and reports each
+//    fix via onLocation so it can be shared to the rider.
+//  • Rider mode: pass `externalLocation` (the driver's location from the ride)
+//    and it plots that instead of the device GPS.
+export default function NavMapView({ pickup, destination, mapStyle = 'streets-v12', accent = '#2563eb', externalLocation, onLocation }) {
   const ref = useRef(null);
 
   const html = `<!doctype html><html><head>
@@ -42,8 +45,16 @@ map.on('load',function(){
 });
 </script></body></html>`;
 
-  // Feed the driver's live location into the map.
+  // Rider mode: plot the driver's location passed in from the ride.
   useEffect(() => {
+    if (externalLocation?.lat != null) {
+      ref.current?.injectJavaScript(`window.setUser(${externalLocation.lat},${externalLocation.lng});true;`);
+    }
+  }, [externalLocation?.lat, externalLocation?.lng]);
+
+  // Driver mode: watch device GPS, plot it, and report it up via onLocation.
+  useEffect(() => {
+    if (externalLocation) return; // rider mode uses the prop instead
     let sub;
     (async () => {
       try {
@@ -52,13 +63,16 @@ map.on('load',function(){
         if (status !== 'granted') status = (await Location.requestForegroundPermissionsAsync()).status;
         if (status !== 'granted') return;
         sub = await Location.watchPositionAsync(
-          { accuracy: Location.Accuracy.High, timeInterval: 3000, distanceInterval: 10 },
-          (pos) => { ref.current?.injectJavaScript(`window.setUser(${pos.coords.latitude},${pos.coords.longitude});true;`); }
+          { accuracy: Location.Accuracy.High, timeInterval: 4000, distanceInterval: 15 },
+          (pos) => {
+            ref.current?.injectJavaScript(`window.setUser(${pos.coords.latitude},${pos.coords.longitude});true;`);
+            onLocation?.({ lat: pos.coords.latitude, lng: pos.coords.longitude });
+          }
         );
       } catch {}
     })();
     return () => { try { sub?.remove(); } catch {} };
-  }, []);
+  }, [externalLocation]);
 
   return (
     <View style={styles.wrap}>

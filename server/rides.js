@@ -110,6 +110,9 @@ export function registerRideRoutes(app, requireAuth) {
         rides[idx].assigned_driver_id = req.user.id;
         rides[idx].assigned_driver = b.assigned_driver || req.user.username;
       }
+      // Live driver location share (so the rider can track the car).
+      if (b.driver_lat != null) rides[idx].driver_lat = b.driver_lat;
+      if (b.driver_lng != null) rides[idx].driver_lng = b.driver_lng;
       rides[idx].updated_at = new Date().toISOString();
       saveRides(rides);
       res.json(rides[idx]);

@@ -11,6 +11,7 @@ import { useAuthStore } from '../src/store/authStore';
 import { useTheme, useThemeStore } from '../src/store/themeStore';
 import { SERVER_URL } from '../src/config/api';
 import AddressAutocomplete from '../src/components/AddressAutocomplete';
+import NavMapView from '../src/components/NavMapView';
 import { reverseGeocode } from '../src/lib/geocode';
 import { getRouteEstimate } from '../src/lib/directions';
 import { getCarImage } from '../src/config/carImages';
@@ -89,6 +90,15 @@ export default function RiderScreen() {
     }
     return out;
   }, [rides]);
+
+  // The rider's live ride (a driver accepted / trip underway) → tracking view.
+  const activeRide = rides.find(r => r.status === 'accepted' || r.status === 'in_progress');
+  // Poll so the driver's location + status update live.
+  useEffect(() => {
+    if (!activeRide) return;
+    const iv = setInterval(loadRides, 8000);
+    return () => clearInterval(iv);
+  }, [activeRide?.id, loadRides]);
 
   const chosenVehicle = choice === 'flexible' ? null : vehicles.find(v => v.id === choice);
   const arrival = estimate ? new Date((scheduledFor ? scheduledFor.getTime() : Date.now()) + estimate.durationMin * 60000) : null;
@@ -181,6 +191,55 @@ export default function RiderScreen() {
       </TouchableOpacity>
     );
   };
+
+  // ══════════════════════ TRACKING VIEW (driver on the way / trip underway) ══════════════════════
+  if (activeRide) {
+    const onWay = activeRide.status === 'accepted';
+    const hasCoords = activeRide.pickup_lat != null && activeRide.destination_lat != null;
+    const driverLoc = (activeRide.driver_lat != null) ? { lat: activeRide.driver_lat, lng: activeRide.driver_lng } : undefined;
+    const carImg = getCarImage(vehicles.find(v => v.id === activeRide.vehicle_preference)?.imageId);
+    return (
+      <SafeAreaView style={[styles.safe, { backgroundColor: t.bg }]} edges={['top']}>
+        <View style={styles.trackMap}>
+          {hasCoords ? (
+            <NavMapView
+              pickup={{ lat: activeRide.pickup_lat, lng: activeRide.pickup_lng }}
+              destination={{ lat: activeRide.destination_lat, lng: activeRide.destination_lng }}
+              mapStyle={t.mapStyle} accent={t.accent}
+              externalLocation={driverLoc}
+            />
+          ) : (
+            <View style={[{ flex: 1 }, styles.center, { backgroundColor: t.inputBg }]}><ActivityIndicator color={t.subtext} /></View>
+          )}
+        </View>
+        <View style={[styles.trackSheet, { backgroundColor: t.bg }]}>
+          <Text style={[styles.trackStatus, { color: t.text }]}>
+            {onWay ? `${activeRide.assigned_driver || 'Your driver'} is on the way` : 'On your trip'}
+          </Text>
+          <Text style={[styles.trackSub, { color: t.subtext }]} numberOfLines={1}>
+            {onWay ? `Meet at ${activeRide.pickup_address || 'your pickup'}` : `Heading to ${activeRide.destination_address}`}
+            {activeRide.est_duration_min ? ` · ~${activeRide.est_duration_min} min` : ''}
+          </Text>
+          <View style={[styles.driverCard, { backgroundColor: t.card, borderColor: t.border }]}>
+            <View style={[styles.driverImg, { backgroundColor: t.inputBg }]}>
+              {carImg ? <Image source={carImg} style={styles.driverCarImg} resizeMode="contain" /> : <Car size={26} color={t.subtext} />}
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.driverName, { color: t.text }]}>{activeRide.assigned_driver || 'Driver'}</Text>
+              <Text style={[styles.driverVeh, { color: t.subtext }]}>{activeRide.vehicle_preference_name || 'Vehicle'}</Text>
+            </View>
+            <View style={[styles.statusBadge, { backgroundColor: onWay ? '#dbeafe' : '#e0e7ff' }]}>
+              <Text style={[styles.statusBadgeText, { color: onWay ? '#1e40af' : '#3730a3' }]}>{onWay ? 'On the way' : 'In progress'}</Text>
+            </View>
+          </View>
+          <View style={styles.trackRoute}>
+            <View style={styles.line}><MapPin size={13} color="#018a16" /><Text style={[styles.lineText, { color: t.text }]} numberOfLines={1}>{activeRide.pickup_address || 'Pickup'}</Text></View>
+            <View style={styles.line}><MapPin size={13} color="#c4001a" /><Text style={[styles.lineText, { color: t.text }]} numberOfLines={1}>{activeRide.destination_address}</Text></View>
+          </View>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   // ══════════════════════ CONFIRM VIEW (destination chosen) ══════════════════════
   if (destination) {
@@ -372,5 +431,19 @@ const styles = StyleSheet.create({
   modalBtns: { flexDirection: 'row', gap: 10, marginTop: 8 },
   modalBtn: { flex: 1, borderRadius: 12, paddingVertical: 14, alignItems: 'center' },
   modalBtnText: { fontSize: 15, fontWeight: '700' },
+
+  // Tracking view
+  trackMap: { flex: 1 },
+  trackSheet: { borderTopLeftRadius: 22, borderTopRightRadius: 22, marginTop: -20, paddingHorizontal: 20, paddingTop: 18, paddingBottom: 28 },
+  trackStatus: { fontSize: 20, fontWeight: '800' },
+  trackSub: { fontSize: 14, marginTop: 4, marginBottom: 16 },
+  driverCard: { flexDirection: 'row', alignItems: 'center', gap: 12, borderRadius: 14, borderWidth: 1, padding: 12, marginBottom: 14 },
+  driverImg: { width: 60, height: 48, borderRadius: 10, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  driverCarImg: { width: 58, height: 44 },
+  driverName: { fontSize: 16, fontWeight: '700' },
+  driverVeh: { fontSize: 13, marginTop: 1 },
+  statusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
+  statusBadgeText: { fontSize: 12, fontWeight: '700' },
+  trackRoute: { gap: 2 },
 });
 
