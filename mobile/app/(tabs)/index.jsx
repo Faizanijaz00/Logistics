@@ -13,6 +13,7 @@ import ReceiptViewer from '../../src/components/ReceiptViewer';
 import DateField from '../../src/components/DateField';
 import UpdateBanner from '../../src/components/UpdateBanner';
 import { captureReceiptPhoto, pickReceiptFromLibrary } from '../../src/lib/receipts';
+import { useTheme } from '../../src/store/themeStore';
 
 // Same Mapbox token the map uses — powers destination address autocomplete.
 const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
@@ -89,13 +90,14 @@ const plateStyles = StyleSheet.create({
 });
 
 function VehiclePickerRow({ vehicle, onSelect, currentUser }) {
+  const t = useTheme();
   const carImage = getCarImage(vehicle.imageId);
   const driverId = vehicle.currentDriverId || vehicle.current_driver_id;
   const isMine = driverId && currentUser?.id && driverId === currentUser.id;
   const inUse = !!vehicle.currentDriver && !isMine;
   return (
     <TouchableOpacity
-      style={[pickerStyles.row, inUse && pickerStyles.rowInUse, isMine && pickerStyles.rowMine]}
+      style={[pickerStyles.row, { backgroundColor: t.card, borderColor: t.border }, inUse && pickerStyles.rowInUse, isMine && pickerStyles.rowMine]}
       activeOpacity={0.6}
       onPress={() => onSelect(vehicle)}
     >
@@ -104,15 +106,15 @@ function VehiclePickerRow({ vehicle, onSelect, currentUser }) {
           <Image source={carImage} style={[pickerStyles.carImage, inUse && { opacity: 0.55 }]} resizeMode="contain" />
         ) : (
           <View style={pickerStyles.iconFallback}>
-            <Car size={22} color="#888" />
+            <Car size={22} color={t.subtext} />
           </View>
         )}
       </View>
       <View style={pickerStyles.details}>
-        <Text style={pickerStyles.name}>{vehicle.make} {vehicle.model}</Text>
+        <Text style={[pickerStyles.name, { color: t.text }]}>{vehicle.make} {vehicle.model}</Text>
         <View style={pickerStyles.meta}>
           <UKPlate registration={vehicle.licensePlate} small />
-          {vehicle.color ? <Text style={pickerStyles.color}>{vehicle.color}</Text> : null}
+          {vehicle.color ? <Text style={[pickerStyles.color, { color: t.subtext }]}>{vehicle.color}</Text> : null}
         </View>
         {isMine ? (
           <Text style={pickerStyles.mineBadge}>Currently driving</Text>
@@ -120,7 +122,7 @@ function VehiclePickerRow({ vehicle, onSelect, currentUser }) {
           <Text style={pickerStyles.driverBadge}>In use by {vehicle.currentDriver}</Text>
         ) : null}
       </View>
-      <ChevronRight size={18} color="#ccc" />
+      <ChevronRight size={18} color={t.subtext} />
     </TouchableOpacity>
   );
 }
@@ -162,6 +164,7 @@ export default function HomeScreen() {
 function DriverHomeScreen() {
   const { user, token, logout, selectedVehicleId, isDriving, selectVehicle, stopDriving, switchVehicle, resumeDriving, reconcileFromVehicles } = useAuthStore();
   const { vehicles, fetchVehicles } = useVehicleStore();
+  const t = useTheme();
   const [showPicker, setShowPicker] = useState(false);
   const [showFuelModal, setShowFuelModal] = useState(false);
   const [showTicketModal, setShowTicketModal] = useState(false);
@@ -232,14 +235,14 @@ function DriverHomeScreen() {
   const carImage = vehicle ? getCarImage(vehicle.imageId) : null;
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: t.bg }]}>
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, isUnfolded && styles.contentUnfolded]} showsVerticalScrollIndicator={false}>
 
         {/* Header */}
         <View style={styles.header}>
           <View>
-            <Text style={[styles.greeting, isUnfolded && styles.greetingUnfolded]}>{timeGreeting()}, {user?.name?.split(' ')[0] || user?.username}</Text>
-            <Text style={styles.role}>{isDriving ? 'On a journey' : 'Ready to drive'}</Text>
+            <Text style={[styles.greeting, isUnfolded && styles.greetingUnfolded, { color: t.text }]}>{timeGreeting()}, {user?.name?.split(' ')[0] || user?.username}</Text>
+            <Text style={[styles.role, { color: t.subtext }]}>{isDriving ? 'On a journey' : 'Ready to drive'}</Text>
           </View>
           <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
             <LogOut size={16} color="#c4001a" />
@@ -259,13 +262,13 @@ function DriverHomeScreen() {
                     <View style={styles.liveDot} />
                     <Text style={styles.liveText}>ACTIVE</Text>
                   </View>
-                  <Text style={styles.heroNameUnfolded}>{vehicle.make} {vehicle.model}</Text>
+                  <Text style={[styles.heroNameUnfolded, { color: t.text }]}>{vehicle.make} {vehicle.model}</Text>
                   <UKPlate registration={vehicle.licensePlate} />
                   {carImage ? (
                     <Image source={carImage} style={styles.heroImageUnfolded} resizeMode="contain" />
                   ) : (
                     <View style={styles.heroImageFallback}>
-                      <Car size={48} color="#ccc" />
+                      <Car size={48} color={t.subtext} />
                     </View>
                   )}
                   <View style={styles.groundShadow} />
@@ -274,56 +277,56 @@ function DriverHomeScreen() {
                 {/* Right half: stats + actions */}
                 <View style={styles.unfoldedInfoCol}>
                   {/* Stats Row */}
-                  <View style={styles.statsRowUnfolded}>
+                  <View style={[styles.statsRowUnfolded, { backgroundColor: t.card, borderColor: t.border }]}>
                     <View style={styles.statCard}>
                       <Navigation size={16} color="#018a16" />
-                      <Text style={styles.statLabel}>Status</Text>
-                      <Text style={styles.statValue}>Driving</Text>
+                      <Text style={[styles.statLabel, { color: t.subtext }]}>Status</Text>
+                      <Text style={[styles.statValue, { color: t.text }]}>Driving</Text>
                     </View>
-                    <View style={styles.statDivider} />
+                    <View style={[styles.statDivider, { backgroundColor: t.border }]} />
                     <TouchableOpacity style={styles.statCard} activeOpacity={0.6} onPress={() => setShowDestModal(true)}>
                       <MapPin size={16} color="#3B82F6" />
-                      <Text style={styles.statLabel}>Destination</Text>
-                      <Text style={styles.statValue} numberOfLines={1}>{vehicle.destination || 'Tap to set'}</Text>
+                      <Text style={[styles.statLabel, { color: t.subtext }]}>Destination</Text>
+                      <Text style={[styles.statValue, { color: t.text }]} numberOfLines={1}>{vehicle.destination || 'Tap to set'}</Text>
                     </TouchableOpacity>
-                    <View style={styles.statDivider} />
+                    <View style={[styles.statDivider, { backgroundColor: t.border }]} />
                     <View style={styles.statCard}>
                       <View style={[styles.fuelDot, { backgroundColor: (vehicle.fuel?.level ?? 0) > 50 ? '#018a16' : (vehicle.fuel?.level ?? 0) > 20 ? '#f97316' : '#c4001a' }]} />
-                      <Text style={styles.statLabel}>Fuel</Text>
-                      <Text style={styles.statValue}>{vehicle.fuel?.level != null ? `${Math.round(vehicle.fuel.level)}%` : '—'}</Text>
+                      <Text style={[styles.statLabel, { color: t.subtext }]}>Fuel</Text>
+                      <Text style={[styles.statValue, { color: t.text }]}>{vehicle.fuel?.level != null ? `${Math.round(vehicle.fuel.level)}%` : '—'}</Text>
                     </View>
                   </View>
 
                   {/* Action Grid */}
                   <View style={styles.actionGrid}>
-                    <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={() => setShowFuelModal(true)}>
+                    <TouchableOpacity style={[styles.actionTile, { backgroundColor: t.card, borderColor: t.border }]} activeOpacity={0.7} onPress={() => setShowFuelModal(true)}>
                       <View style={[styles.actionIcon, { backgroundColor: '#fff7ed' }]}>
                         <Fuel size={20} color="#f97316" />
                       </View>
-                      <Text style={styles.actionLabel}>Fuel Up</Text>
+                      <Text style={[styles.actionLabel, { color: t.text }]}>Fuel Up</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={() => setShowTicketModal(true)}>
+                    <TouchableOpacity style={[styles.actionTile, { backgroundColor: t.card, borderColor: t.border }]} activeOpacity={0.7} onPress={() => setShowTicketModal(true)}>
                       <View style={[styles.actionIcon, { backgroundColor: '#faf5ff' }]}>
                         <ReceiptText size={20} color="#7c3aed" />
                       </View>
-                      <Text style={styles.actionLabel}>Add Ticket</Text>
+                      <Text style={[styles.actionLabel, { color: t.text }]}>Add Ticket</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={() => setShowIssueModal(true)}>
+                    <TouchableOpacity style={[styles.actionTile, { backgroundColor: t.card, borderColor: t.border }]} activeOpacity={0.7} onPress={() => setShowIssueModal(true)}>
                       <View style={[styles.actionIcon, { backgroundColor: '#fef2f2' }]}>
                         <AlertTriangle size={20} color="#dc2626" />
                       </View>
-                      <Text style={styles.actionLabel}>Report Issue</Text>
+                      <Text style={[styles.actionLabel, { color: t.text }]}>Report Issue</Text>
                     </TouchableOpacity>
-                    <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={() => setShowChargeModal(true)}>
+                    <TouchableOpacity style={[styles.actionTile, { backgroundColor: t.card, borderColor: t.border }]} activeOpacity={0.7} onPress={() => setShowChargeModal(true)}>
                       <View style={[styles.actionIcon, { backgroundColor: '#f0fdf4' }]}>
                         <Coins size={20} color="#018a16" />
                       </View>
-                      <Text style={styles.actionLabel}>Pay for Toll</Text>
+                      <Text style={[styles.actionLabel, { color: t.text }]}>Pay for Toll</Text>
                     </TouchableOpacity>
                   </View>
 
                   {/* Stop Driving */}
-                  <TouchableOpacity style={styles.stopBtn} activeOpacity={0.8} onPress={handleStopDriving}>
+                  <TouchableOpacity style={[styles.stopBtn, { backgroundColor: t.card }]} activeOpacity={0.8} onPress={handleStopDriving}>
                     <LogOut size={18} color="#c4001a" />
                     <Text style={styles.stopBtnText}>Stop Driving — Park Vehicle</Text>
                   </TouchableOpacity>
@@ -340,70 +343,70 @@ function DriverHomeScreen() {
                   <Text style={styles.liveText}>ACTIVE</Text>
                 </View>
 
-                <Text style={styles.heroName}>{vehicle.make} {vehicle.model}</Text>
+                <Text style={[styles.heroName, { color: t.text }]}>{vehicle.make} {vehicle.model}</Text>
                 <UKPlate registration={vehicle.licensePlate} />
 
                 {carImage ? (
                   <Image source={carImage} style={styles.heroImage} resizeMode="contain" />
                 ) : (
                   <View style={styles.heroImageFallback}>
-                    <Car size={48} color="#ccc" />
+                    <Car size={48} color={t.subtext} />
                   </View>
                 )}
                 <View style={styles.groundShadow} />
               </View>
 
               {/* Stats Row */}
-              <View style={styles.statsRow}>
+              <View style={[styles.statsRow, { backgroundColor: t.card, borderColor: t.border }]}>
                 <View style={styles.statCard}>
                   <Navigation size={16} color="#018a16" />
-                  <Text style={styles.statLabel}>Status</Text>
-                  <Text style={styles.statValue}>Driving</Text>
+                  <Text style={[styles.statLabel, { color: t.subtext }]}>Status</Text>
+                  <Text style={[styles.statValue, { color: t.text }]}>Driving</Text>
                 </View>
-                <View style={styles.statDivider} />
+                <View style={[styles.statDivider, { backgroundColor: t.border }]} />
                 <TouchableOpacity style={styles.statCard} activeOpacity={0.6} onPress={() => setShowDestModal(true)}>
                   <MapPin size={16} color="#3B82F6" />
-                  <Text style={styles.statLabel}>Destination</Text>
-                  <Text style={styles.statValue} numberOfLines={1}>{vehicle.destination || 'Tap to set'}</Text>
+                  <Text style={[styles.statLabel, { color: t.subtext }]}>Destination</Text>
+                  <Text style={[styles.statValue, { color: t.text }]} numberOfLines={1}>{vehicle.destination || 'Tap to set'}</Text>
                 </TouchableOpacity>
-                <View style={styles.statDivider} />
+                <View style={[styles.statDivider, { backgroundColor: t.border }]} />
                 <View style={styles.statCard}>
                   <View style={[styles.fuelDot, { backgroundColor: (vehicle.fuel?.level ?? 0) > 50 ? '#018a16' : (vehicle.fuel?.level ?? 0) > 20 ? '#f97316' : '#c4001a' }]} />
-                  <Text style={styles.statLabel}>Fuel</Text>
-                  <Text style={styles.statValue}>{vehicle.fuel?.level != null ? `${Math.round(vehicle.fuel.level)}%` : '—'}</Text>
+                  <Text style={[styles.statLabel, { color: t.subtext }]}>Fuel</Text>
+                  <Text style={[styles.statValue, { color: t.text }]}>{vehicle.fuel?.level != null ? `${Math.round(vehicle.fuel.level)}%` : '—'}</Text>
                 </View>
               </View>
 
               {/* Action Grid */}
               <View style={styles.actionGrid}>
-                <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={() => setShowFuelModal(true)}>
+                <TouchableOpacity style={[styles.actionTile, { backgroundColor: t.card, borderColor: t.border }]} activeOpacity={0.7} onPress={() => setShowFuelModal(true)}>
                   <View style={[styles.actionIcon, { backgroundColor: '#fff7ed' }]}>
                     <Fuel size={20} color="#f97316" />
                   </View>
-                  <Text style={styles.actionLabel}>Fuel Up</Text>
+                  <Text style={[styles.actionLabel, { color: t.text }]}>Fuel Up</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={() => setShowTicketModal(true)}>
+                <TouchableOpacity style={[styles.actionTile, { backgroundColor: t.card, borderColor: t.border }]} activeOpacity={0.7} onPress={() => setShowTicketModal(true)}>
                   <View style={[styles.actionIcon, { backgroundColor: '#faf5ff' }]}>
                     <ReceiptText size={20} color="#7c3aed" />
                   </View>
-                  <Text style={styles.actionLabel}>Add Ticket</Text>
+                  <Text style={[styles.actionLabel, { color: t.text }]}>Add Ticket</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={() => setShowIssueModal(true)}>
+                <TouchableOpacity style={[styles.actionTile, { backgroundColor: t.card, borderColor: t.border }]} activeOpacity={0.7} onPress={() => setShowIssueModal(true)}>
                   <View style={[styles.actionIcon, { backgroundColor: '#fef2f2' }]}>
                     <AlertTriangle size={20} color="#dc2626" />
                   </View>
-                  <Text style={styles.actionLabel}>Report Issue</Text>
+                  <Text style={[styles.actionLabel, { color: t.text }]}>Report Issue</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.actionTile} activeOpacity={0.7} onPress={() => setShowChargeModal(true)}>
+                <TouchableOpacity style={[styles.actionTile, { backgroundColor: t.card, borderColor: t.border }]} activeOpacity={0.7} onPress={() => setShowChargeModal(true)}>
                   <View style={[styles.actionIcon, { backgroundColor: '#f0fdf4' }]}>
                     <Coins size={20} color="#018a16" />
                   </View>
-                  <Text style={styles.actionLabel}>Pay for Toll</Text>
+                  <Text style={[styles.actionLabel, { color: t.text }]}>Pay for Toll</Text>
                 </TouchableOpacity>
               </View>
 
               {/* Stop Driving */}
-              <TouchableOpacity style={styles.stopBtn} activeOpacity={0.8} onPress={handleStopDriving}>
+              <TouchableOpacity style={[styles.stopBtn, { backgroundColor: t.card }]} activeOpacity={0.8} onPress={handleStopDriving}>
                 <LogOut size={18} color="#c4001a" />
                 <Text style={styles.stopBtnText}>Stop Driving — Park Vehicle</Text>
               </TouchableOpacity>
@@ -412,11 +415,11 @@ function DriverHomeScreen() {
         ) : (
           /* Not Driving */
           <View style={[styles.emptyState, isUnfolded && styles.emptyStateUnfolded]}>
-            <View style={[styles.emptyCarBox, isUnfolded && styles.emptyCarBoxUnfolded]}>
-              <Car size={isUnfolded ? 48 : 40} color="#d1d5db" />
+            <View style={[styles.emptyCarBox, isUnfolded && styles.emptyCarBoxUnfolded, { backgroundColor: t.card, borderColor: t.border }]}>
+              <Car size={isUnfolded ? 48 : 40} color={t.subtext} />
             </View>
-            <Text style={[styles.emptyTitle, isUnfolded && styles.emptyTitleUnfolded]}>No vehicle selected</Text>
-            <Text style={[styles.emptySubtitle, isUnfolded && styles.emptySubtitleUnfolded]}>Choose a vehicle to begin your journey</Text>
+            <Text style={[styles.emptyTitle, isUnfolded && styles.emptyTitleUnfolded, { color: t.text }]}>No vehicle selected</Text>
+            <Text style={[styles.emptySubtitle, isUnfolded && styles.emptySubtitleUnfolded, { color: t.subtext }]}>Choose a vehicle to begin your journey</Text>
             <TouchableOpacity style={[styles.selectBtn, isUnfolded && styles.selectBtnUnfolded]} activeOpacity={0.85} onPress={() => setShowPicker(true)}>
               <Navigation size={18} color="#fff" />
               <Text style={styles.selectBtnText}>Select Vehicle</Text>
@@ -427,19 +430,19 @@ function DriverHomeScreen() {
 
       {/* Vehicle Picker Modal */}
       <Modal visible={showPicker} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowPicker(false)}>
-        <SafeAreaView style={styles.modalSafe}>
+        <SafeAreaView style={[styles.modalSafe, { backgroundColor: t.bg }]}>
           <View style={styles.modalHeader}>
             <View>
-              <Text style={styles.modalTitle}>Select Vehicle</Text>
-              <Text style={styles.modalSubtitle}>{availableVehicles.filter(v => !v.currentDriver).length} of {availableVehicles.length} available</Text>
+              <Text style={[styles.modalTitle, { color: t.text }]}>Select Vehicle</Text>
+              <Text style={[styles.modalSubtitle, { color: t.subtext }]}>{availableVehicles.filter(v => !v.currentDriver).length} of {availableVehicles.length} available</Text>
             </View>
-            <TouchableOpacity onPress={() => setShowPicker(false)} style={styles.closeBtn}>
-              <X size={18} color="#000" />
+            <TouchableOpacity onPress={() => setShowPicker(false)} style={[styles.closeBtn, { backgroundColor: t.card, borderColor: t.border }]}>
+              <X size={18} color={t.text} />
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.modalList}>
             {availableVehicles.length === 0 ? (
-              <Text style={styles.noVehicles}>No vehicles available</Text>
+              <Text style={[styles.noVehicles, { color: t.subtext }]}>No vehicles available</Text>
             ) : (
               availableVehicles.map(v => (
                 <VehiclePickerRow key={v.id} vehicle={v} onSelect={handleSelectVehicle} currentUser={user} />
@@ -500,6 +503,7 @@ function DriverHomeScreen() {
 
 // ── Fuel Up Modal ──────────────────────────────────────────────────────────────
 function FuelUpModal({ visible, onClose, vehicle, user, token }) {
+  const t = useTheme();
   const [amount, setAmount] = useState('');
   const [usedFuelCard, setUsedFuelCard] = useState(false);
   const [receiptPath, setReceiptPath] = useState(null);
@@ -552,38 +556,38 @@ function FuelUpModal({ visible, onClose, vehicle, user, token }) {
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.modalSafe}>
+      <SafeAreaView style={[styles.modalSafe, { backgroundColor: t.bg }]}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <View style={styles.modalHeader}>
             <View>
-              <Text style={styles.modalTitle}>Fuel Up</Text>
-              <Text style={styles.modalSubtitle}>{vehicle?.make} {vehicle?.model}</Text>
+              <Text style={[styles.modalTitle, { color: t.text }]}>Fuel Up</Text>
+              <Text style={[styles.modalSubtitle, { color: t.subtext }]}>{vehicle?.make} {vehicle?.model}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={18} color="#000" />
+            <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: t.card, borderColor: t.border }]}>
+              <X size={18} color={t.text} />
             </TouchableOpacity>
           </View>
 
           <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
-            <Text style={styles.fieldLabel}>Amount paid</Text>
-            <View style={styles.amountRow}>
-              <Text style={styles.currency}>£</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>Amount paid</Text>
+            <View style={[styles.amountRow, { backgroundColor: t.inputBg, borderColor: t.border }]}>
+              <Text style={[styles.currency, { color: t.subtext }]}>£</Text>
               <TextInput
-                style={styles.amountInput}
+                style={[styles.amountInput, { color: t.text }]}
                 value={amount}
                 onChangeText={setAmount}
                 keyboardType="decimal-pad"
                 placeholder="0.00"
-                placeholderTextColor="#bbb"
+                placeholderTextColor={t.subtext}
                 autoFocus
               />
             </View>
 
             {isMercedesGLE && (
-              <View style={styles.toggleRow}>
+              <View style={[styles.toggleRow, { backgroundColor: t.card, borderColor: t.border }]}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.toggleLabel}>Used fuel card</Text>
-                  <Text style={styles.toggleHint}>Mercedes GLE only</Text>
+                  <Text style={[styles.toggleLabel, { color: t.text }]}>Used fuel card</Text>
+                  <Text style={[styles.toggleHint, { color: t.subtext }]}>Mercedes GLE only</Text>
                 </View>
                 <Switch
                   value={usedFuelCard}
@@ -593,7 +597,7 @@ function FuelUpModal({ visible, onClose, vehicle, user, token }) {
               </View>
             )}
 
-            <Text style={styles.fieldLabel}>Receipt</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>Receipt</Text>
             <ReceiptPicker kind="fuel" token={token} onChange={setReceiptPath} label="Attach fuel receipt" />
 
             <TouchableOpacity
@@ -616,6 +620,7 @@ function FuelUpModal({ visible, onClose, vehicle, user, token }) {
 // against their current vehicle (or a passed-in one); an admin fills in the
 // reference / amount / appeal / deadlines later by tapping the ticket.
 export function AddTicketModal({ visible, onClose, vehicle, user, token, vehicles = [], onSaved }) {
+  const t = useTheme();
   const selectedVehicleId = useAuthStore(s => s.selectedVehicleId);
   const [receiptPath, setReceiptPath] = useState(null);
   const [submitting, setSubmitting] = useState(false);
@@ -666,21 +671,21 @@ export function AddTicketModal({ visible, onClose, vehicle, user, token, vehicle
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.modalSafe}>
+      <SafeAreaView style={[styles.modalSafe, { backgroundColor: t.bg }]}>
         <View style={styles.modalHeader}>
           <View>
-            <Text style={styles.modalTitle}>Add Ticket</Text>
-            <Text style={styles.modalSubtitle}>
+            <Text style={[styles.modalTitle, { color: t.text }]}>Add Ticket</Text>
+            <Text style={[styles.modalSubtitle, { color: t.subtext }]}>
               {effectiveVehicle ? `${effectiveVehicle.make} ${effectiveVehicle.model}` : 'Snap the ticket'}
             </Text>
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <X size={18} color="#000" />
+          <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: t.card, borderColor: t.border }]}>
+            <X size={18} color={t.text} />
           </TouchableOpacity>
         </View>
 
         <ScrollView contentContainerStyle={styles.modalList}>
-          <Text style={styles.fieldLabel}>Ticket photo</Text>
+          <Text style={[styles.fieldLabel, { color: t.subtext }]}>Ticket photo</Text>
           <ReceiptPicker kind="ticket" token={token} onChange={setReceiptPath} label="Attach ticket photo" />
 
           <TouchableOpacity
@@ -701,6 +706,7 @@ export function AddTicketModal({ visible, onClose, vehicle, user, token, vehicle
 // Logs a toll / airport charge / airport parking as a ticket-category record so
 // it lands in the Tickets tab alongside PCNs (with a `type` + amount + receipt).
 function ChargeModal({ visible, onClose, vehicle, user, token, vehicles = [], onSaved }) {
+  const t = useTheme();
   const selectedVehicleId = useAuthStore(s => s.selectedVehicleId);
   const [type, setType] = useState('Toll');
   const [amount, setAmount] = useState('');
@@ -760,50 +766,50 @@ function ChargeModal({ visible, onClose, vehicle, user, token, vehicles = [], on
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.modalSafe}>
+      <SafeAreaView style={[styles.modalSafe, { backgroundColor: t.bg }]}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <View style={styles.modalHeader}>
             <View>
-              <Text style={styles.modalTitle}>Pay for Toll</Text>
-              <Text style={styles.modalSubtitle}>
+              <Text style={[styles.modalTitle, { color: t.text }]}>Pay for Toll</Text>
+              <Text style={[styles.modalSubtitle, { color: t.subtext }]}>
                 {effectiveVehicle ? `${effectiveVehicle.make} ${effectiveVehicle.model}` : 'Log a charge'}
               </Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={18} color="#000" />
+            <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: t.card, borderColor: t.border }]}>
+              <X size={18} color={t.text} />
             </TouchableOpacity>
           </View>
 
           <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
-            <Text style={styles.fieldLabel}>Charge type</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>Charge type</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-              {CHARGE_TYPES.map(t => (
+              {CHARGE_TYPES.map(ct => (
                 <TouchableOpacity
-                  key={t}
-                  onPress={() => setType(t)}
-                  style={[styles.severityChip, type === t && styles.severityChipActive]}
+                  key={ct}
+                  onPress={() => setType(ct)}
+                  style={[styles.severityChip, { backgroundColor: t.card, borderColor: t.border }, type === ct && styles.severityChipActive]}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.severityChipText, type === t && styles.severityChipTextActive]}>{t}</Text>
+                  <Text style={[styles.severityChipText, { color: t.text }, type === ct && styles.severityChipTextActive]}>{ct}</Text>
                 </TouchableOpacity>
               ))}
             </View>
 
-            <Text style={styles.fieldLabel}>Amount paid</Text>
-            <View style={styles.amountRow}>
-              <Text style={styles.currency}>£</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>Amount paid</Text>
+            <View style={[styles.amountRow, { backgroundColor: t.inputBg, borderColor: t.border }]}>
+              <Text style={[styles.currency, { color: t.text }]}>£</Text>
               <TextInput
-                style={styles.amountInput}
+                style={[styles.amountInput, { color: t.text }]}
                 value={amount}
                 onChangeText={setAmount}
                 keyboardType="decimal-pad"
                 placeholder="0.00"
-                placeholderTextColor="#bbb"
+                placeholderTextColor={t.subtext}
                 autoFocus
               />
             </View>
 
-            <Text style={styles.fieldLabel}>Receipt (optional)</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>Receipt (optional)</Text>
             <ReceiptPicker kind="ticket" token={token} onChange={setReceiptPath} label="Attach receipt photo" />
 
             <TouchableOpacity
@@ -823,6 +829,7 @@ function ChargeModal({ visible, onClose, vehicle, user, token, vehicles = [], on
 
 // ── Report Issue Modal ─────────────────────────────────────────────────────────
 function ReportIssueModal({ visible, onClose, vehicle, user, token }) {
+  const t = useTheme();
   const [description, setDescription] = useState('');
   const [severity, setSeverity] = useState('low');
   const [photoPath, setPhotoPath] = useState(null);
@@ -878,31 +885,31 @@ function ReportIssueModal({ visible, onClose, vehicle, user, token }) {
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.modalSafe}>
+      <SafeAreaView style={[styles.modalSafe, { backgroundColor: t.bg }]}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <View style={styles.modalHeader}>
             <View>
-              <Text style={styles.modalTitle}>Report Issue</Text>
-              <Text style={styles.modalSubtitle}>{vehicle?.make} {vehicle?.model}</Text>
+              <Text style={[styles.modalTitle, { color: t.text }]}>Report Issue</Text>
+              <Text style={[styles.modalSubtitle, { color: t.subtext }]}>{vehicle?.make} {vehicle?.model}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={18} color="#000" />
+            <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: t.card, borderColor: t.border }]}>
+              <X size={18} color={t.text} />
             </TouchableOpacity>
           </View>
 
           <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
-            <Text style={styles.fieldLabel}>Description</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>Description</Text>
             <TextInput
-              style={[styles.textInput, styles.multilineTall]}
+              style={[styles.textInput, styles.multilineTall, { backgroundColor: t.inputBg, color: t.text, borderColor: t.border }]}
               value={description}
               onChangeText={setDescription}
               placeholder="Describe the issue..."
-              placeholderTextColor="#bbb"
+              placeholderTextColor={t.subtext}
               multiline
               autoFocus
             />
 
-            <Text style={styles.fieldLabel}>Severity</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>Severity</Text>
             <View style={styles.severityRow}>
               {SEVERITIES.map(s => {
                 const selected = severity === s.key;
@@ -911,12 +918,13 @@ function ReportIssueModal({ visible, onClose, vehicle, user, token }) {
                     key={s.key}
                     style={[
                       styles.severityChip,
+                      { backgroundColor: t.card, borderColor: t.border },
                       selected && { backgroundColor: s.bg, borderColor: s.color },
                     ]}
                     onPress={() => setSeverity(s.key)}
                     activeOpacity={0.8}
                   >
-                    <Text style={[styles.severityChipText, selected && { color: s.color, fontWeight: '700' }]}>
+                    <Text style={[styles.severityChipText, { color: t.text }, selected && { color: s.color, fontWeight: '700' }]}>
                       {s.label}
                     </Text>
                   </TouchableOpacity>
@@ -924,7 +932,7 @@ function ReportIssueModal({ visible, onClose, vehicle, user, token }) {
               })}
             </View>
 
-            <Text style={styles.fieldLabel}>Photo</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>Photo</Text>
             <ReceiptPicker kind="issue" token={token} onChange={setPhotoPath} label="Attach issue photo" />
 
             <TouchableOpacity
@@ -944,6 +952,7 @@ function ReportIssueModal({ visible, onClose, vehicle, user, token }) {
 
 // ── Destination Modal ─────────────────────────────────────────────────────────
 function DestinationModal({ visible, onClose, vehicle, token, onSaved }) {
+  const t = useTheme();
   const [text, setText] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -1021,22 +1030,22 @@ function DestinationModal({ visible, onClose, vehicle, token, onSaved }) {
         style={styles.modalBackdrop}
       >
         <Pressable style={{ flex: 1 }} onPress={onClose} />
-        <View style={styles.modalSheet}>
+        <View style={[styles.modalSheet, { backgroundColor: t.card }]}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Set Destination</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={18} color="#000" />
+            <Text style={[styles.modalTitle, { color: t.text }]}>Set Destination</Text>
+            <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: t.card, borderColor: t.border }]}>
+              <X size={18} color={t.text} />
             </TouchableOpacity>
           </View>
           <View style={{ padding: 18 }}>
-            <Text style={styles.fieldLabel}>Where are you heading?</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>Where are you heading?</Text>
             <View style={destStyles.inputWrap}>
               <TextInput
-                style={styles.textInput}
+                style={[styles.textInput, { backgroundColor: t.inputBg, color: t.text, borderColor: t.border }]}
                 value={text}
                 onChangeText={setText}
                 placeholder="Search an address or place…"
-                placeholderTextColor="#aaa"
+                placeholderTextColor={t.subtext}
                 autoCorrect={false}
                 autoCapitalize="none"
               />
@@ -1046,25 +1055,25 @@ function DestinationModal({ visible, onClose, vehicle, token, onSaved }) {
             </View>
 
             {suggestions.length > 0 ? (
-              <View style={destStyles.suggestions}>
+              <View style={[destStyles.suggestions, { backgroundColor: t.card, borderColor: t.border }]}>
                 {suggestions.map(f => (
                   <TouchableOpacity
                     key={f.id}
-                    style={destStyles.suggestionRow}
+                    style={[destStyles.suggestionRow, { borderBottomColor: t.border }]}
                     onPress={() => pickSuggestion(f)}
                     activeOpacity={0.6}
                   >
                     <MapPin size={16} color="#0061bd" />
                     <View style={{ flex: 1 }}>
-                      <Text style={destStyles.suggestionTitle} numberOfLines={1}>{f.text || f.place_name}</Text>
-                      <Text style={destStyles.suggestionSub} numberOfLines={1}>{f.place_name}</Text>
+                      <Text style={[destStyles.suggestionTitle, { color: t.text }]} numberOfLines={1}>{f.text || f.place_name}</Text>
+                      <Text style={[destStyles.suggestionSub, { color: t.subtext }]} numberOfLines={1}>{f.place_name}</Text>
                     </View>
                   </TouchableOpacity>
                 ))}
               </View>
             ) : searched && !searching && text.trim().length >= 3 ? (
               <View style={destStyles.noMatch}>
-                <Text style={destStyles.noMatchText}>No matches — you can still save what you typed.</Text>
+                <Text style={[destStyles.noMatchText, { color: t.subtext }]}>No matches — you can still save what you typed.</Text>
               </View>
             ) : null}
 
@@ -1109,6 +1118,7 @@ const destStyles = StyleSheet.create({
 // ═══════════════════════════════════════════════════════════════════════════════
 
 function AdminHomeScreen() {
+  const t = useTheme();
   const { user, token, logout } = useAuthStore();
   const { vehicles, fetchVehicles } = useVehicleStore();
   const { isUnfolded } = useLayout();
@@ -1203,12 +1213,12 @@ function AdminHomeScreen() {
   const toggle = (key) => setOpen(o => ({ ...o, [key]: !o[key] }));
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: t.bg }]}>
       <ScrollView style={styles.scroll} contentContainerStyle={[styles.content, isUnfolded && styles.contentUnfolded]} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View>
-            <Text style={[styles.greeting, isUnfolded && styles.greetingUnfolded]}>{timeGreeting()}, {user?.name?.split(' ')[0] || user?.username}</Text>
-            <Text style={styles.role}>Admin dashboard</Text>
+            <Text style={[styles.greeting, isUnfolded && styles.greetingUnfolded, { color: t.text }]}>{timeGreeting()}, {user?.name?.split(' ')[0] || user?.username}</Text>
+            <Text style={[styles.role, { color: t.subtext }]}>Admin dashboard</Text>
           </View>
           <TouchableOpacity onPress={logout} style={styles.logoutBtn}>
             <LogOut size={16} color="#c4001a" />
@@ -1339,19 +1349,20 @@ function AdminHomeScreen() {
 
 // ── Collapsible section shell ──────────────────────────────────────────────────
 function AdminSection({ title, subtitle, icon, iconBg, open, onToggle, children }) {
+  const t = useTheme();
   return (
-    <View style={adminStyles.section}>
+    <View style={[adminStyles.section, { backgroundColor: t.card, borderColor: t.border }]}>
       <TouchableOpacity style={adminStyles.sectionHeader} onPress={onToggle} activeOpacity={0.7}>
         <View style={[adminStyles.sectionIcon, { backgroundColor: iconBg || '#f5f5f5' }]}>
           {icon}
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={adminStyles.sectionTitle}>{title}</Text>
-          {subtitle ? <Text style={adminStyles.sectionSubtitle}>{subtitle}</Text> : null}
+          <Text style={[adminStyles.sectionTitle, { color: t.text }]}>{title}</Text>
+          {subtitle ? <Text style={[adminStyles.sectionSubtitle, { color: t.subtext }]}>{subtitle}</Text> : null}
         </View>
-        {open ? <ChevronUp size={20} color="#888" /> : <ChevronDown size={20} color="#888" />}
+        {open ? <ChevronUp size={20} color={t.subtext} /> : <ChevronDown size={20} color={t.subtext} />}
       </TouchableOpacity>
-      {open ? <View style={adminStyles.sectionBody}>{children}</View> : null}
+      {open ? <View style={[adminStyles.sectionBody, { backgroundColor: t.bg, borderTopColor: t.border }]}>{children}</View> : null}
     </View>
   );
 }
@@ -1376,6 +1387,7 @@ function confirmDelete(label, onConfirm) {
 
 // ── Fleet ──────────────────────────────────────────────────────────────────────
 function FleetSection({ vehicles, authedFetch, onChanged }) {
+  const t = useTheme();
   const [editing, setEditing] = useState(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');
@@ -1406,34 +1418,34 @@ function FleetSection({ vehicles, authedFetch, onChanged }) {
       </View>
       <InlineError message={error} />
       {vehicles.length === 0 ? (
-        <Text style={adminStyles.emptyText}>No vehicles yet.</Text>
+        <Text style={[adminStyles.emptyText, { color: t.subtext }]}>No vehicles yet.</Text>
       ) : (
         vehicles.map(v => {
           const carImage = getCarImage(v.imageId);
           return (
-            <View key={v.id} style={adminStyles.row}>
+            <View key={v.id} style={[adminStyles.row, { backgroundColor: t.card, borderColor: t.border }]}>
               <TouchableOpacity
                 style={adminStyles.rowMain}
                 activeOpacity={0.7}
                 onPress={() => setEditing(v)}
               >
-                <View style={adminStyles.vehicleImage}>
+                <View style={[adminStyles.vehicleImage, { backgroundColor: t.inputBg }]}>
                   {carImage ? (
                     <Image source={carImage} style={{ width: '100%', height: '100%' }} resizeMode="contain" />
                   ) : (
-                    <Car size={22} color="#888" />
+                    <Car size={22} color={t.subtext} />
                   )}
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={adminStyles.rowTitle}>{v.make} {v.model}</Text>
+                  <Text style={[adminStyles.rowTitle, { color: t.text }]}>{v.make} {v.model}</Text>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 4 }}>
                     <UKPlate registration={v.licensePlate} small />
-                    {v.color ? <Text style={adminStyles.rowMeta}>{v.color}</Text> : null}
+                    {v.color ? <Text style={[adminStyles.rowMeta, { color: t.subtext }]}>{v.color}</Text> : null}
                   </View>
                 </View>
               </TouchableOpacity>
               <TouchableOpacity
-                style={adminStyles.iconBtn}
+                style={[adminStyles.iconBtn, { backgroundColor: t.card, borderColor: t.border }]}
                 onPress={() => handleDelete(v)}
                 disabled={busyId === v.id}
               >
@@ -1485,6 +1497,7 @@ const vehiclePhotoStyles = StyleSheet.create({
 });
 
 function VehicleEditModal({ visible, vehicle, authedFetch, onClose, onSaved }) {
+  const t = useTheme();
   const isNew = !vehicle;
   const [form, setForm] = useState({
     licensePlate: vehicle?.licensePlate || '',
@@ -1602,15 +1615,15 @@ function VehicleEditModal({ visible, vehicle, authedFetch, onClose, onSaved }) {
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.modalSafe}>
+      <SafeAreaView style={[styles.modalSafe, { backgroundColor: t.bg }]}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <View style={styles.modalHeader}>
             <View>
-              <Text style={styles.modalTitle}>{isNew ? 'Add Vehicle' : 'Edit Vehicle'}</Text>
-              <Text style={styles.modalSubtitle}>{vehicle ? `${vehicle.make} ${vehicle.model}` : 'New vehicle'}</Text>
+              <Text style={[styles.modalTitle, { color: t.text }]}>{isNew ? 'Add Vehicle' : 'Edit Vehicle'}</Text>
+              <Text style={[styles.modalSubtitle, { color: t.subtext }]}>{vehicle ? `${vehicle.make} ${vehicle.model}` : 'New vehicle'}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={18} color="#000" />
+            <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: t.card, borderColor: t.border }]}>
+              <X size={18} color={t.text} />
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
@@ -1626,9 +1639,9 @@ function VehicleEditModal({ visible, vehicle, authedFetch, onClose, onSaved }) {
               {looking ? <ActivityIndicator size="small" color="#0061bd" /> : <Text style={adminStyles.lookupBtnText}>⟳ Auto-fill from DVLA (tax + MOT)</Text>}
             </TouchableOpacity>
 
-            <Text style={styles.fieldLabel}>Vehicle photo</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>Vehicle photo</Text>
             <TouchableOpacity
-              style={vehiclePhotoStyles.photoBox}
+              style={[vehiclePhotoStyles.photoBox, { backgroundColor: t.inputBg, borderColor: t.border }]}
               onPress={pickPhoto}
               disabled={uploadingPhoto}
               activeOpacity={0.8}
@@ -1639,8 +1652,8 @@ function VehicleEditModal({ visible, vehicle, authedFetch, onClose, onSaved }) {
                 <Image source={{ uri: form.imageId }} style={vehiclePhotoStyles.photo} resizeMode="cover" />
               ) : (
                 <View style={vehiclePhotoStyles.photoPlaceholder}>
-                  <Car size={28} color="#9ca3af" />
-                  <Text style={vehiclePhotoStyles.photoHint}>Tap to add a photo</Text>
+                  <Car size={28} color={t.subtext} />
+                  <Text style={[vehiclePhotoStyles.photoHint, { color: t.subtext }]}>Tap to add a photo</Text>
                 </View>
               )}
             </TouchableOpacity>
@@ -1677,6 +1690,7 @@ function VehicleEditModal({ visible, vehicle, authedFetch, onClose, onSaved }) {
 
 // ── Users ──────────────────────────────────────────────────────────────────────
 function UsersSection({ users, currentUserId, authedFetch, onChanged }) {
+  const t = useTheme();
   const [editing, setEditing] = useState(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');
@@ -1711,10 +1725,10 @@ function UsersSection({ users, currentUserId, authedFetch, onChanged }) {
       </View>
       <InlineError message={error} />
       {users.length === 0 ? (
-        <Text style={adminStyles.emptyText}>No users yet.</Text>
+        <Text style={[adminStyles.emptyText, { color: t.subtext }]}>No users yet.</Text>
       ) : (
         users.map(u => (
-          <View key={u.id} style={adminStyles.row}>
+          <View key={u.id} style={[adminStyles.row, { backgroundColor: t.card, borderColor: t.border }]}>
             <TouchableOpacity style={adminStyles.rowMain} activeOpacity={0.7} onPress={() => setEditing(u)}>
               <View style={[adminStyles.avatar, { backgroundColor: u.role === 'admin' ? '#fef2f2' : '#f0f9ff' }]}>
                 <Text style={[adminStyles.avatarText, { color: u.role === 'admin' ? '#c4001a' : '#0284c7' }]}>
@@ -1722,12 +1736,12 @@ function UsersSection({ users, currentUserId, authedFetch, onChanged }) {
                 </Text>
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={adminStyles.rowTitle}>{u.name || u.username}</Text>
-                <Text style={adminStyles.rowMeta}>{u.username} · {u.role}</Text>
+                <Text style={[adminStyles.rowTitle, { color: t.text }]}>{u.name || u.username}</Text>
+                <Text style={[adminStyles.rowMeta, { color: t.subtext }]}>{u.username} · {u.role}</Text>
               </View>
             </TouchableOpacity>
             <TouchableOpacity
-              style={adminStyles.iconBtn}
+              style={[adminStyles.iconBtn, { backgroundColor: t.card, borderColor: t.border }]}
               onPress={() => handleDelete(u)}
               disabled={busyId === u.id}
             >
@@ -1767,6 +1781,7 @@ const TAB_OPTIONS = [
 ];
 
 function UserEditModal({ visible, user, authedFetch, onClose, onSaved }) {
+  const t = useTheme();
   const [name, setName] = useState(user.name || '');
   const [role, setRole] = useState(user.role || 'driver');
   const [disabledTabs, setDisabledTabs] = useState(user.disabledTabs || []);
@@ -1801,22 +1816,22 @@ function UserEditModal({ visible, user, authedFetch, onClose, onSaved }) {
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.modalSafe}>
+      <SafeAreaView style={[styles.modalSafe, { backgroundColor: t.bg }]}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <View style={styles.modalHeader}>
             <View>
-              <Text style={styles.modalTitle}>Edit User</Text>
-              <Text style={styles.modalSubtitle}>{user.username}</Text>
+              <Text style={[styles.modalTitle, { color: t.text }]}>Edit User</Text>
+              <Text style={[styles.modalSubtitle, { color: t.subtext }]}>{user.username}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={18} color="#000" />
+            <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: t.card, borderColor: t.border }]}>
+              <X size={18} color={t.text} />
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
             <InlineError message={error} />
             <FormField label="Name" value={name} onChange={setName} />
 
-            <Text style={styles.fieldLabel}>Role</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>Role</Text>
             <View style={styles.severityRow}>
               {['driver', 'admin'].map(r => {
                 const selected = role === r;
@@ -1827,7 +1842,7 @@ function UserEditModal({ visible, user, authedFetch, onClose, onSaved }) {
                     onPress={() => setRole(r)}
                     activeOpacity={0.8}
                   >
-                    <Text style={[styles.severityChipText, selected && { color: '#0284c7', fontWeight: '700' }]}>
+                    <Text style={[styles.severityChipText, { color: t.text }, selected && { color: '#0284c7', fontWeight: '700' }]}>
                       {r === 'admin' ? 'Admin' : 'Driver'}
                     </Text>
                   </TouchableOpacity>
@@ -1835,19 +1850,19 @@ function UserEditModal({ visible, user, authedFetch, onClose, onSaved }) {
               })}
             </View>
 
-            <Text style={styles.fieldLabel}>Tab access</Text>
-            <Text style={adminStyles.tabHint}>Tap to disable a tab for this user.</Text>
-            {TAB_OPTIONS.map(t => {
-              const disabled = disabledTabs.includes(t.value);
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>Tab access</Text>
+            <Text style={[adminStyles.tabHint, { color: t.subtext }]}>Tap to disable a tab for this user.</Text>
+            {TAB_OPTIONS.map(tab => {
+              const disabled = disabledTabs.includes(tab.value);
               return (
                 <TouchableOpacity
-                  key={t.value}
-                  style={[adminStyles.tabRow, disabled && adminStyles.tabRowDisabled]}
-                  onPress={() => toggleTab(t.value)}
+                  key={tab.value}
+                  style={[adminStyles.tabRow, { backgroundColor: t.card, borderColor: t.border }, disabled && adminStyles.tabRowDisabled]}
+                  onPress={() => toggleTab(tab.value)}
                   activeOpacity={0.7}
                 >
-                  <Text style={[adminStyles.tabRowLabel, disabled && { color: '#c4001a' }]}>{t.label}</Text>
-                  <Text style={[adminStyles.tabRowState, disabled && { color: '#c4001a' }]}>
+                  <Text style={[adminStyles.tabRowLabel, { color: t.text }, disabled && { color: '#c4001a' }]}>{tab.label}</Text>
+                  <Text style={[adminStyles.tabRowState, { color: t.subtext }, disabled && { color: '#c4001a' }]}>
                     {disabled ? 'Disabled' : 'Enabled'}
                   </Text>
                 </TouchableOpacity>
@@ -1870,6 +1885,7 @@ function UserEditModal({ visible, user, authedFetch, onClose, onSaved }) {
 }
 
 function UserCreateModal({ visible, authedFetch, onClose, onSaved }) {
+  const t = useTheme();
   const [name, setName] = useState('');
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
@@ -1904,15 +1920,15 @@ function UserCreateModal({ visible, authedFetch, onClose, onSaved }) {
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.modalSafe}>
+      <SafeAreaView style={[styles.modalSafe, { backgroundColor: t.bg }]}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <View style={styles.modalHeader}>
             <View>
-              <Text style={styles.modalTitle}>Add Driver</Text>
-              <Text style={styles.modalSubtitle}>New user account</Text>
+              <Text style={[styles.modalTitle, { color: t.text }]}>Add Driver</Text>
+              <Text style={[styles.modalSubtitle, { color: t.subtext }]}>New user account</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={18} color="#000" />
+            <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: t.card, borderColor: t.border }]}>
+              <X size={18} color={t.text} />
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
@@ -1921,7 +1937,7 @@ function UserCreateModal({ visible, authedFetch, onClose, onSaved }) {
             <FormField label="Username" value={username} onChange={setUsername} autoCapitalize="none" />
             <FormField label="Password" value={password} onChange={setPassword} secureTextEntry />
 
-            <Text style={styles.fieldLabel}>Role</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>Role</Text>
             <View style={styles.severityRow}>
               {['driver', 'admin'].map(r => {
                 const selected = role === r;
@@ -1932,7 +1948,7 @@ function UserCreateModal({ visible, authedFetch, onClose, onSaved }) {
                     onPress={() => setRole(r)}
                     activeOpacity={0.8}
                   >
-                    <Text style={[styles.severityChipText, selected && { color: '#0284c7', fontWeight: '700' }]}>
+                    <Text style={[styles.severityChipText, { color: t.text }, selected && { color: '#0284c7', fontWeight: '700' }]}>
                       {r === 'admin' ? 'Admin' : 'Driver'}
                     </Text>
                   </TouchableOpacity>
@@ -1957,6 +1973,7 @@ function UserCreateModal({ visible, authedFetch, onClose, onSaved }) {
 
 // ── Tickets ────────────────────────────────────────────────────────────────────
 function TicketsSection({ tickets, vehicles, users, currentUser, token, authedFetch, onChanged }) {
+  const th = useTheme();
   const [editing, setEditing] = useState(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');
@@ -2011,21 +2028,21 @@ function TicketsSection({ tickets, vehicles, users, currentUser, token, authedFe
       </View>
       <InlineError message={error} />
       {tickets.length === 0 ? (
-        <Text style={adminStyles.emptyText}>No tickets yet.</Text>
+        <Text style={[adminStyles.emptyText, { color: th.subtext }]}>No tickets yet.</Text>
       ) : (
         tickets.map(t => (
-          <View key={t.id} style={adminStyles.row}>
+          <View key={t.id} style={[adminStyles.row, { backgroundColor: th.card, borderColor: th.border }]}>
             <TouchableOpacity style={adminStyles.rowMain} activeOpacity={0.7} onPress={() => setEditing(t)}>
               <View style={[adminStyles.avatar, { backgroundColor: '#faf5ff' }]}>
                 <ReceiptText size={18} color="#7c3aed" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={adminStyles.rowTitle}>{ticketRef(t)} · £{ticketAmount(t)}</Text>
-                <Text style={adminStyles.rowMeta}>{vehicleLabel(t)} · {driverLabel(t)} · {t.date || '—'}</Text>
+                <Text style={[adminStyles.rowTitle, { color: th.text }]}>{ticketRef(t)} · £{ticketAmount(t)}</Text>
+                <Text style={[adminStyles.rowMeta, { color: th.subtext }]}>{vehicleLabel(t)} · {driverLabel(t)} · {t.date || '—'}</Text>
               </View>
             </TouchableOpacity>
             <TouchableOpacity
-              style={adminStyles.iconBtn}
+              style={[adminStyles.iconBtn, { backgroundColor: th.card, borderColor: th.border }]}
               onPress={() => handleDelete(t)}
               disabled={busyId === t.id}
             >
@@ -2062,6 +2079,7 @@ function TicketsSection({ tickets, vehicles, users, currentUser, token, authedFe
 }
 
 export function TicketEditModal({ visible, ticket, vehicles, drivers = [], currentUser, token, authedFetch, onClose, onSaved, onDeleted }) {
+  const t = useTheme();
   const isNew = !ticket;
   const isAdmin = currentUser?.role === 'admin';
   const [driverId, setDriverId] = useState(ticket?.driverId || ticket?.driver_id || currentUser?.id || '');
@@ -2145,15 +2163,15 @@ export function TicketEditModal({ visible, ticket, vehicles, drivers = [], curre
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.modalSafe}>
+      <SafeAreaView style={[styles.modalSafe, { backgroundColor: t.bg }]}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <View style={styles.modalHeader}>
             <View>
-              <Text style={styles.modalTitle}>{isNew ? 'Add Ticket' : 'Edit Ticket'}</Text>
-              <Text style={styles.modalSubtitle}>{isNew ? 'New ticket' : reference || ticket.id}</Text>
+              <Text style={[styles.modalTitle, { color: t.text }]}>{isNew ? 'Add Ticket' : 'Edit Ticket'}</Text>
+              <Text style={[styles.modalSubtitle, { color: t.subtext }]}>{isNew ? 'New ticket' : reference || ticket.id}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={18} color="#000" />
+            <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: t.card, borderColor: t.border }]}>
+              <X size={18} color={t.text} />
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
@@ -2163,18 +2181,18 @@ export function TicketEditModal({ visible, ticket, vehicles, drivers = [], curre
             <DateField label="Date" value={date} onChange={setDate} clearable={false} />
             <FormField label="Reason" value={reason} onChange={setReason} multiline />
 
-            <Text style={styles.fieldLabel}>Vehicle</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>Vehicle</Text>
             <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4 }}>
               {vehicles.map(v => {
                 const selected = v.id === vehicleId;
                 return (
                   <TouchableOpacity
                     key={v.id}
-                    style={[adminStyles.chip, selected && adminStyles.chipSelected]}
+                    style={[adminStyles.chip, { backgroundColor: t.card, borderColor: t.border }, selected && adminStyles.chipSelected]}
                     onPress={() => setVehicleId(v.id)}
                     activeOpacity={0.7}
                   >
-                    <Text style={[adminStyles.chipText, selected && adminStyles.chipTextSelected]}>
+                    <Text style={[adminStyles.chipText, { color: t.text }, selected && adminStyles.chipTextSelected]}>
                       {v.make} {v.model}
                     </Text>
                   </TouchableOpacity>
@@ -2184,18 +2202,18 @@ export function TicketEditModal({ visible, ticket, vehicles, drivers = [], curre
 
             {isAdmin && drivers.length > 0 ? (
               <>
-                <Text style={styles.fieldLabel}>Driver (who got it)</Text>
+                <Text style={[styles.fieldLabel, { color: t.subtext }]}>Driver (who got it)</Text>
                 <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 4, marginBottom: 14 }}>
                   {drivers.map(d => {
                     const selected = d.id === driverId;
                     return (
                       <TouchableOpacity
                         key={d.id}
-                        style={[adminStyles.chip, selected && adminStyles.chipSelected]}
+                        style={[adminStyles.chip, { backgroundColor: t.card, borderColor: t.border }, selected && adminStyles.chipSelected]}
                         onPress={() => setDriverId(d.id)}
                         activeOpacity={0.7}
                       >
-                        <Text style={[adminStyles.chipText, selected && adminStyles.chipTextSelected]}>
+                        <Text style={[adminStyles.chipText, { color: t.text }, selected && adminStyles.chipTextSelected]}>
                           {d.name || d.username}
                         </Text>
                       </TouchableOpacity>
@@ -2205,16 +2223,16 @@ export function TicketEditModal({ visible, ticket, vehicles, drivers = [], curre
               </>
             ) : null}
 
-            <Text style={styles.fieldLabel}>Appealing?</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>Appealing?</Text>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
               {['yes', 'no', 'undecided'].map(opt => (
                 <TouchableOpacity
                   key={opt}
                   onPress={() => setAppealing(opt)}
-                  style={[styles.severityChip, appealing === opt && styles.severityChipActive]}
+                  style={[styles.severityChip, { backgroundColor: t.card, borderColor: t.border }, appealing === opt && styles.severityChipActive]}
                   activeOpacity={0.7}
                 >
-                  <Text style={[styles.severityChipText, appealing === opt && styles.severityChipTextActive]}>
+                  <Text style={[styles.severityChipText, { color: t.text }, appealing === opt && styles.severityChipTextActive]}>
                     {opt === 'yes' ? 'Yes' : opt === 'no' ? 'No' : 'Undecided'}
                   </Text>
                 </TouchableOpacity>
@@ -2229,7 +2247,7 @@ export function TicketEditModal({ visible, ticket, vehicles, drivers = [], curre
             ) : null}
 
             <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <Text style={styles.fieldLabel}>Paid</Text>
+              <Text style={[styles.fieldLabel, { color: t.subtext }]}>Paid</Text>
               <Switch value={paid} onValueChange={setPaid} />
             </View>
 
@@ -2246,7 +2264,7 @@ export function TicketEditModal({ visible, ticket, vehicles, drivers = [], curre
 
             {!isNew ? (
               <TouchableOpacity
-                style={[styles.secondaryBtn, submitting && { opacity: 0.6 }]}
+                style={[styles.secondaryBtn, { backgroundColor: t.card }, submitting && { opacity: 0.6 }]}
                 onPress={handleDelete}
                 disabled={submitting}
                 activeOpacity={0.7}
@@ -2263,6 +2281,7 @@ export function TicketEditModal({ visible, ticket, vehicles, drivers = [], curre
 
 // ── Trips ──────────────────────────────────────────────────────────────────────
 function TripsSection({ trips, authedFetch, onChanged }) {
+  const th = useTheme();
   const [editing, setEditing] = useState(null);
   const [adding, setAdding] = useState(false);
   const [error, setError] = useState('');
@@ -2293,23 +2312,23 @@ function TripsSection({ trips, authedFetch, onChanged }) {
       </View>
       <InlineError message={error} />
       {trips.length === 0 ? (
-        <Text style={adminStyles.emptyText}>No trips yet.</Text>
+        <Text style={[adminStyles.emptyText, { color: th.subtext }]}>No trips yet.</Text>
       ) : (
         trips.map(t => (
-          <View key={t.id} style={adminStyles.row}>
+          <View key={t.id} style={[adminStyles.row, { backgroundColor: th.card, borderColor: th.border }]}>
             <TouchableOpacity style={adminStyles.rowMain} activeOpacity={0.7} onPress={() => setEditing(t)}>
               <View style={[adminStyles.avatar, { backgroundColor: '#f0fdf4' }]}>
                 <Route size={18} color="#018a16" />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={adminStyles.rowTitle}>{t.name}</Text>
-                <Text style={adminStyles.rowMeta}>
+                <Text style={[adminStyles.rowTitle, { color: th.text }]}>{t.name}</Text>
+                <Text style={[adminStyles.rowMeta, { color: th.subtext }]}>
                   {t.date || 'No date'} · {(t.vehicles || []).length} vehicle{(t.vehicles || []).length === 1 ? '' : 's'}
                 </Text>
               </View>
             </TouchableOpacity>
             <TouchableOpacity
-              style={adminStyles.iconBtn}
+              style={[adminStyles.iconBtn, { backgroundColor: th.card, borderColor: th.border }]}
               onPress={() => handleDelete(t)}
               disabled={busyId === t.id}
             >
@@ -2342,6 +2361,7 @@ function TripsSection({ trips, authedFetch, onChanged }) {
 }
 
 function TripEditModal({ visible, trip, authedFetch, onClose, onSaved }) {
+  const t = useTheme();
   const isNew = !trip;
   const [name, setName] = useState(trip?.name || '');
   const [date, setDate] = useState(trip?.date || new Date().toISOString().slice(0, 10));
@@ -2370,15 +2390,15 @@ function TripEditModal({ visible, trip, authedFetch, onClose, onSaved }) {
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.modalSafe}>
+      <SafeAreaView style={[styles.modalSafe, { backgroundColor: t.bg }]}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
           <View style={styles.modalHeader}>
             <View>
-              <Text style={styles.modalTitle}>{isNew ? 'Add Trip' : 'Edit Trip'}</Text>
-              <Text style={styles.modalSubtitle}>{isNew ? 'New journey' : trip.name}</Text>
+              <Text style={[styles.modalTitle, { color: t.text }]}>{isNew ? 'Add Trip' : 'Edit Trip'}</Text>
+              <Text style={[styles.modalSubtitle, { color: t.subtext }]}>{isNew ? 'New journey' : trip.name}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-              <X size={18} color="#000" />
+            <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: t.card, borderColor: t.border }]}>
+              <X size={18} color={t.text} />
             </TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
@@ -2404,6 +2424,7 @@ function TripEditModal({ visible, trip, authedFetch, onClose, onSaved }) {
 
 // ── Issues ─────────────────────────────────────────────────────────────────────
 function IssuesSection({ issues, vehicles, token, authedFetch, onChanged }) {
+  const t = useTheme();
   const [error, setError] = useState('');
   const [busyId, setBusyId] = useState(null);
   const [viewing, setViewing] = useState(null);
@@ -2454,7 +2475,7 @@ function IssuesSection({ issues, vehicles, token, authedFetch, onChanged }) {
     <>
       <InlineError message={error} />
       {sorted.length === 0 ? (
-        <Text style={adminStyles.emptyText}>No issues reported.</Text>
+        <Text style={[adminStyles.emptyText, { color: t.subtext }]}>No issues reported.</Text>
       ) : (
         sorted.map(i => {
           const severityColor =
@@ -2464,16 +2485,16 @@ function IssuesSection({ issues, vehicles, token, authedFetch, onChanged }) {
             i.severity === 'high' ? '#fef2f2' :
             i.severity === 'medium' ? '#fffbeb' : '#f0fdf4';
           return (
-            <View key={i.id} style={[adminStyles.row, i.resolved && { opacity: 0.55 }]}>
+            <View key={i.id} style={[adminStyles.row, { backgroundColor: t.card, borderColor: t.border }, i.resolved && { opacity: 0.55 }]}>
               <TouchableOpacity style={adminStyles.rowMain} activeOpacity={0.7} onPress={() => setViewing(i)}>
                 <View style={[adminStyles.avatar, { backgroundColor: severityBg }]}>
                   <AlertTriangle size={18} color={severityColor} />
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={adminStyles.rowTitle} numberOfLines={1}>
+                  <Text style={[adminStyles.rowTitle, { color: t.text }]} numberOfLines={1}>
                     {i.description || 'No description'}
                   </Text>
-                  <Text style={adminStyles.rowMeta}>
+                  <Text style={[adminStyles.rowMeta, { color: t.subtext }]}>
                     {vehicleLabel(i.vehicleId)} · {i.reportedBy || 'Unknown'} · {(i.severity || 'low').toUpperCase()}
                     {i.resolved ? ' · Resolved' : ''}
                   </Text>
@@ -2481,7 +2502,7 @@ function IssuesSection({ issues, vehicles, token, authedFetch, onChanged }) {
               </TouchableOpacity>
               {!i.resolved && (
                 <TouchableOpacity
-                  style={adminStyles.iconBtn}
+                  style={[adminStyles.iconBtn, { backgroundColor: t.card, borderColor: t.border }]}
                   onPress={() => resolve(i)}
                   disabled={busyId === i.id}
                 >
@@ -2489,7 +2510,7 @@ function IssuesSection({ issues, vehicles, token, authedFetch, onChanged }) {
                 </TouchableOpacity>
               )}
               <TouchableOpacity
-                style={adminStyles.iconBtn}
+                style={[adminStyles.iconBtn, { backgroundColor: t.card, borderColor: t.border }]}
                 onPress={() => handleDelete(i)}
                 disabled={busyId === i.id}
               >
@@ -2516,6 +2537,7 @@ function IssuesSection({ issues, vehicles, token, authedFetch, onChanged }) {
 }
 
 function IssueViewModal({ visible, issue, vehicle, token, authedFetch, onClose, onChanged }) {
+  const t = useTheme();
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
 
@@ -2537,36 +2559,36 @@ function IssueViewModal({ visible, issue, vehicle, token, authedFetch, onClose, 
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.modalSafe}>
+      <SafeAreaView style={[styles.modalSafe, { backgroundColor: t.bg }]}>
         <View style={styles.modalHeader}>
           <View>
-            <Text style={styles.modalTitle}>Issue</Text>
-            <Text style={styles.modalSubtitle}>
+            <Text style={[styles.modalTitle, { color: t.text }]}>Issue</Text>
+            <Text style={[styles.modalSubtitle, { color: t.subtext }]}>
               {vehicle ? `${vehicle.make} ${vehicle.model}` : 'Unknown vehicle'}
             </Text>
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}>
-            <X size={18} color="#000" />
+          <TouchableOpacity onPress={onClose} style={[styles.closeBtn, { backgroundColor: t.card, borderColor: t.border }]}>
+            <X size={18} color={t.text} />
           </TouchableOpacity>
         </View>
         <ScrollView contentContainerStyle={styles.modalList}>
           <InlineError message={error} />
-          <Text style={styles.fieldLabel}>Reported by</Text>
-          <Text style={adminStyles.readonlyValue}>{issue.reportedBy || 'Unknown'}</Text>
+          <Text style={[styles.fieldLabel, { color: t.subtext }]}>Reported by</Text>
+          <Text style={[adminStyles.readonlyValue, { backgroundColor: t.card, color: t.text, borderColor: t.border }]}>{issue.reportedBy || 'Unknown'}</Text>
 
-          <Text style={styles.fieldLabel}>Severity</Text>
-          <Text style={adminStyles.readonlyValue}>{(issue.severity || 'low').toUpperCase()}</Text>
+          <Text style={[styles.fieldLabel, { color: t.subtext }]}>Severity</Text>
+          <Text style={[adminStyles.readonlyValue, { backgroundColor: t.card, color: t.text, borderColor: t.border }]}>{(issue.severity || 'low').toUpperCase()}</Text>
 
-          <Text style={styles.fieldLabel}>Description</Text>
-          <Text style={adminStyles.readonlyValue}>{issue.description || '—'}</Text>
+          <Text style={[styles.fieldLabel, { color: t.subtext }]}>Description</Text>
+          <Text style={[adminStyles.readonlyValue, { backgroundColor: t.card, color: t.text, borderColor: t.border }]}>{issue.description || '—'}</Text>
 
           {issue.photoPath ? <ReceiptViewer path={issue.photoPath} token={token} label="Photo" /> : null}
 
-          <Text style={styles.fieldLabel}>Reported at</Text>
-          <Text style={adminStyles.readonlyValue}>{issue.createdAt || '—'}</Text>
+          <Text style={[styles.fieldLabel, { color: t.subtext }]}>Reported at</Text>
+          <Text style={[adminStyles.readonlyValue, { backgroundColor: t.card, color: t.text, borderColor: t.border }]}>{issue.createdAt || '—'}</Text>
 
-          <Text style={styles.fieldLabel}>Status</Text>
-          <Text style={adminStyles.readonlyValue}>{issue.resolved ? 'Resolved' : 'Open'}</Text>
+          <Text style={[styles.fieldLabel, { color: t.subtext }]}>Status</Text>
+          <Text style={[adminStyles.readonlyValue, { backgroundColor: t.card, color: t.text, borderColor: t.border }]}>{issue.resolved ? 'Resolved' : 'Open'}</Text>
 
           {!issue.resolved && (
             <TouchableOpacity
@@ -2586,6 +2608,7 @@ function IssueViewModal({ visible, issue, vehicle, token, authedFetch, onClose, 
 
 // ── Drives section (admin: edit + delete) ─────────────────────────────────────
 function DrivesSection({ drives, vehicles, users, authedFetch, onChanged }) {
+  const t = useTheme();
   const [editing, setEditing] = useState(null);
   const [driverName, setDriverName] = useState('');
   const [vehicleId, setVehicleId] = useState('');
@@ -2649,19 +2672,19 @@ function DrivesSection({ drives, vehicles, users, authedFetch, onChanged }) {
   }
 
   const sorted = [...drives].sort((a, b) => (b.startedAt || '').localeCompare(a.startedAt || ''));
-  if (sorted.length === 0) return <Text style={adminStyles.emptyText}>No drives recorded.</Text>;
+  if (sorted.length === 0) return <Text style={[adminStyles.emptyText, { color: t.subtext }]}>No drives recorded.</Text>;
 
   return (
     <>
       {sorted.slice(0, 100).map(d => (
-        <View key={d.id} style={adminStyles.row}>
+        <View key={d.id} style={[adminStyles.row, { backgroundColor: t.card, borderColor: t.border }]}>
           <TouchableOpacity style={{ flexDirection: 'row', flex: 1, alignItems: 'center' }} onPress={() => openEdit(d)} activeOpacity={0.7}>
             <View style={[adminStyles.avatar, { backgroundColor: d.endedAt ? '#eff6ff' : '#dcfce7' }]}>
               <Clock size={18} color={d.endedAt ? '#0061bd' : '#018a16'} />
             </View>
             <View style={{ flex: 1, marginLeft: 12 }}>
-              <Text style={adminStyles.rowTitle}>{d.vehicleName || 'Vehicle'} · {d.driverName || 'Unknown'}</Text>
-              <Text style={adminStyles.rowMeta}>
+              <Text style={[adminStyles.rowTitle, { color: t.text }]}>{d.vehicleName || 'Vehicle'} · {d.driverName || 'Unknown'}</Text>
+              <Text style={[adminStyles.rowMeta, { color: t.subtext }]}>
                 {formatTs(d.startedAt)} {d.endedAt ? `→ ${formatTs(d.endedAt)} · ${formatDuration(d.durationMs)}` : '· ONGOING'}
               </Text>
             </View>

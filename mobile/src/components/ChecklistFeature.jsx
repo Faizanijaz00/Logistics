@@ -11,6 +11,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Car, Check, Star, Pencil, Plus, Trash2, X, Upload, ChevronRight, ClipboardList } from 'lucide-react-native';
 import { useAuthStore } from '../store/authStore';
 import { useVehicleStore } from '../store/vehicleStore';
+import { useTheme } from '../store/themeStore';
 import { getCarImage } from '../config/carImages';
 import AdminHeader from './AdminHeader';
 import SkeletonList from './SkeletonList';
@@ -33,6 +34,7 @@ function formatDate(iso) {
 
 export default function ChecklistFeature({ store, title, emptyIcon, itemNoun = 'item', perCar = false, showImport = false }) {
   const EmptyIcon = emptyIcon || ClipboardList;
+  const t = useTheme();
   const user = useAuthStore(s => s.user);
   const isAdmin = user?.role === 'admin';
   const vehicles = useVehicleStore(s => s.vehicles);
@@ -69,14 +71,14 @@ export default function ChecklistFeature({ store, title, emptyIcon, itemNoun = '
   const overdueCount = vehicles.filter(v => daysSince(summaryFor(v.id)?.last_completed_at) >= OVERDUE_DAYS).length;
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: t.bg }]} edges={['top']}>
       <AdminHeader
         title={title}
         subtitle={`${vehicles.length} car${vehicles.length === 1 ? '' : 's'} · ${overdueCount} overdue`}
         right={isAdmin ? (
-          <TouchableOpacity style={styles.editBtn} onPress={() => setShowEditor(true)} activeOpacity={0.85}>
-            <Pencil size={16} color="#000" />
-            <Text style={styles.editBtnText}>Items</Text>
+          <TouchableOpacity style={[styles.editBtn, { backgroundColor: t.inputBg }]} onPress={() => setShowEditor(true)} activeOpacity={0.85}>
+            <Pencil size={16} color={t.text} />
+            <Text style={[styles.editBtnText, { color: t.text }]}>Items</Text>
           </TouchableOpacity>
         ) : null}
       />
@@ -95,9 +97,9 @@ export default function ChecklistFeature({ store, title, emptyIcon, itemNoun = '
           </View>
         ) : vehicles.length === 0 ? (
           <View style={styles.empty}>
-            <EmptyIcon size={48} color="#ccc" />
-            <Text style={styles.emptyText}>No cars yet</Text>
-            <Text style={styles.emptyHint}>Add vehicles in Fleet first.</Text>
+            <EmptyIcon size={48} color={t.subtext} />
+            <Text style={[styles.emptyText, { color: t.text }]}>No cars yet</Text>
+            <Text style={[styles.emptyHint, { color: t.subtext }]}>Add vehicles in Fleet first.</Text>
           </View>
         ) : (
           vehicles.map(v => {
@@ -108,31 +110,31 @@ export default function ChecklistFeature({ store, title, emptyIcon, itemNoun = '
             const carImage = getCarImage(v.imageId);
             const lastStr = formatDate(last);
             return (
-              <TouchableOpacity key={v.id} style={[styles.card, inRotation && styles.cardRotation]} onPress={() => setOpenVehicle(v)} activeOpacity={0.7}>
+              <TouchableOpacity key={v.id} style={[styles.card, { backgroundColor: t.card, borderColor: t.border }, inRotation && styles.cardRotation]} onPress={() => setOpenVehicle(v)} activeOpacity={0.7}>
                 <View style={styles.imageBox}>
                   {carImage ? (
                     <Image source={carImage} style={styles.carImage} resizeMode="contain" />
                   ) : (
-                    <View style={styles.iconFallback}><Car size={22} color="#888" /></View>
+                    <View style={[styles.iconFallback, { backgroundColor: t.inputBg }]}><Car size={22} color={t.subtext} /></View>
                   )}
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.carName}>{v.make} {v.model}</Text>
-                  <Text style={styles.carSub}>{v.licensePlate}</Text>
+                  <Text style={[styles.carName, { color: t.text }]}>{v.make} {v.model}</Text>
+                  <Text style={[styles.carSub, { color: t.subtext }]}>{v.licensePlate}</Text>
                   <View style={styles.metaRow}>
                     {overdue ? (
                       <View style={styles.overdueBadge}><Text style={styles.overdueText}>OVERDUE</Text></View>
                     ) : null}
-                    <Text style={styles.lastText}>{lastStr ? `Last: ${lastStr}` : 'Never checked'}</Text>
+                    <Text style={[styles.lastText, { color: t.subtext }]}>{lastStr ? `Last: ${lastStr}` : 'Never checked'}</Text>
                   </View>
                   {inRotation ? <Text style={styles.rotationText}>In rotation — up for its check</Text> : null}
                 </View>
                 {isAdmin ? (
                   <TouchableOpacity onPress={() => handleSetRotation(v.id)} hitSlop={10} style={styles.starBtn}>
-                    <Star size={20} color={inRotation ? '#f59e0b' : '#ccc'} fill={inRotation ? '#f59e0b' : 'none'} />
+                    <Star size={20} color={inRotation ? '#f59e0b' : t.subtext} fill={inRotation ? '#f59e0b' : 'none'} />
                   </TouchableOpacity>
                 ) : (
-                  <ChevronRight size={20} color="#ccc" />
+                  <ChevronRight size={20} color={t.subtext} />
                 )}
               </TouchableOpacity>
             );
@@ -164,6 +166,7 @@ export default function ChecklistFeature({ store, title, emptyIcon, itemNoun = '
 
 // ── Per-car checklist modal ─────────────────────────────────────────────────
 function ChecklistModal({ store, vehicle, perCar, onClose }) {
+  const t = useTheme();
   const { currentCheck, checkLoading, items, startCheck, fetchItems, toggleCheckItem, completeCheck, clearCurrentCheck } = store();
   const [completing, setCompleting] = useState(false);
   const [err, setErr] = useState(null);
@@ -209,42 +212,42 @@ function ChecklistModal({ store, vehicle, perCar, onClose }) {
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.modalSafe}>
-        <View style={styles.modalHeader}>
+      <SafeAreaView style={[styles.modalSafe, { backgroundColor: t.card }]}>
+        <View style={[styles.modalHeader, { borderBottomColor: t.border }]}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.modalTitle}>{vehicle.make} {vehicle.model}</Text>
-            <Text style={styles.modalSub}>{vehicle.licensePlate}</Text>
+            <Text style={[styles.modalTitle, { color: t.text }]}>{vehicle.make} {vehicle.model}</Text>
+            <Text style={[styles.modalSub, { color: t.subtext }]}>{vehicle.licensePlate}</Text>
           </View>
-          <TouchableOpacity onPress={onClose} style={styles.closeBtn}><X size={18} color="#000" /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} style={styles.closeBtn}><X size={18} color={t.text} /></TouchableOpacity>
         </View>
 
         {checkLoading || (!currentCheck && !err) ? (
-          <View style={styles.centerFill}><ActivityIndicator color="#888" /></View>
+          <View style={styles.centerFill}><ActivityIndicator color={t.subtext} /></View>
         ) : err ? (
           <View style={styles.empty}><Text style={styles.errorText}>{err}</Text></View>
         ) : (
           <>
             <ScrollView contentContainerStyle={styles.modalList}>
-              <Text style={styles.progress}>{doneCount}/{checkItems.length} done</Text>
+              <Text style={[styles.progress, { color: t.subtext }]}>{doneCount}/{checkItems.length} done</Text>
               {checkItems.length === 0 ? (
                 <View style={styles.empty}>
-                  <Text style={styles.emptyText}>No checklist items</Text>
-                  <Text style={styles.emptyHint}>Add items with the “Items” button.</Text>
+                  <Text style={[styles.emptyText, { color: t.text }]}>No checklist items</Text>
+                  <Text style={[styles.emptyHint, { color: t.subtext }]}>Add items with the “Items” button.</Text>
                 </View>
               ) : (
                 checkItems.map(it => (
-                  <TouchableOpacity key={it.id} style={styles.itemRow} onPress={() => onToggle(it)} activeOpacity={0.7}>
-                    <View style={[styles.checkbox, it.checked && styles.checkboxOn]}>
+                  <TouchableOpacity key={it.id} style={[styles.itemRow, { borderBottomColor: t.border }]} onPress={() => onToggle(it)} activeOpacity={0.7}>
+                    <View style={[styles.checkbox, { borderColor: t.border }, it.checked && styles.checkboxOn]}>
                       {it.checked ? <Check size={16} color="#fff" /> : null}
                     </View>
-                    <Text style={[styles.itemLabel, it.checked && styles.itemLabelDone]}>{labelFor(it.item_id)}</Text>
+                    <Text style={[styles.itemLabel, { color: t.text }, it.checked && styles.itemLabelDone]}>{labelFor(it.item_id)}</Text>
                   </TouchableOpacity>
                 ))
               )}
             </ScrollView>
 
             {checkItems.length > 0 ? (
-              <View style={styles.footer}>
+              <View style={[styles.footer, { borderTopColor: t.border }]}>
                 <TouchableOpacity
                   style={[styles.primaryBtn, completing && { opacity: 0.6 }]}
                   onPress={onComplete}
@@ -264,6 +267,7 @@ function ChecklistModal({ store, vehicle, perCar, onClose }) {
 
 // ── Master item editor modal ────────────────────────────────────────────────
 function ItemEditorModal({ store, itemNoun, perCar, showImport, onClose }) {
+  const t = useTheme();
   const { items, fetchItems, addItem, updateItem, deleteItem, importItems } = store();
   const [label, setLabel] = useState('');
   const [editingId, setEditingId] = useState(null);
@@ -299,24 +303,24 @@ function ItemEditorModal({ store, itemNoun, perCar, showImport, onClose }) {
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.modalSafe}>
+      <SafeAreaView style={[styles.modalSafe, { backgroundColor: t.card }]}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-          <View style={styles.modalHeader}>
+          <View style={[styles.modalHeader, { borderBottomColor: t.border }]}>
             <View style={{ flex: 1 }}>
-              <Text style={styles.modalTitle}>Checklist items</Text>
-              <Text style={styles.modalSub}>Applies to {perCar ? 'all cars unless car-specific' : 'every car'}</Text>
+              <Text style={[styles.modalTitle, { color: t.text }]}>Checklist items</Text>
+              <Text style={[styles.modalSub, { color: t.subtext }]}>Applies to {perCar ? 'all cars unless car-specific' : 'every car'}</Text>
             </View>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}><X size={18} color="#000" /></TouchableOpacity>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}><X size={18} color={t.text} /></TouchableOpacity>
           </View>
 
           <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
             <View style={styles.addRow}>
               <TextInput
-                style={styles.addInput}
+                style={[styles.addInput, { backgroundColor: t.inputBg, borderColor: t.border, color: t.text }]}
                 value={label}
                 onChangeText={setLabel}
                 placeholder={`Add a ${itemNoun}…`}
-                placeholderTextColor="#bbb"
+                placeholderTextColor={t.subtext}
                 onSubmitEditing={onAdd}
                 returnKeyType="done"
               />
@@ -333,20 +337,20 @@ function ItemEditorModal({ store, itemNoun, perCar, showImport, onClose }) {
             ) : null}
 
             {sorted.length === 0 ? (
-              <Text style={styles.emptyHint}>No items yet. Add one above.</Text>
+              <Text style={[styles.emptyHint, { color: t.subtext }]}>No items yet. Add one above.</Text>
             ) : (
               sorted.map(item => (
-                <View key={item.id} style={styles.editItemRow}>
+                <View key={item.id} style={[styles.editItemRow, { borderBottomColor: t.border }]}>
                   {editingId === item.id ? (
                     <>
-                      <TextInput style={styles.editInput} value={editLabel} onChangeText={setEditLabel} autoFocus />
+                      <TextInput style={[styles.editInput, { backgroundColor: t.inputBg, borderColor: t.border, color: t.text }]} value={editLabel} onChangeText={setEditLabel} autoFocus />
                       <TouchableOpacity onPress={() => onSaveEdit(item.id)} hitSlop={8}><Check size={18} color="#018a16" /></TouchableOpacity>
-                      <TouchableOpacity onPress={() => setEditingId(null)} hitSlop={8}><X size={18} color="#999" /></TouchableOpacity>
+                      <TouchableOpacity onPress={() => setEditingId(null)} hitSlop={8}><X size={18} color={t.subtext} /></TouchableOpacity>
                     </>
                   ) : (
                     <>
-                      <Text style={styles.editItemLabel}>{item.label}{perCar && item.vehicle_id ? '  (this car)' : ''}</Text>
-                      <TouchableOpacity onPress={() => { setEditingId(item.id); setEditLabel(item.label); }} hitSlop={8}><Pencil size={16} color="#666" /></TouchableOpacity>
+                      <Text style={[styles.editItemLabel, { color: t.text }]}>{item.label}{perCar && item.vehicle_id ? '  (this car)' : ''}</Text>
+                      <TouchableOpacity onPress={() => { setEditingId(item.id); setEditLabel(item.label); }} hitSlop={8}><Pencil size={16} color={t.subtext} /></TouchableOpacity>
                       <TouchableOpacity onPress={() => onDelete(item)} hitSlop={8}><Trash2 size={16} color="#c4001a" /></TouchableOpacity>
                     </>
                   )}
@@ -369,6 +373,7 @@ function ItemEditorModal({ store, itemNoun, perCar, showImport, onClose }) {
 
 // ── Bulk import modal (one label per line) ──────────────────────────────────
 function ImportModal({ onClose, onImport }) {
+  const t = useTheme();
   const [text, setText] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -383,20 +388,20 @@ function ImportModal({ onClose, onImport }) {
 
   return (
     <Modal visible animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.modalSafe}>
+      <SafeAreaView style={[styles.modalSafe, { backgroundColor: t.card }]}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>Import list</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}><X size={18} color="#000" /></TouchableOpacity>
+          <View style={[styles.modalHeader, { borderBottomColor: t.border }]}>
+            <Text style={[styles.modalTitle, { color: t.text }]}>Import list</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}><X size={18} color={t.text} /></TouchableOpacity>
           </View>
           <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
-            <Text style={styles.fieldLabel}>One item per line</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>One item per line</Text>
             <TextInput
-              style={[styles.addInput, styles.importInput]}
+              style={[styles.addInput, styles.importInput, { backgroundColor: t.inputBg, borderColor: t.border, color: t.text }]}
               value={text}
               onChangeText={setText}
               placeholder={'First aid kit\nHi-vis vest\nWarning triangle'}
-              placeholderTextColor="#bbb"
+              placeholderTextColor={t.subtext}
               multiline
               textAlignVertical="top"
             />

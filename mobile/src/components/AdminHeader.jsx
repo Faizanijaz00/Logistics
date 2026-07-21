@@ -4,18 +4,20 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useRouter } from 'expo-router';
 import { ChevronLeft } from 'lucide-react-native';
+import { useTheme } from '../store/themeStore';
 
 export default function AdminHeader({ title, subtitle, right }) {
   const router = useRouter();
+  const t = useTheme();
   return (
-    <View style={styles.header}>
+    <View style={[styles.header, { backgroundColor: t.card, borderBottomColor: t.border }]}>
       <View style={styles.row}>
         <TouchableOpacity onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
-          <ChevronLeft size={24} color="#000" />
+          <ChevronLeft size={24} color={t.text} />
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
-          <Text style={styles.title}>{title}</Text>
-          {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+          <Text style={[styles.title, { color: t.text }]}>{title}</Text>
+          {subtitle ? <Text style={[styles.subtitle, { color: t.subtext }]}>{subtitle}</Text> : null}
         </View>
         {right || null}
       </View>

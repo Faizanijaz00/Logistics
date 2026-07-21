@@ -5,6 +5,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity } from 'react-nati
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ReceiptText, CreditCard, FileText, Wrench, Package, ChevronRight } from 'lucide-react-native';
+import { useTheme } from '../../src/store/themeStore';
 
 const CARDS = [
   { key: 'fines', title: 'Fines', subtitle: 'Tickets, PCNs & charges', route: '/admin/fines', icon: ReceiptText, color: '#7c3aed', bg: '#faf5ff' },
@@ -16,12 +17,13 @@ const CARDS = [
 
 export default function AdminHubScreen() {
   const router = useRouter();
+  const t = useTheme();
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Admin</Text>
-        <Text style={styles.headerSub}>Manage fines, payments, SOPs & checks</Text>
+    <SafeAreaView style={[styles.safe, { backgroundColor: t.bg }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: t.card, borderBottomColor: t.border }]}>
+        <Text style={[styles.headerTitle, { color: t.text }]}>Admin</Text>
+        <Text style={[styles.headerSub, { color: t.subtext }]}>Manage fines, payments, SOPs & checks</Text>
       </View>
 
       <ScrollView style={styles.list} contentContainerStyle={styles.listContent}>
@@ -30,7 +32,7 @@ export default function AdminHubScreen() {
           return (
             <TouchableOpacity
               key={c.key}
-              style={styles.card}
+              style={[styles.card, { backgroundColor: t.card, borderColor: t.border }]}
               onPress={() => router.push(c.route)}
               activeOpacity={0.7}
             >
@@ -38,10 +40,10 @@ export default function AdminHubScreen() {
                 <Icon size={24} color={c.color} />
               </View>
               <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{c.title}</Text>
-                <Text style={styles.cardSub}>{c.subtitle}</Text>
+                <Text style={[styles.cardTitle, { color: t.text }]}>{c.title}</Text>
+                <Text style={[styles.cardSub, { color: t.subtext }]}>{c.subtitle}</Text>
               </View>
-              <ChevronRight size={20} color="#ccc" />
+              <ChevronRight size={20} color={t.subtext} />
             </TouchableOpacity>
           );
         })}

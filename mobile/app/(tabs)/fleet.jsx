@@ -6,6 +6,7 @@ import { useRouter } from 'expo-router';
 import { useVehicleStore } from '../../src/store/vehicleStore';
 import { getCarImage } from '../../src/config/carImages';
 import { useLayout } from '../../src/hooks/useLayout';
+import { useTheme } from '../../src/store/themeStore';
 
 function UKPlate({ registration, small }) {
   if (!registration) return null;
@@ -90,6 +91,7 @@ const badgeStyles = StyleSheet.create({
 /* ── Phone layout row (unchanged) ── */
 function VehicleRow({ vehicle }) {
   const router = useRouter();
+  const t = useTheme();
   const isMaintenance = vehicle.status === 'maintenance' || vehicle.status === 'out_of_order';
   const isActive = vehicle.currentDriver || vehicle.status === 'active';
   const carImage = getCarImage(vehicle.imageId);
@@ -98,6 +100,7 @@ function VehicleRow({ vehicle }) {
     <TouchableOpacity
       style={[
         styles.vehicleRow,
+        { backgroundColor: t.card, borderColor: t.border },
         isMaintenance && styles.vehicleRowMaintenance,
       ]}
       activeOpacity={0.6}
@@ -106,24 +109,24 @@ function VehicleRow({ vehicle }) {
         {carImage ? (
           <Image source={carImage} style={styles.carImage} resizeMode="contain" />
         ) : (
-          <View style={[styles.iconFallback, { backgroundColor: isActive ? '#f0fdf4' : '#f5f5f5' }]}>
+          <View style={[styles.iconFallback, { backgroundColor: isActive ? '#f0fdf4' : t.inputBg }]}>
             {isMaintenance
               ? <Wrench size={22} color="#ef4444" />
-              : <Car size={22} color={isActive ? '#018a16' : '#888'} />}
+              : <Car size={22} color={isActive ? '#018a16' : t.subtext} />}
           </View>
         )}
         <StatusBadge vehicle={vehicle} />
       </View>
       <View style={styles.vehicleDetails}>
-        <Text style={styles.vehicleName}>{vehicle.make} {vehicle.model}</Text>
+        <Text style={[styles.vehicleName, { color: t.text }]}>{vehicle.make} {vehicle.model}</Text>
         <View style={styles.vehicleMeta}>
           <UKPlate registration={vehicle.licensePlate} />
-          {vehicle.fuel?.level != null ? <Text style={styles.vehicleFuel}>{Math.round(vehicle.fuel.level)}%</Text> : null}
+          {vehicle.fuel?.level != null ? <Text style={[styles.vehicleFuel, { color: t.subtext }]}>{Math.round(vehicle.fuel.level)}%</Text> : null}
         </View>
       </View>
       <View style={styles.statusAndArrow}>
         <View style={[styles.statusDot, { backgroundColor: isMaintenance ? '#ef4444' : isActive ? '#018a16' : '#ccc' }]} />
-        <ChevronRight size={18} color="#ccc" />
+        <ChevronRight size={18} color={t.subtext} />
       </View>
     </TouchableOpacity>
   );
@@ -132,6 +135,7 @@ function VehicleRow({ vehicle }) {
 /* ── Unfolded floating card ── */
 function FloatingCarCard({ vehicle }) {
   const router = useRouter();
+  const t = useTheme();
   const isMaintenance = vehicle.status === 'maintenance' || vehicle.status === 'out_of_order';
   const isActive = vehicle.currentDriver || vehicle.status === 'active';
   const carImage = getCarImage(vehicle.imageId);
@@ -140,7 +144,7 @@ function FloatingCarCard({ vehicle }) {
 
   return (
     <TouchableOpacity
-      style={floatStyles.card}
+      style={[floatStyles.card, { backgroundColor: t.card, borderColor: t.border }]}
       activeOpacity={0.7}
       onPress={() => router.push(`/vehicle/${vehicle.id}`)}
     >
@@ -149,10 +153,10 @@ function FloatingCarCard({ vehicle }) {
         {carImage ? (
           <Image source={carImage} style={floatStyles.carImage} resizeMode="contain" />
         ) : (
-          <View style={floatStyles.iconFallback}>
+          <View style={[floatStyles.iconFallback, { backgroundColor: t.inputBg }]}>
             {isMaintenance
               ? <Wrench size={28} color="#ef4444" />
-              : <Car size={28} color={isActive ? '#018a16' : '#888'} />}
+              : <Car size={28} color={isActive ? '#018a16' : t.subtext} />}
           </View>
         )}
         {/* Ground shadow under the car */}
@@ -161,7 +165,7 @@ function FloatingCarCard({ vehicle }) {
 
       {/* Card info section */}
       <View style={floatStyles.infoSection}>
-        <Text style={floatStyles.carName} numberOfLines={1}>
+        <Text style={[floatStyles.carName, { color: t.text }]} numberOfLines={1}>
           {vehicle.make} {vehicle.model}
         </Text>
         <View style={floatStyles.plateRow}>
@@ -257,20 +261,21 @@ const floatStyles = StyleSheet.create({
 export default function FleetScreen() {
   const { vehicles, loading, fetchVehicles } = useVehicleStore();
   const { isUnfolded } = useLayout();
+  const t = useTheme();
 
   useEffect(() => {
     fetchVehicles();
   }, []);
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: t.bg }]}>
       <View style={[styles.header, isUnfolded && styles.headerUnfolded]}>
-        <Text style={[styles.title, isUnfolded && styles.titleUnfolded]}>Fleet</Text>
-        <Text style={styles.count}>{vehicles.length} vehicles</Text>
+        <Text style={[styles.title, isUnfolded && styles.titleUnfolded, { color: t.text }]}>Fleet</Text>
+        <Text style={[styles.count, { color: t.subtext }]}>{vehicles.length} vehicles</Text>
       </View>
       {loading ? (
         <View style={styles.loader}>
-          <ActivityIndicator size="large" color="#000" />
+          <ActivityIndicator size="large" color={t.text} />
         </View>
       ) : isUnfolded ? (
         /* ── Unfolded: 3-column floating card grid ── */

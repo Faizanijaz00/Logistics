@@ -9,6 +9,7 @@ import AdminHeader from '../../src/components/AdminHeader';
 import ReceiptPicker from '../../src/components/ReceiptPicker';
 import ReceiptViewer from '../../src/components/ReceiptViewer';
 import SkeletonList from '../../src/components/SkeletonList';
+import { useTheme } from '../../src/store/themeStore';
 
 function formatCurrency(n) {
   if (n == null || isNaN(n)) return '—';
@@ -26,6 +27,7 @@ export default function PaymentsScreen() {
   const token = useAuthStore(s => s.token);
   const user = useAuthStore(s => s.user);
   const { payments, loading, error, fetchPayments, addPayment, deletePayment } = usePaymentStore();
+  const t = useTheme();
 
   const [refreshing, setRefreshing] = useState(false);
   const [item, setItem] = useState('');
@@ -89,7 +91,7 @@ export default function PaymentsScreen() {
   const total = payments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: t.bg }]} edges={['top']}>
       <AdminHeader
         title="Payments"
         subtitle={`${payments.length} payment${payments.length === 1 ? '' : 's'} · ${formatCurrency(total)} total`}
@@ -103,41 +105,41 @@ export default function PaymentsScreen() {
           refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} />}
         >
           {/* Log a purchase */}
-          <View style={styles.formCard}>
-            <Text style={styles.formTitle}>Log a purchase</Text>
+          <View style={[styles.formCard, { backgroundColor: t.card, borderColor: t.border }]}>
+            <Text style={[styles.formTitle, { color: t.text }]}>Log a purchase</Text>
 
-            <Text style={styles.fieldLabel}>What was bought</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>What was bought</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: t.inputBg, color: t.text, borderColor: t.border }]}
               value={item}
               onChangeText={setItem}
               placeholder="e.g. Windscreen washer fluid"
-              placeholderTextColor="#bbb"
+              placeholderTextColor={t.subtext}
             />
 
-            <Text style={styles.fieldLabel}>Amount</Text>
-            <View style={styles.amountRow}>
-              <Text style={styles.currency}>£</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>Amount</Text>
+            <View style={[styles.amountRow, { backgroundColor: t.inputBg, borderColor: t.border }]}>
+              <Text style={[styles.currency, { color: t.subtext }]}>£</Text>
               <TextInput
-                style={styles.amountInput}
+                style={[styles.amountInput, { color: t.text }]}
                 value={amount}
                 onChangeText={setAmount}
                 keyboardType="decimal-pad"
                 placeholder="0.00"
-                placeholderTextColor="#bbb"
+                placeholderTextColor={t.subtext}
               />
             </View>
 
-            <Text style={styles.fieldLabel}>Where bought (vendor)</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>Where bought (vendor)</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: t.inputBg, color: t.text, borderColor: t.border }]}
               value={vendor}
               onChangeText={setVendor}
               placeholder="e.g. Halfords"
-              placeholderTextColor="#bbb"
+              placeholderTextColor={t.subtext}
             />
 
-            <Text style={styles.fieldLabel}>Receipt</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>Receipt</Text>
             <ReceiptPicker key={formKey} kind="payment" token={token} onChange={setReceiptPath} label="Attach receipt photo" />
 
             <TouchableOpacity
@@ -151,7 +153,7 @@ export default function PaymentsScreen() {
           </View>
 
           {/* Logged payments */}
-          <Text style={styles.sectionTitle}>Logged payments</Text>
+          <Text style={[styles.sectionTitle, { color: t.text }]}>Logged payments</Text>
           {loading && !refreshing ? (
             <SkeletonList count={3} />
           ) : error ? (
@@ -162,23 +164,23 @@ export default function PaymentsScreen() {
           ) : payments.length === 0 ? (
             <View style={styles.empty}>
               <CreditCard size={48} color="#ccc" />
-              <Text style={styles.emptyText}>No payments yet</Text>
-              <Text style={styles.emptyHint}>Log your first purchase above.</Text>
+              <Text style={[styles.emptyText, { color: t.text }]}>No payments yet</Text>
+              <Text style={[styles.emptyHint, { color: t.subtext }]}>Log your first purchase above.</Text>
             </View>
           ) : (
             payments.map(p => (
-              <View key={p.id} style={styles.card}>
+              <View key={p.id} style={[styles.card, { backgroundColor: t.card, borderColor: t.border }]}>
                 <View style={styles.cardHeader}>
-                  <Text style={styles.cardItem} numberOfLines={1}>{p.item}</Text>
+                  <Text style={[styles.cardItem, { color: t.text }]} numberOfLines={1}>{p.item}</Text>
                   <Text style={styles.cardAmount}>{formatCurrency(p.amount)}</Text>
                 </View>
                 {p.vendor ? (
                   <View style={styles.row}>
-                    <Store size={14} color="#666" />
-                    <Text style={styles.rowText}>{p.vendor}</Text>
+                    <Store size={14} color={t.subtext} />
+                    <Text style={[styles.rowText, { color: t.subtext }]}>{p.vendor}</Text>
                   </View>
                 ) : null}
-                {p.created_at ? <Text style={styles.cardDate}>{formatDate(p.created_at)}{p.created_by ? ` · ${p.created_by}` : ''}</Text> : null}
+                {p.created_at ? <Text style={[styles.cardDate, { color: t.subtext }]}>{formatDate(p.created_at)}{p.created_by ? ` · ${p.created_by}` : ''}</Text> : null}
                 <ReceiptViewer path={p.receipt_path} token={token} label="Receipt" />
                 <TouchableOpacity style={styles.deleteBtn} onPress={() => confirmDelete(p)} hitSlop={8}>
                   <Trash2 size={16} color="#c4001a" />

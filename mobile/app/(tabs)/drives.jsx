@@ -4,6 +4,7 @@ import { View, Text, StyleSheet, ScrollView, RefreshControl, TouchableOpacity, T
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Car, User, Clock, MapPin, Search, X } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
+import { useTheme } from '../../src/store/themeStore';
 import { SERVER_URL } from '../../src/config/api';
 import SkeletonList from '../../src/components/SkeletonList';
 import GeoText from '../../src/components/GeoText';
@@ -74,6 +75,7 @@ export default function DrivesScreen() {
   const [statusFilter, setStatusFilter] = useState('all'); // all | ongoing | completed
   const [selected, setSelected] = useState(null); // tapped drive → detail modal
   const [route, setRoute] = useState([]); // [[lng,lat],...] breadcrumbs for the selected drive
+  const t = useTheme();
 
   const load = useCallback(async () => {
     setError(null);
@@ -157,28 +159,28 @@ export default function DrivesScreen() {
   ];
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>Drives</Text>
-        <Text style={styles.headerSub}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: t.bg }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: t.card, borderBottomColor: t.border }]}>
+        <Text style={[styles.headerTitle, { color: t.text }]}>Drives</Text>
+        <Text style={[styles.headerSub, { color: t.subtext }]}>
           {isAdmin ? 'Every drive in the fleet' : 'Your driving history'}
         </Text>
 
-        <View style={styles.searchRow}>
-          <Search size={16} color="#999" />
+        <View style={[styles.searchRow, { backgroundColor: t.inputBg }]}>
+          <Search size={16} color={t.subtext} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: t.text }]}
             value={query}
             onChangeText={setQuery}
             placeholder="Search vehicle, driver, place…"
-            placeholderTextColor="#aaa"
+            placeholderTextColor={t.subtext}
             autoCorrect={false}
             autoCapitalize="none"
             returnKeyType="search"
           />
           {query ? (
             <TouchableOpacity onPress={() => setQuery('')} hitSlop={8}>
-              <X size={16} color="#999" />
+              <X size={16} color={t.subtext} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -194,11 +196,11 @@ export default function DrivesScreen() {
             return (
               <TouchableOpacity
                 key={f.key}
-                style={[styles.filterChip, active && styles.filterChipActive]}
+                style={[styles.filterChip, { backgroundColor: t.inputBg }, active && styles.filterChipActive]}
                 onPress={() => setStatusFilter(f.key)}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{f.label}</Text>
+                <Text style={[styles.filterChipText, { color: t.subtext }, active && styles.filterChipTextActive]}>{f.label}</Text>
               </TouchableOpacity>
             );
           })}
@@ -221,23 +223,23 @@ export default function DrivesScreen() {
           <View style={styles.empty}>
             {drives.length === 0 ? (
               <>
-                <Text style={styles.emptyText}>No drives recorded yet</Text>
-                <Text style={styles.emptyHint}>Start driving a vehicle to log your first trip.</Text>
+                <Text style={[styles.emptyText, { color: t.text }]}>No drives recorded yet</Text>
+                <Text style={[styles.emptyHint, { color: t.subtext }]}>Start driving a vehicle to log your first trip.</Text>
               </>
             ) : (
               <>
-                <Text style={styles.emptyText}>No matching drives</Text>
-                <Text style={styles.emptyHint}>Try a different search or filter.</Text>
+                <Text style={[styles.emptyText, { color: t.text }]}>No matching drives</Text>
+                <Text style={[styles.emptyHint, { color: t.subtext }]}>Try a different search or filter.</Text>
               </>
             )}
           </View>
         ) : (
           filtered.map(d => (
-            <TouchableOpacity key={d.id} style={[styles.card, !d.endedAt && styles.cardActive]} onPress={() => setSelected(d)} activeOpacity={0.7}>
+            <TouchableOpacity key={d.id} style={[styles.card, { backgroundColor: t.card, borderColor: t.border }, !d.endedAt && styles.cardActive]} onPress={() => setSelected(d)} activeOpacity={0.7}>
               <View style={styles.cardHeader}>
                 <View style={styles.cardHeaderLeft}>
-                  <Car size={16} color="#000" />
-                  <Text style={styles.cardTitle}>{d.vehicleName || 'Vehicle'}</Text>
+                  <Car size={16} color={t.text} />
+                  <Text style={[styles.cardTitle, { color: t.text }]}>{d.vehicleName || 'Vehicle'}</Text>
                 </View>
                 {!d.endedAt ? (
                   <View style={styles.activeBadge}>
@@ -250,13 +252,13 @@ export default function DrivesScreen() {
               </View>
 
               <View style={styles.row}>
-                <User size={14} color="#666" />
-                <Text style={styles.rowText}>{d.driverName || 'Unknown'}</Text>
+                <User size={14} color={t.subtext} />
+                <Text style={[styles.rowText, { color: t.text }]}>{d.driverName || 'Unknown'}</Text>
               </View>
 
               <View style={styles.row}>
-                <Clock size={14} color="#666" />
-                <Text style={styles.rowText}>
+                <Clock size={14} color={t.subtext} />
+                <Text style={[styles.rowText, { color: t.text }]}>
                   {formatTimestamp(d.startedAt)} {d.endedAt ? `→ ${formatTimestamp(d.endedAt)}` : '→ ongoing'}
                 </Text>
               </View>
@@ -264,12 +266,12 @@ export default function DrivesScreen() {
               <View style={styles.row}>
                 <MapPin size={14} color="#018a16" />
                 <View style={styles.locCol}>
-                  <Text style={styles.locLabel}>From</Text>
+                  <Text style={[styles.locLabel, { color: t.subtext }]}>From</Text>
                   <GeoText
                     lat={d.startPosition?.lat}
                     lng={d.startPosition?.lng}
                     address={d.startAddress}
-                    style={styles.rowText}
+                    style={[styles.rowText, { color: t.text }]}
                   />
                 </View>
               </View>
@@ -278,12 +280,12 @@ export default function DrivesScreen() {
                 <View style={styles.row}>
                   <MapPin size={14} color="#c4001a" />
                   <View style={styles.locCol}>
-                    <Text style={styles.locLabel}>To</Text>
+                    <Text style={[styles.locLabel, { color: t.subtext }]}>To</Text>
                     <GeoText
                       lat={d.endPosition?.lat}
                       lng={d.endPosition?.lng}
                       address={d.endAddress}
-                      style={styles.rowText}
+                      style={[styles.rowText, { color: t.text }]}
                     />
                   </View>
                 </View>
@@ -297,38 +299,38 @@ export default function DrivesScreen() {
       {/* Drive / journey detail */}
       <Modal visible={!!selected} transparent animationType="slide" onRequestClose={() => setSelected(null)}>
         <View style={styles.detailBackdrop}>
-          <View style={styles.detailSheet}>
+          <View style={[styles.detailSheet, { backgroundColor: t.card }]}>
             {selected && (
               <>
                 <View style={styles.detailHeader}>
-                  <Text style={styles.detailTitle}>{selected.vehicleName || 'Drive'}</Text>
-                  <TouchableOpacity onPress={() => setSelected(null)} hitSlop={8}><X size={20} color="#000" /></TouchableOpacity>
+                  <Text style={[styles.detailTitle, { color: t.text }]}>{selected.vehicleName || 'Drive'}</Text>
+                  <TouchableOpacity onPress={() => setSelected(null)} hitSlop={8}><X size={20} color={t.text} /></TouchableOpacity>
                 </View>
                 {staticMapUrl(startPt, endPt, route) ? (
                   <Image source={{ uri: staticMapUrl(startPt, endPt, route) }} style={styles.detailMap} resizeMode="cover" />
                 ) : null}
                 <View style={styles.detailBody}>
-                  <View style={styles.row}><User size={14} color="#666" /><Text style={styles.rowText}>{selected.driverName || 'Unknown'}</Text></View>
-                  <View style={styles.row}><Clock size={14} color="#666" /><Text style={styles.rowText}>
+                  <View style={styles.row}><User size={14} color={t.subtext} /><Text style={[styles.rowText, { color: t.text }]}>{selected.driverName || 'Unknown'}</Text></View>
+                  <View style={styles.row}><Clock size={14} color={t.subtext} /><Text style={[styles.rowText, { color: t.text }]}>
                     {formatTimestamp(selected.startedAt)} {selected.endedAt ? `→ ${formatTimestamp(selected.endedAt)}` : '→ ongoing'}
                   </Text></View>
                   {selected.endedAt ? (
-                    <View style={styles.row}><Clock size={14} color="#0061bd" /><Text style={[styles.rowText, { fontWeight: '600' }]}>Duration: {formatDuration(selected.durationMs)}</Text></View>
+                    <View style={styles.row}><Clock size={14} color="#0061bd" /><Text style={[styles.rowText, { color: t.text }, { fontWeight: '600' }]}>Duration: {formatDuration(selected.durationMs)}</Text></View>
                   ) : null}
                   {route.length >= 2 ? (
-                    <View style={styles.row}><MapPin size={14} color="#0061bd" /><Text style={styles.rowText}>{route.length} GPS points along the route</Text></View>
+                    <View style={styles.row}><MapPin size={14} color="#0061bd" /><Text style={[styles.rowText, { color: t.text }]}>{route.length} GPS points along the route</Text></View>
                   ) : null}
                   <View style={styles.row}>
                     <MapPin size={14} color="#018a16" />
-                    <View style={styles.locCol}><Text style={styles.locLabel}>From</Text>
-                      <GeoText lat={startPt?.lat} lng={startPt?.lng} address={selected.startAddress} style={styles.rowText} numberOfLines={2} />
+                    <View style={styles.locCol}><Text style={[styles.locLabel, { color: t.subtext }]}>From</Text>
+                      <GeoText lat={startPt?.lat} lng={startPt?.lng} address={selected.startAddress} style={[styles.rowText, { color: t.text }]} numberOfLines={2} />
                     </View>
                   </View>
                   {selected.endedAt ? (
                     <View style={styles.row}>
                       <MapPin size={14} color="#c4001a" />
-                      <View style={styles.locCol}><Text style={styles.locLabel}>To</Text>
-                        <GeoText lat={endPt?.lat} lng={endPt?.lng} address={selected.endAddress} style={styles.rowText} numberOfLines={2} />
+                      <View style={styles.locCol}><Text style={[styles.locLabel, { color: t.subtext }]}>To</Text>
+                        <GeoText lat={endPt?.lat} lng={endPt?.lng} address={selected.endAddress} style={[styles.rowText, { color: t.text }]} numberOfLines={2} />
                       </View>
                     </View>
                   ) : null}

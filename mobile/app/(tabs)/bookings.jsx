@@ -6,6 +6,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { Car, User, MapPin, Clock, X, Plus, ChevronDown, Trash2 } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
 import { useVehicleStore } from '../../src/store/vehicleStore';
+import { useTheme } from '../../src/store/themeStore';
 import { SERVER_URL } from '../../src/config/api';
 
 function fmtWhen(iso) {
@@ -31,6 +32,7 @@ function NewBookingModal({ visible, onClose, vehicles, user, token, onSaved }) {
   const [duration, setDuration] = useState(120);
   const [destination, setDestination] = useState('');
   const [submitting, setSubmitting] = useState(false);
+  const t = useTheme();
 
   const vehicle = vehicles.find(v => v.id === vehicleId) || null;
 
@@ -64,33 +66,33 @@ function NewBookingModal({ visible, onClose, vehicles, user, token, onSaved }) {
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.modalSafe}>
-        <View style={styles.modalHeader}>
-          <Text style={styles.modalTitle}>Book a Car</Text>
-          <TouchableOpacity onPress={onClose} hitSlop={8}><X size={20} color="#000" /></TouchableOpacity>
+      <SafeAreaView style={[styles.modalSafe, { backgroundColor: t.card }]}>
+        <View style={[styles.modalHeader, { borderBottomColor: t.border }]}>
+          <Text style={[styles.modalTitle, { color: t.text }]}>Book a Car</Text>
+          <TouchableOpacity onPress={onClose} hitSlop={8}><X size={20} color={t.text} /></TouchableOpacity>
         </View>
         <ScrollView contentContainerStyle={{ padding: 18 }} keyboardShouldPersistTaps="handled">
-          <Text style={styles.label}>Vehicle</Text>
-          <TouchableOpacity style={styles.dropdown} onPress={() => setVehiclePickerOpen(o => !o)} activeOpacity={0.7}>
-            <Text style={[styles.dropdownText, !vehicle && { color: '#bbb' }]}>
+          <Text style={[styles.label, { color: t.subtext }]}>Vehicle</Text>
+          <TouchableOpacity style={[styles.dropdown, { borderColor: t.border }]} onPress={() => setVehiclePickerOpen(o => !o)} activeOpacity={0.7}>
+            <Text style={[styles.dropdownText, { color: t.text }, !vehicle && { color: t.subtext }]}>
               {vehicle ? `${vehicle.make} ${vehicle.model} · ${vehicle.licensePlate}` : 'Select vehicle'}
             </Text>
-            <ChevronDown size={18} color="#888" />
+            <ChevronDown size={18} color={t.subtext} />
           </TouchableOpacity>
           {vehiclePickerOpen && (
-            <View style={styles.dropdownList}>
+            <View style={[styles.dropdownList, { borderColor: t.border }]}>
               {vehicles.map(v => (
-                <TouchableOpacity key={v.id} style={styles.dropdownItem} onPress={() => { setVehicleId(v.id); setVehiclePickerOpen(false); }}>
-                  <Text style={styles.dropdownItemText}>{v.make} {v.model} · {v.licensePlate}</Text>
+                <TouchableOpacity key={v.id} style={[styles.dropdownItem, { borderBottomColor: t.border }]} onPress={() => { setVehicleId(v.id); setVehiclePickerOpen(false); }}>
+                  <Text style={[styles.dropdownItemText, { color: t.text }]}>{v.make} {v.model} · {v.licensePlate}</Text>
                 </TouchableOpacity>
               ))}
             </View>
           )}
 
-          <Text style={styles.label}>When</Text>
-          <TouchableOpacity style={styles.dropdown} onPress={() => setShowPicker(true)} activeOpacity={0.7}>
-            <Text style={styles.dropdownText}>{fmtWhen(start.toISOString())}</Text>
-            <Clock size={16} color="#888" />
+          <Text style={[styles.label, { color: t.subtext }]}>When</Text>
+          <TouchableOpacity style={[styles.dropdown, { borderColor: t.border }]} onPress={() => setShowPicker(true)} activeOpacity={0.7}>
+            <Text style={[styles.dropdownText, { color: t.text }]}>{fmtWhen(start.toISOString())}</Text>
+            <Clock size={16} color={t.subtext} />
           </TouchableOpacity>
           {showPicker && (
             <DateTimePicker
@@ -101,17 +103,17 @@ function NewBookingModal({ visible, onClose, vehicles, user, token, onSaved }) {
             />
           )}
 
-          <Text style={styles.label}>For how long</Text>
+          <Text style={[styles.label, { color: t.subtext }]}>For how long</Text>
           <View style={styles.chipRow}>
             {DURATIONS.map(d => (
-              <TouchableOpacity key={d.min} onPress={() => setDuration(d.min)} style={[styles.chip, duration === d.min && styles.chipActive]} activeOpacity={0.7}>
-                <Text style={[styles.chipText, duration === d.min && styles.chipTextActive]}>{d.label}</Text>
+              <TouchableOpacity key={d.min} onPress={() => setDuration(d.min)} style={[styles.chip, { backgroundColor: t.inputBg }, duration === d.min && styles.chipActive]} activeOpacity={0.7}>
+                <Text style={[styles.chipText, { color: t.subtext }, duration === d.min && styles.chipTextActive]}>{d.label}</Text>
               </TouchableOpacity>
             ))}
           </View>
 
-          <Text style={styles.label}>Destination</Text>
-          <TextInput style={styles.input} value={destination} onChangeText={setDestination} placeholder="Where is the car going?" placeholderTextColor="#bbb" />
+          <Text style={[styles.label, { color: t.subtext }]}>Destination</Text>
+          <TextInput style={[styles.input, { borderColor: t.border, backgroundColor: t.inputBg, color: t.text }]} value={destination} onChangeText={setDestination} placeholder="Where is the car going?" placeholderTextColor={t.subtext} />
 
           <TouchableOpacity style={[styles.primaryBtn, (submitting || !vehicleId || !destination.trim()) && { opacity: 0.6 }]} onPress={handleSubmit} disabled={submitting || !vehicleId || !destination.trim()} activeOpacity={0.85}>
             {submitting ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Save Booking</Text>}
@@ -130,6 +132,7 @@ export default function BookingsScreen() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showAdd, setShowAdd] = useState(false);
+  const t = useTheme();
 
   const load = useCallback(async () => {
     try {
@@ -152,12 +155,12 @@ export default function BookingsScreen() {
   const now = Date.now();
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: t.bg }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: t.card, borderBottomColor: t.border }]}>
         <View style={styles.headerRow}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Bookings</Text>
-            <Text style={styles.headerSub}>Who needs which car, when, and where</Text>
+            <Text style={[styles.headerTitle, { color: t.text }]}>Bookings</Text>
+            <Text style={[styles.headerSub, { color: t.subtext }]}>Who needs which car, when, and where</Text>
           </View>
           <TouchableOpacity style={styles.addBtn} onPress={() => setShowAdd(true)} activeOpacity={0.85}>
             <Plus size={18} color="#fff" />
@@ -169,27 +172,27 @@ export default function BookingsScreen() {
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 16, paddingBottom: 40 }}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
         {loading ? (
-          <View style={styles.empty}><ActivityIndicator color="#888" /></View>
+          <View style={styles.empty}><ActivityIndicator color={t.subtext} /></View>
         ) : sorted.length === 0 ? (
           <View style={styles.empty}>
-            <Text style={styles.emptyText}>No bookings yet</Text>
-            <Text style={styles.emptyHint}>Tap Book to reserve a car.</Text>
+            <Text style={[styles.emptyText, { color: t.text }]}>No bookings yet</Text>
+            <Text style={[styles.emptyHint, { color: t.subtext }]}>Tap Book to reserve a car.</Text>
           </View>
         ) : (
           sorted.map(b => {
             const past = b.start_time && new Date(b.start_time).getTime() < now;
             const mine = b.driver_id === user?.id;
             return (
-              <View key={b.id} style={[styles.card, past && { opacity: 0.55 }]}>
+              <View key={b.id} style={[styles.card, { backgroundColor: t.card, borderColor: t.border }, past && { opacity: 0.55 }]}>
                 <View style={styles.cardHeader}>
-                  <View style={styles.rowLeft}><Car size={16} color="#000" /><Text style={styles.cardTitle}>{b.vehicle_name || 'Vehicle'}</Text></View>
+                  <View style={styles.rowLeft}><Car size={16} color={t.text} /><Text style={[styles.cardTitle, { color: t.text }]}>{b.vehicle_name || 'Vehicle'}</Text></View>
                   {mine ? (
                     <TouchableOpacity onPress={() => remove(b.id)} hitSlop={6}><Trash2 size={16} color="#c4001a" /></TouchableOpacity>
                   ) : null}
                 </View>
-                <View style={styles.row}><User size={14} color="#666" /><Text style={styles.rowText}>{b.driver_name || 'Unknown'}</Text></View>
-                <View style={styles.row}><Clock size={14} color="#0061bd" /><Text style={styles.rowText}>{fmtWhen(b.start_time)} · {fmtDuration(b.duration_minutes)}</Text></View>
-                <View style={styles.row}><MapPin size={14} color="#c4001a" /><Text style={styles.rowText} numberOfLines={2}>{b.destination || '—'}</Text></View>
+                <View style={styles.row}><User size={14} color={t.subtext} /><Text style={[styles.rowText, { color: t.text }]}>{b.driver_name || 'Unknown'}</Text></View>
+                <View style={styles.row}><Clock size={14} color="#0061bd" /><Text style={[styles.rowText, { color: t.text }]}>{fmtWhen(b.start_time)} · {fmtDuration(b.duration_minutes)}</Text></View>
+                <View style={styles.row}><MapPin size={14} color="#c4001a" /><Text style={[styles.rowText, { color: t.text }]} numberOfLines={2}>{b.destination || '—'}</Text></View>
               </View>
             );
           })

@@ -11,6 +11,7 @@ import { useAuthStore } from '../../src/store/authStore';
 import { getCarImage } from '../../src/config/carImages';
 import { SERVER_URL } from '../../src/config/api';
 import { useLayout } from '../../src/hooks/useLayout';
+import { useTheme } from '../../src/store/themeStore';
 
 const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 
@@ -43,38 +44,40 @@ function getExpiryStatus(dateStr) {
 }
 
 function StatusCard({ title, status, sub }) {
+  const th = useTheme();
   return (
     <View style={[styles.statusCard, { backgroundColor: status.bg, borderColor: status.border }]}>
-      <Text style={styles.statusCardTitle}>{title}</Text>
+      <Text style={[styles.statusCardTitle, { color: th.subtext }]}>{title}</Text>
       <Text style={[styles.statusCardValue, { color: status.color }]}>{status.label}</Text>
-      {sub ? <Text style={styles.statusCardSub}>{sub}</Text> : null}
+      {sub ? <Text style={[styles.statusCardSub, { color: th.subtext }]}>{sub}</Text> : null}
     </View>
   );
 }
 
 function InfoCardContent({ vehicle, editing, plate, setPlate, handleSavePlate, saving, setEditing, showMoreInfo, setShowMoreInfo, motStatus, taxStatus, insStatus, serviceStatus, tflStatus, tflRegistered, formatDate, locationAddress }) {
+  const th = useTheme();
   return (
     <>
       {/* Year / Color / Fuel */}
       <View style={styles.metaRow}>
-        {vehicle.year ? <Text style={styles.metaText}>{vehicle.year}</Text> : null}
+        {vehicle.year ? <Text style={[styles.metaText, { color: th.subtext }]}>{vehicle.year}</Text> : null}
         {vehicle.year && vehicle.color ? <Text style={styles.metaDot}>·</Text> : null}
-        {vehicle.color ? <Text style={styles.metaText}>{vehicle.color}</Text> : null}
+        {vehicle.color ? <Text style={[styles.metaText, { color: th.subtext }]}>{vehicle.color}</Text> : null}
         {vehicle.color && vehicle.fuelType ? <Text style={styles.metaDot}>·</Text> : null}
-        {vehicle.fuelType ? <Text style={styles.metaText}>{vehicle.fuelType}</Text> : null}
+        {vehicle.fuelType ? <Text style={[styles.metaText, { color: th.subtext }]}>{vehicle.fuelType}</Text> : null}
       </View>
 
       {/* Plate edit row (admin only) */}
       {editing && (
         <View style={[styles.plateEditRow, { marginBottom: 16 }]}>
           <TextInput
-            style={styles.plateInput}
+            style={[styles.plateInput, { backgroundColor: th.inputBg, color: th.text }]}
             value={plate}
             onChangeText={t => setPlate(t.toUpperCase())}
             autoCapitalize="characters"
             autoCorrect={false}
             placeholder="e.g. AB12 CDE"
-            placeholderTextColor="#bbb"
+            placeholderTextColor={th.subtext}
           />
           <TouchableOpacity style={styles.saveBtn} onPress={handleSavePlate} disabled={saving}>
             {saving ? <ActivityIndicator size="small" color="#fff" /> : <Check size={18} color="#fff" />}
@@ -88,7 +91,7 @@ function InfoCardContent({ vehicle, editing, plate, setPlate, handleSavePlate, s
         </View>
       )}
 
-      <View style={styles.divider} />
+      <View style={[styles.divider, { backgroundColor: th.border }]} />
 
       {/* Status (Driver/Parked) — appears ABOVE Location */}
       <View style={styles.statusStack}>
@@ -98,8 +101,8 @@ function InfoCardContent({ vehicle, editing, plate, setPlate, handleSavePlate, s
               <User size={16} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.statusLabel}>Driver</Text>
-              <Text style={styles.statusValue}>{vehicle.currentDriver}</Text>
+              <Text style={[styles.statusLabel, { color: th.subtext }]}>Driver</Text>
+              <Text style={[styles.statusValue, { color: th.text }]}>{vehicle.currentDriver}</Text>
               <View style={styles.statusIndicator}>
                 <View style={[styles.dot, { backgroundColor: '#018a16' }]} />
                 <Text style={[styles.statusIndicatorText, { color: '#018a16' }]}>Active</Text>
@@ -112,8 +115,8 @@ function InfoCardContent({ vehicle, editing, plate, setPlate, handleSavePlate, s
               <User size={16} color="#fff" />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={styles.statusLabel}>Status</Text>
-              <Text style={styles.statusValue}>Parked</Text>
+              <Text style={[styles.statusLabel, { color: th.subtext }]}>Status</Text>
+              <Text style={[styles.statusValue, { color: th.text }]}>Parked</Text>
               {vehicle.lastDriver ? (
                 <View style={styles.statusIndicator}>
                   <View style={[styles.dot, { backgroundColor: '#888' }]} />
@@ -142,8 +145,8 @@ function InfoCardContent({ vehicle, editing, plate, setPlate, handleSavePlate, s
             <MapPin size={16} color="#fff" />
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={styles.statusLabel}>Location</Text>
-            <Text style={[styles.statusValue, vehicle.position?.lat && styles.statusValueLink]} numberOfLines={1}>
+            <Text style={[styles.statusLabel, { color: th.subtext }]}>Location</Text>
+            <Text style={[styles.statusValue, { color: th.text }, vehicle.position?.lat && styles.statusValueLink]} numberOfLines={1}>
               {vehicle.position?.lat != null && vehicle.position?.lng != null
                 ? (locationAddress || `${vehicle.position.lat.toFixed(6)}, ${vehicle.position.lng.toFixed(6)}`)
                 : 'Unknown'}
@@ -163,12 +166,12 @@ function InfoCardContent({ vehicle, editing, plate, setPlate, handleSavePlate, s
         </TouchableOpacity>
       </View>
 
-      <View style={styles.divider} />
+      <View style={[styles.divider, { backgroundColor: th.border }]} />
 
       {/* More Information toggle */}
       <TouchableOpacity style={styles.moreInfoBtn} onPress={() => setShowMoreInfo(v => !v)} activeOpacity={0.7}>
-        <Text style={styles.moreInfoText}>More Information</Text>
-        {showMoreInfo ? <ChevronUp size={18} color="#555" /> : <ChevronDown size={18} color="#555" />}
+        <Text style={[styles.moreInfoText, { color: th.text }]}>More Information</Text>
+        {showMoreInfo ? <ChevronUp size={18} color={th.subtext} /> : <ChevronDown size={18} color={th.subtext} />}
       </TouchableOpacity>
 
       {showMoreInfo && (
@@ -206,6 +209,7 @@ function InfoCardContent({ vehicle, editing, plate, setPlate, handleSavePlate, s
 
 export default function VehicleDetailScreen() {
   const { id } = useLocalSearchParams();
+  const th = useTheme();
   const router = useRouter();
   const { vehicles, fetchVehicles } = useVehicleStore();
   const { token, user } = useAuthStore();
@@ -221,12 +225,12 @@ export default function VehicleDetailScreen() {
 
   if (!vehicle) {
     return (
-      <SafeAreaView style={styles.safe}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: th.bg }]}>
         <TouchableOpacity style={styles.backBtn} onPress={() => router.back()}>
-          <ChevronLeft size={24} color="#000" />
+          <ChevronLeft size={24} color={th.text} />
         </TouchableOpacity>
         <View style={styles.center}>
-          <Text style={styles.errorText}>Vehicle not found</Text>
+          <Text style={[styles.errorText, { color: th.subtext }]}>Vehicle not found</Text>
         </View>
       </SafeAreaView>
     );
@@ -296,19 +300,19 @@ export default function VehicleDetailScreen() {
   // ── Unfolded: side-by-side layout ──
   if (isUnfolded) {
     return (
-      <SafeAreaView style={styles.safe} edges={['top']}>
+      <SafeAreaView style={[styles.safe, { backgroundColor: th.bg }]} edges={['top']}>
         {/* Back button */}
-        <View style={styles.unfoldedBackRow}>
+        <View style={[styles.unfoldedBackRow, { backgroundColor: th.bg }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-            <ChevronLeft size={22} color="#000" />
-            <Text style={styles.backText}>Fleet</Text>
+            <ChevronLeft size={22} color={th.text} />
+            <Text style={[styles.backText, { color: th.text }]}>Fleet</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.unfoldedContainer}>
           {/* Left column: car hero */}
-          <View style={styles.unfoldedHeroCol}>
-            <Text style={styles.heroVehicleNameUnfolded}>{vehicle.make} {vehicle.model}</Text>
+          <View style={[styles.unfoldedHeroCol, { backgroundColor: th.bg }]}>
+            <Text style={[styles.heroVehicleNameUnfolded, { color: th.text }]}>{vehicle.make} {vehicle.model}</Text>
 
             {vehicle.licensePlate ? (
               <View style={styles.plateAbove}>
@@ -342,7 +346,7 @@ export default function VehicleDetailScreen() {
             contentContainerStyle={{ paddingBottom: 48 }}
             showsVerticalScrollIndicator={false}
           >
-            <View style={styles.infoCardUnfolded}>
+            <View style={[styles.infoCardUnfolded, { backgroundColor: th.card }]}>
               <InfoCardContent {...infoCardProps} />
             </View>
           </ScrollView>
@@ -353,16 +357,16 @@ export default function VehicleDetailScreen() {
 
   // ── Phone layout (unchanged) ──
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: th.bg }]} edges={['top']}>
 
       {/* Fixed hero — stays on screen while info scrolls */}
-      <View style={styles.heroSection}>
+      <View style={[styles.heroSection, { backgroundColor: th.bg }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backBtn}>
-          <ChevronLeft size={22} color="#000" />
-          <Text style={styles.backText}>Fleet</Text>
+          <ChevronLeft size={22} color={th.text} />
+          <Text style={[styles.backText, { color: th.text }]}>Fleet</Text>
         </TouchableOpacity>
 
-        <Text style={styles.heroVehicleName}>{vehicle.make} {vehicle.model}</Text>
+        <Text style={[styles.heroVehicleName, { color: th.text }]}>{vehicle.make} {vehicle.model}</Text>
 
         {vehicle.licensePlate ? (
           <View style={styles.plateAbove}>
@@ -398,7 +402,7 @@ export default function VehicleDetailScreen() {
         showsVerticalScrollIndicator={false}
       >
         {/* Info card */}
-        <View style={styles.infoCard}>
+        <View style={[styles.infoCard, { backgroundColor: th.card }]}>
           <InfoCardContent {...infoCardProps} />
         </View>
       </ScrollView>

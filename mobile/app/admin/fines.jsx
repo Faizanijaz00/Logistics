@@ -9,6 +9,7 @@ import { SERVER_URL } from '../../src/config/api';
 import ReceiptViewer from '../../src/components/ReceiptViewer';
 import SkeletonList from '../../src/components/SkeletonList';
 import { AddTicketModal, TicketEditModal } from '../(tabs)/index';
+import { useTheme } from '../../src/store/themeStore';
 
 // Appeal/paid state isn't stored in its own columns — `status` carries paid/
 // appealing and the deadlines ride inside plan_for_contesting as JSON. Also
@@ -58,6 +59,7 @@ function formatCurrency(n) {
 }
 
 export default function TicketsScreen() {
+  const th = useTheme();
   const router = useRouter();
   const token = useAuthStore(s => s.token);
   const user = useAuthStore(s => s.user);
@@ -177,15 +179,15 @@ export default function TicketsScreen() {
   ];
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: th.bg }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: th.card, borderBottomColor: th.border }]}>
         <View style={styles.headerRow}>
           <TouchableOpacity onPress={() => router.back()} hitSlop={10} style={styles.backBtn}>
-            <ChevronLeft size={24} color="#000" />
+            <ChevronLeft size={24} color={th.text} />
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={styles.headerTitle}>Tickets & Fines</Text>
-            <Text style={styles.headerSub}>
+            <Text style={[styles.headerTitle, { color: th.text }]}>Tickets & Fines</Text>
+            <Text style={[styles.headerSub, { color: th.subtext }]}>
               {filtered.length} ticket{filtered.length === 1 ? '' : 's'} · {formatCurrency(totalOutstanding)} outstanding
             </Text>
           </View>
@@ -195,21 +197,21 @@ export default function TicketsScreen() {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.searchRow}>
-          <Search size={16} color="#999" />
+        <View style={[styles.searchRow, { backgroundColor: th.inputBg }]}>
+          <Search size={16} color={th.subtext} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: th.text }]}
             value={query}
             onChangeText={setQuery}
             placeholder="Search PCN, driver, vehicle…"
-            placeholderTextColor="#aaa"
+            placeholderTextColor={th.subtext}
             autoCorrect={false}
             autoCapitalize="none"
             returnKeyType="search"
           />
           {query ? (
             <TouchableOpacity onPress={() => setQuery('')} hitSlop={8}>
-              <X size={16} color="#999" />
+              <X size={16} color={th.subtext} />
             </TouchableOpacity>
           ) : null}
         </View>
@@ -225,11 +227,11 @@ export default function TicketsScreen() {
             return (
               <TouchableOpacity
                 key={f.key}
-                style={[styles.filterChip, active && styles.filterChipActive]}
+                style={[styles.filterChip, { backgroundColor: th.inputBg }, active && styles.filterChipActive]}
                 onPress={() => setStatusFilter(f.key)}
                 activeOpacity={0.7}
               >
-                <Text style={[styles.filterChipText, active && styles.filterChipTextActive]}>{f.label}</Text>
+                <Text style={[styles.filterChipText, { color: th.subtext }, active && styles.filterChipTextActive]}>{f.label}</Text>
               </TouchableOpacity>
             );
           })}
@@ -250,16 +252,16 @@ export default function TicketsScreen() {
           </View>
         ) : filtered.length === 0 ? (
           <View style={styles.empty}>
-            <ReceiptText size={48} color="#ccc" />
+            <ReceiptText size={48} color={th.subtext} />
             {visible.length === 0 ? (
               <>
-                <Text style={styles.emptyText}>No tickets yet</Text>
-                <Text style={styles.emptyHint}>Tap Add to log your first ticket.</Text>
+                <Text style={[styles.emptyText, { color: th.text }]}>No tickets yet</Text>
+                <Text style={[styles.emptyHint, { color: th.subtext }]}>Tap Add to log your first ticket.</Text>
               </>
             ) : (
               <>
-                <Text style={styles.emptyText}>No matching tickets</Text>
-                <Text style={styles.emptyHint}>Try a different search or filter.</Text>
+                <Text style={[styles.emptyText, { color: th.text }]}>No matching tickets</Text>
+                <Text style={[styles.emptyHint, { color: th.subtext }]}>Try a different search or filter.</Text>
               </>
             )}
           </View>
@@ -278,12 +280,12 @@ export default function TicketsScreen() {
             return (
               <TouchableOpacity
                 key={t.id}
-                style={[styles.card, paid && styles.cardPaid]}
+                style={[styles.card, { backgroundColor: th.card, borderColor: th.border }, paid && styles.cardPaid]}
                 onPress={() => setEditing(t)}
                 activeOpacity={0.7}
               >
                 <View style={styles.cardHeader}>
-                  <Text style={styles.ref}>{ref}</Text>
+                  <Text style={[styles.ref, { color: th.text }]}>{ref}</Text>
                   <Text style={[styles.amount, paid && styles.amountPaid]}>{formatCurrency(amount)}</Text>
                 </View>
 
@@ -317,24 +319,24 @@ export default function TicketsScreen() {
                 ) : null}
 
                 {t.recommended_action ? (
-                  <Text style={styles.reason} numberOfLines={2}>→ {t.recommended_action}</Text>
+                  <Text style={[styles.reason, { color: th.subtext }]} numberOfLines={2}>→ {t.recommended_action}</Text>
                 ) : null}
 
                 {v ? (
                   <View style={styles.row}>
-                    <Car size={14} color="#666" />
-                    <Text style={styles.rowText}>{v.make} {v.model} · {v.licensePlate}</Text>
+                    <Car size={14} color={th.subtext} />
+                    <Text style={[styles.rowText, { color: th.subtext }]}>{v.make} {v.model} · {v.licensePlate}</Text>
                   </View>
                 ) : null}
 
                 <View style={styles.row}>
-                  <User size={14} color="#666" />
-                  <Text style={styles.rowText}>{driver}</Text>
+                  <User size={14} color={th.subtext} />
+                  <Text style={[styles.rowText, { color: th.subtext }]}>{driver}</Text>
                 </View>
 
                 <View style={styles.row}>
-                  <Calendar size={14} color="#666" />
-                  <Text style={styles.rowText}>Issued: {formatDate(dateStr)}</Text>
+                  <Calendar size={14} color={th.subtext} />
+                  <Text style={[styles.rowText, { color: th.subtext }]}>Issued: {formatDate(dateStr)}</Text>
                 </View>
 
                 {appealing && appealing !== 'undecided' ? (
@@ -354,18 +356,18 @@ export default function TicketsScreen() {
                 {appealing !== 'no' && appealDeadline ? (
                   <View style={styles.row}>
                     <Clock size={14} color="#0061bd" />
-                    <Text style={styles.rowText}>Appeal by: {formatDate(appealDeadline)}</Text>
+                    <Text style={[styles.rowText, { color: th.subtext }]}>Appeal by: {formatDate(appealDeadline)}</Text>
                   </View>
                 ) : null}
 
                 {appealing !== 'yes' && paymentDeadline ? (
                   <View style={styles.row}>
                     <Clock size={14} color="#c4001a" />
-                    <Text style={styles.rowText}>Pay by: {formatDate(paymentDeadline)}</Text>
+                    <Text style={[styles.rowText, { color: th.subtext }]}>Pay by: {formatDate(paymentDeadline)}</Text>
                   </View>
                 ) : null}
 
-                {reason ? <Text style={styles.reason} numberOfLines={3}>{reason}</Text> : null}
+                {reason ? <Text style={[styles.reason, { color: th.subtext }]} numberOfLines={3}>{reason}</Text> : null}
 
                 <ReceiptViewer path={receiptPath} token={token} label="Ticket photo" />
               </TouchableOpacity>

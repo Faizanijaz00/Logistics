@@ -2,10 +2,12 @@ import { useEffect, useRef } from 'react';
 import { Animated, View, Text, TouchableOpacity, StyleSheet, Pressable, Dimensions } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { X } from 'lucide-react-native';
+import { useTheme } from '../store/themeStore';
 
 // Lightweight half-width slide-in drawer (pure Animated, no native drawer dep).
 // Kept mounted so it can animate in/out; ignores touches when closed.
 export default function MenuDrawer({ open, onClose, title, subtitle, items }) {
+  const t = useTheme();
   const W = Math.min(Dimensions.get('window').width * 0.78, 340);
   const insets = useSafeAreaInsets();
   const anim = useRef(new Animated.Value(0)).current; // 0 closed → 1 open
@@ -22,23 +24,23 @@ export default function MenuDrawer({ open, onClose, title, subtitle, items }) {
       <Animated.View style={[StyleSheet.absoluteFill, { backgroundColor: '#000', opacity: backdrop }]}>
         <Pressable style={StyleSheet.absoluteFill} onPress={onClose} />
       </Animated.View>
-      <Animated.View style={[styles.panel, { width: W, paddingTop: insets.top + 16, transform: [{ translateX }] }]}>
+      <Animated.View style={[styles.panel, { backgroundColor: t.card, width: W, paddingTop: insets.top + 16, transform: [{ translateX }] }]}>
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
-            <Text style={styles.title}>{title}</Text>
-            {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}
+            <Text style={[styles.title, { color: t.text }]}>{title}</Text>
+            {subtitle ? <Text style={[styles.subtitle, { color: t.subtext }]}>{subtitle}</Text> : null}
           </View>
-          <TouchableOpacity onPress={onClose} hitSlop={10}><X size={22} color="#666" /></TouchableOpacity>
+          <TouchableOpacity onPress={onClose} hitSlop={10}><X size={22} color={t.subtext} /></TouchableOpacity>
         </View>
         {items.map((it) => (
           <TouchableOpacity
             key={it.label}
-            style={styles.item}
+            style={[styles.item, { borderBottomColor: t.border }]}
             activeOpacity={0.7}
             onPress={() => { onClose(); setTimeout(() => it.onPress(), 180); }}
           >
-            {it.icon ? <it.icon size={20} color={it.danger ? '#c4001a' : '#333'} /> : null}
-            <Text style={[styles.itemText, it.danger && { color: '#c4001a' }]}>{it.label}</Text>
+            {it.icon ? <it.icon size={20} color={it.danger ? '#c4001a' : t.text} /> : null}
+            <Text style={[styles.itemText, { color: t.text }, it.danger && { color: '#c4001a' }]}>{it.label}</Text>
           </TouchableOpacity>
         ))}
       </Animated.View>

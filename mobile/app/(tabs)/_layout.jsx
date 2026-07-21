@@ -3,13 +3,14 @@ import { View } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
 import { User, Map, Car, Clock, CalendarClock, Shield, Navigation, Menu, LogOut, Route, Sun, Moon } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
-import { useThemeStore } from '../../src/store/themeStore';
+import { useThemeStore, useTheme } from '../../src/store/themeStore';
 import MenuDrawer from '../../src/components/MenuDrawer';
 
 export default function TabLayout() {
   const user = useAuthStore(s => s.user);
   const logout = useAuthStore(s => s.logout);
   const router = useRouter();
+  const t = useTheme();
   const mode = useThemeStore(s => s.mode);
   const toggleTheme = useThemeStore(s => s.toggle);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -26,16 +27,16 @@ export default function TabLayout() {
     { label: 'Log out', icon: LogOut, danger: true, onPress: () => logout() },
   ];
 
-  const tabBarStyle = { backgroundColor: '#fff', borderTopWidth: 1, borderTopColor: '#e0e0e0', height: 88, paddingBottom: 28, paddingTop: 8 };
+  const tabBarStyle = { backgroundColor: t.card, borderTopWidth: 1, borderTopColor: t.border, height: 88, paddingBottom: 28, paddingTop: 8 };
 
   return (
-    <View style={{ flex: 1 }}>
+    <View style={{ flex: 1, backgroundColor: t.bg }}>
       <Tabs
         screenOptions={{
           headerShown: false,
           tabBarStyle,
-          tabBarActiveTintColor: '#000',
-          tabBarInactiveTintColor: '#999',
+          tabBarActiveTintColor: t.text,
+          tabBarInactiveTintColor: t.subtext,
           tabBarLabelStyle: { fontSize: 11, fontWeight: '600', letterSpacing: 0.3 },
         }}
       >

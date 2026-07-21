@@ -9,11 +9,13 @@ import AdminHeader from '../../src/components/AdminHeader';
 import ReceiptPicker from '../../src/components/ReceiptPicker';
 import ReceiptViewer from '../../src/components/ReceiptViewer';
 import SkeletonList from '../../src/components/SkeletonList';
+import { useTheme } from '../../src/store/themeStore';
 
 export default function SopsScreen() {
   const token = useAuthStore(s => s.token);
   const user = useAuthStore(s => s.user);
   const { sops, loading, error, fetchSops } = useSopStore();
+  const t = useTheme();
 
   const [refreshing, setRefreshing] = useState(false);
   const [query, setQuery] = useState('');
@@ -38,7 +40,7 @@ export default function SopsScreen() {
   function openEdit(sop) { setEditing(sop); setShowModal(true); }
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
+    <SafeAreaView style={[styles.safe, { backgroundColor: t.bg }]} edges={['top']}>
       <AdminHeader
         title="SOPs"
         subtitle={`${sops.length} document${sops.length === 1 ? '' : 's'}`}
@@ -50,21 +52,21 @@ export default function SopsScreen() {
         )}
       />
 
-      <View style={styles.searchWrap}>
-        <View style={styles.searchRow}>
-          <Search size={16} color="#999" />
+      <View style={[styles.searchWrap, { backgroundColor: t.bg }]}>
+        <View style={[styles.searchRow, { backgroundColor: t.card, borderColor: t.border }]}>
+          <Search size={16} color={t.subtext} />
           <TextInput
-            style={styles.searchInput}
+            style={[styles.searchInput, { color: t.text }]}
             value={query}
             onChangeText={setQuery}
             placeholder="Search SOPs by title or text…"
-            placeholderTextColor="#aaa"
+            placeholderTextColor={t.subtext}
             autoCorrect={false}
             autoCapitalize="none"
             returnKeyType="search"
           />
           {query ? (
-            <TouchableOpacity onPress={() => setQuery('')} hitSlop={8}><X size={16} color="#999" /></TouchableOpacity>
+            <TouchableOpacity onPress={() => setQuery('')} hitSlop={8}><X size={16} color={t.subtext} /></TouchableOpacity>
           ) : null}
         </View>
       </View>
@@ -86,21 +88,21 @@ export default function SopsScreen() {
             <FileText size={48} color="#ccc" />
             {sops.length === 0 ? (
               <>
-                <Text style={styles.emptyText}>No SOPs yet</Text>
-                <Text style={styles.emptyHint}>Tap Add to create your first SOP.</Text>
+                <Text style={[styles.emptyText, { color: t.text }]}>No SOPs yet</Text>
+                <Text style={[styles.emptyHint, { color: t.subtext }]}>Tap Add to create your first SOP.</Text>
               </>
             ) : (
               <>
-                <Text style={styles.emptyText}>No matching SOPs</Text>
-                <Text style={styles.emptyHint}>Try a different search.</Text>
+                <Text style={[styles.emptyText, { color: t.text }]}>No matching SOPs</Text>
+                <Text style={[styles.emptyHint, { color: t.subtext }]}>Try a different search.</Text>
               </>
             )}
           </View>
         ) : (
           filtered.map(s => (
-            <TouchableOpacity key={s.id} style={styles.card} onPress={() => openEdit(s)} activeOpacity={0.7}>
+            <TouchableOpacity key={s.id} style={[styles.card, { backgroundColor: t.card, borderColor: t.border }]} onPress={() => openEdit(s)} activeOpacity={0.7}>
               <View style={styles.cardHeader}>
-                <Text style={styles.cardTitle} numberOfLines={1}>{s.title}</Text>
+                <Text style={[styles.cardTitle, { color: t.text }]} numberOfLines={1}>{s.title}</Text>
                 {s.attachment_path ? (
                   <View style={styles.badge}>
                     <Paperclip size={12} color="#0284c7" />
@@ -108,7 +110,7 @@ export default function SopsScreen() {
                   </View>
                 ) : null}
               </View>
-              {s.body ? <Text style={styles.snippet} numberOfLines={2}>{s.body}</Text> : null}
+              {s.body ? <Text style={[styles.snippet, { color: t.subtext }]} numberOfLines={2}>{s.body}</Text> : null}
             </TouchableOpacity>
           ))
         )}
@@ -128,6 +130,7 @@ export default function SopsScreen() {
 // ── Add / Edit SOP modal ────────────────────────────────────────────────────
 function SopModal({ visible, sop, token, user, onClose }) {
   const { addSop, updateSop, deleteSop } = useSopStore();
+  const t = useTheme();
   const isEdit = !!sop;
 
   const [title, setTitle] = useState('');
@@ -185,30 +188,30 @@ function SopModal({ visible, sop, token, user, onClose }) {
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <SafeAreaView style={styles.modalSafe}>
+      <SafeAreaView style={[styles.modalSafe, { backgroundColor: t.card }]}>
         <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
-          <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>{isEdit ? 'Edit SOP' : 'New SOP'}</Text>
-            <TouchableOpacity onPress={onClose} style={styles.closeBtn}><X size={18} color="#000" /></TouchableOpacity>
+          <View style={[styles.modalHeader, { borderBottomColor: t.border }]}>
+            <Text style={[styles.modalTitle, { color: t.text }]}>{isEdit ? 'Edit SOP' : 'New SOP'}</Text>
+            <TouchableOpacity onPress={onClose} style={styles.closeBtn}><X size={18} color={t.text} /></TouchableOpacity>
           </View>
 
           <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
-            <Text style={styles.fieldLabel}>Title</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>Title</Text>
             <TextInput
-              style={styles.input}
+              style={[styles.input, { backgroundColor: t.inputBg, color: t.text, borderColor: t.border }]}
               value={title}
               onChangeText={setTitle}
               placeholder="e.g. Vehicle handover checklist"
-              placeholderTextColor="#bbb"
+              placeholderTextColor={t.subtext}
             />
 
-            <Text style={styles.fieldLabel}>Content</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>Content</Text>
             <TextInput
-              style={[styles.input, styles.multiline]}
+              style={[styles.input, styles.multiline, { backgroundColor: t.inputBg, color: t.text, borderColor: t.border }]}
               value={body}
               onChangeText={setBody}
               placeholder="Type the procedure…"
-              placeholderTextColor="#bbb"
+              placeholderTextColor={t.subtext}
               multiline
               textAlignVertical="top"
             />
@@ -217,7 +220,7 @@ function SopModal({ visible, sop, token, user, onClose }) {
               <ReceiptViewer path={sop.attachment_path} token={token} label="Current attachment" />
             ) : null}
 
-            <Text style={styles.fieldLabel}>{isEdit && sop?.attachment_path ? 'Replace attachment' : 'Attachment (optional)'}</Text>
+            <Text style={[styles.fieldLabel, { color: t.subtext }]}>{isEdit && sop?.attachment_path ? 'Replace attachment' : 'Attachment (optional)'}</Text>
             <ReceiptPicker key={formKey} kind="sop" token={token} onChange={setAttachmentPath} label="Attach file (image)" />
 
             <TouchableOpacity

@@ -5,6 +5,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { MapPin, Clock, User, Navigation } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
 import { SERVER_URL } from '../../src/config/api';
+import { useTheme } from '../../src/store/themeStore';
 
 const STATUS_COLORS = {
   pending: { bg: '#fef9c3', fg: '#854d0e' },
@@ -22,6 +23,7 @@ function fmtWhen(iso) {
 export default function RidesScreen() {
   const token = useAuthStore(s => s.token);
   const user = useAuthStore(s => s.user);
+  const t = useTheme();
   const [rides, setRides] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -61,15 +63,15 @@ export default function RidesScreen() {
     const c = STATUS_COLORS[r.status] || STATUS_COLORS.pending;
     const isMine = r.assigned_driver_id === user?.id;
     return (
-      <View style={styles.card}>
+      <View style={[styles.card, { backgroundColor: t.card, borderColor: t.border }]}>
         <View style={styles.top}>
-          <View style={styles.riderRow}><User size={14} color="#666" /><Text style={styles.rider}>{r.rider_name || 'Rider'}</Text></View>
+          <View style={styles.riderRow}><User size={14} color={t.subtext} /><Text style={[styles.rider, { color: t.text }]}>{r.rider_name || 'Rider'}</Text></View>
           <View style={[styles.badge, { backgroundColor: c.bg }]}><Text style={[styles.badgeText, { color: c.fg }]}>{r.status}</Text></View>
         </View>
-        {r.pickup_address ? <View style={styles.line}><MapPin size={13} color="#018a16" /><Text style={styles.lineText} numberOfLines={1}>{r.pickup_address}</Text></View> : null}
-        <View style={styles.line}><MapPin size={13} color="#c4001a" /><Text style={styles.lineText} numberOfLines={1}>{r.destination_address}</Text></View>
-        {r.notes ? <Text style={styles.notes}>“{r.notes}”</Text> : null}
-        <Text style={styles.when}><Clock size={12} color="#999" /> {fmtWhen(r.created_at)}</Text>
+        {r.pickup_address ? <View style={styles.line}><MapPin size={13} color="#018a16" /><Text style={[styles.lineText, { color: t.text }]} numberOfLines={1}>{r.pickup_address}</Text></View> : null}
+        <View style={styles.line}><MapPin size={13} color="#c4001a" /><Text style={[styles.lineText, { color: t.text }]} numberOfLines={1}>{r.destination_address}</Text></View>
+        {r.notes ? <Text style={[styles.notes, { color: t.subtext }]}>“{r.notes}”</Text> : null}
+        <Text style={[styles.when, { color: t.subtext }]}><Clock size={12} color={t.subtext} /> {fmtWhen(r.created_at)}</Text>
 
         <View style={styles.actions}>
           {r.status === 'pending' && (
@@ -93,21 +95,21 @@ export default function RidesScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe} edges={['top']}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Ride requests</Text>
-        <Text style={styles.sub}>{pending.length} pending · {mine.length} active</Text>
+    <SafeAreaView style={[styles.safe, { backgroundColor: t.bg }]} edges={['top']}>
+      <View style={[styles.header, { backgroundColor: t.card, borderBottomColor: t.border }]}>
+        <Text style={[styles.title, { color: t.text }]}>Ride requests</Text>
+        <Text style={[styles.sub, { color: t.subtext }]}>{pending.length} pending · {mine.length} active</Text>
       </View>
       <ScrollView contentContainerStyle={styles.body} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => { setRefreshing(true); load(); }} />}>
         {loading ? (
-          <ActivityIndicator style={{ marginTop: 40 }} color="#000" />
+          <ActivityIndicator style={{ marginTop: 40 }} color={t.text} />
         ) : rides.length === 0 ? (
-          <View style={styles.empty}><Navigation size={40} color="#ccc" /><Text style={styles.emptyText}>No ride requests yet</Text></View>
+          <View style={styles.empty}><Navigation size={40} color={t.subtext} /><Text style={[styles.emptyText, { color: t.subtext }]}>No ride requests yet</Text></View>
         ) : (
           <>
-            {mine.length > 0 && <><Text style={styles.section}>Your active rides</Text>{mine.map(r => <Card key={r.id} r={r} />)}</>}
-            <Text style={styles.section}>Pending</Text>
-            {pending.length === 0 ? <Text style={styles.emptyText}>Nothing pending.</Text> : pending.map(r => <Card key={r.id} r={r} />)}
+            {mine.length > 0 && <><Text style={[styles.section, { color: t.text }]}>Your active rides</Text>{mine.map(r => <Card key={r.id} r={r} />)}</>}
+            <Text style={[styles.section, { color: t.text }]}>Pending</Text>
+            {pending.length === 0 ? <Text style={[styles.emptyText, { color: t.subtext }]}>Nothing pending.</Text> : pending.map(r => <Card key={r.id} r={r} />)}
           </>
         )}
       </ScrollView>

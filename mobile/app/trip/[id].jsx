@@ -16,6 +16,7 @@ import { useVehicleStore } from '../../src/store/vehicleStore';
 import { usePassengerStore } from '../../src/store/passengerStore';
 import { getCarImage } from '../../src/config/carImages';
 import { useLayout } from '../../src/hooks/useLayout';
+import { useTheme } from '../../src/store/themeStore';
 
 const SEAT_MAP = {
   'Sprinter': 3, 'S-Class': 5, 'S Class': 5, 'GLE': 7,
@@ -84,16 +85,17 @@ const plateStyles = StyleSheet.create({
 /* -- Driver Selection Modal -- */
 function DriverPickerModal({ visible, onClose, onSelect, currentDriver }) {
   const { passengers } = usePassengerStore();
+  const th = useTheme();
   const drivers = passengers.filter((p) => p.isDriver).map((p) => p.name);
 
   return (
     <Modal visible={visible} animationType="slide" transparent>
       <View style={driverModalStyles.overlay}>
-        <View style={driverModalStyles.sheet}>
+        <View style={[driverModalStyles.sheet, { backgroundColor: th.card }]}>
           <View style={driverModalStyles.header}>
-            <Text style={driverModalStyles.headerTitle}>Assign Driver</Text>
+            <Text style={[driverModalStyles.headerTitle, { color: th.text }]}>Assign Driver</Text>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <X size={22} color="#000" />
+              <X size={22} color={th.text} />
             </TouchableOpacity>
           </View>
           <ScrollView style={driverModalStyles.list} contentContainerStyle={{ paddingBottom: 20 }}>
@@ -101,6 +103,7 @@ function DriverPickerModal({ visible, onClose, onSelect, currentDriver }) {
             <TouchableOpacity
               style={[
                 driverModalStyles.driverRow,
+                { backgroundColor: th.inputBg, borderColor: th.border },
                 !currentDriver && driverModalStyles.driverRowSelected,
               ]}
               activeOpacity={0.6}
@@ -108,15 +111,17 @@ function DriverPickerModal({ visible, onClose, onSelect, currentDriver }) {
             >
               <Text style={[
                 driverModalStyles.driverName,
+                { color: th.text },
                 !currentDriver && driverModalStyles.driverNameSelected,
               ]}>None</Text>
-              {!currentDriver && <Check size={16} color="#000" />}
+              {!currentDriver && <Check size={16} color={th.text} />}
             </TouchableOpacity>
             {drivers.map((name) => (
               <TouchableOpacity
                 key={name}
                 style={[
                   driverModalStyles.driverRow,
+                  { backgroundColor: th.inputBg, borderColor: th.border },
                   currentDriver === name && driverModalStyles.driverRowSelected,
                 ]}
                 activeOpacity={0.6}
@@ -124,9 +129,10 @@ function DriverPickerModal({ visible, onClose, onSelect, currentDriver }) {
               >
                 <Text style={[
                   driverModalStyles.driverName,
+                  { color: th.text },
                   currentDriver === name && driverModalStyles.driverNameSelected,
                 ]}>{name}</Text>
-                {currentDriver === name && <Check size={16} color="#000" />}
+                {currentDriver === name && <Check size={16} color={th.text} />}
               </TouchableOpacity>
             ))}
           </ScrollView>
@@ -196,6 +202,7 @@ function TripPassengerModal({ visible, onClose, trip }) {
     addTripPassenger, removeTripPassenger, toggleTripPassenger,
   } = useTripStore();
   const { passengers: masterPassengers, addPassenger: addMasterPassenger } = usePassengerStore();
+  const th = useTheme();
   const [input, setInput] = useState('');
   const [newIsVip, setNewIsVip] = useState(false);
 
@@ -246,22 +253,22 @@ function TripPassengerModal({ visible, onClose, trip }) {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={tripPaxStyles.overlay}
       >
-        <View style={tripPaxStyles.sheet}>
+        <View style={[tripPaxStyles.sheet, { backgroundColor: th.card }]}>
           {/* Header */}
           <View style={tripPaxStyles.header}>
-            <Text style={tripPaxStyles.headerTitle}>Journey Passengers</Text>
+            <Text style={[tripPaxStyles.headerTitle, { color: th.text }]}>Journey Passengers</Text>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <X size={22} color="#000" />
+              <X size={22} color={th.text} />
             </TouchableOpacity>
           </View>
 
           {/* Count */}
           <View style={tripPaxStyles.countRow}>
-            <Text style={tripPaxStyles.countText}>{activeCount} / {totalCount} active</Text>
+            <Text style={[tripPaxStyles.countText, { color: th.subtext }]}>{activeCount} / {totalCount} active</Text>
           </View>
 
           {/* Subtitle */}
-          <Text style={tripPaxStyles.subtitle}>All drivers are passengers; not all passengers are drivers</Text>
+          <Text style={[tripPaxStyles.subtitle, { color: th.subtext }]}>All drivers are passengers; not all passengers are drivers</Text>
 
           <ScrollView style={tripPaxStyles.listScroll} contentContainerStyle={{ paddingBottom: 20 }}>
             {/* Group passengers into Drivers / Passengers / VIP */}
@@ -285,6 +292,7 @@ function TripPassengerModal({ visible, onClose, trip }) {
                   key={p.name}
                   style={[
                     tripPaxStyles.passengerRow,
+                    { backgroundColor: th.inputBg, borderColor: th.border },
                     !p.active && tripPaxStyles.passengerRowInactive,
                     p.isVip && tripPaxStyles.passengerRowVip,
                   ]}
@@ -294,11 +302,11 @@ function TripPassengerModal({ visible, onClose, trip }) {
                   ) : p.isDriver ? (
                     <Star size={14} color="#f59e0b" fill="#f59e0b" style={{ marginRight: 6 }} />
                   ) : (
-                    <User size={14} color="#666" style={{ marginRight: 6 }} />
+                    <User size={14} color={th.subtext} style={{ marginRight: 6 }} />
                   )}
                   <View style={tripPaxStyles.passengerInfo}>
                     <Text
-                      style={[tripPaxStyles.passengerName, !p.active && tripPaxStyles.passengerNameInactive]}
+                      style={[tripPaxStyles.passengerName, { color: th.text }, !p.active && tripPaxStyles.passengerNameInactive]}
                       numberOfLines={1}
                     >
                       {p.name}
@@ -328,31 +336,31 @@ function TripPassengerModal({ visible, onClose, trip }) {
                   {/* Drivers */}
                   <View style={tripPaxStyles.groupHeader}>
                     <Star size={14} color="#f59e0b" fill="#f59e0b" />
-                    <Text style={tripPaxStyles.groupTitle}>Drivers</Text>
-                    <Text style={tripPaxStyles.groupCount}>{drivers.filter(d => d.active).length}/{drivers.length}</Text>
+                    <Text style={[tripPaxStyles.groupTitle, { color: th.subtext }]}>Drivers</Text>
+                    <Text style={[tripPaxStyles.groupCount, { color: th.subtext }]}>{drivers.filter(d => d.active).length}/{drivers.length}</Text>
                   </View>
                   {drivers.length === 0 ? (
-                    <Text style={tripPaxStyles.emptyText}>No drivers</Text>
+                    <Text style={[tripPaxStyles.emptyText, { color: th.subtext }]}>No drivers</Text>
                   ) : drivers.map(renderRow)}
 
                   {/* Passengers */}
                   <View style={[tripPaxStyles.groupHeader, { marginTop: 16 }]}>
-                    <User size={14} color="#666" />
-                    <Text style={tripPaxStyles.groupTitle}>Passengers</Text>
-                    <Text style={tripPaxStyles.groupCount}>{passengers.filter(d => d.active).length}/{passengers.length}</Text>
+                    <User size={14} color={th.subtext} />
+                    <Text style={[tripPaxStyles.groupTitle, { color: th.subtext }]}>Passengers</Text>
+                    <Text style={[tripPaxStyles.groupCount, { color: th.subtext }]}>{passengers.filter(d => d.active).length}/{passengers.length}</Text>
                   </View>
                   {passengers.length === 0 ? (
-                    <Text style={tripPaxStyles.emptyText}>No passengers</Text>
+                    <Text style={[tripPaxStyles.emptyText, { color: th.subtext }]}>No passengers</Text>
                   ) : passengers.map(renderRow)}
 
                   {/* VIP */}
                   <View style={[tripPaxStyles.groupHeader, { marginTop: 16 }]}>
                     <Diamond size={14} color="#9333ea" fill="#9333ea" />
                     <Text style={[tripPaxStyles.groupTitle, { color: '#9333ea' }]}>VIP Guests</Text>
-                    <Text style={tripPaxStyles.groupCount}>{vips.filter(d => d.active).length}/{vips.length}</Text>
+                    <Text style={[tripPaxStyles.groupCount, { color: th.subtext }]}>{vips.filter(d => d.active).length}/{vips.length}</Text>
                   </View>
                   {vips.length === 0 ? (
-                    <Text style={tripPaxStyles.emptyText}>No VIP guests added</Text>
+                    <Text style={[tripPaxStyles.emptyText, { color: th.subtext }]}>No VIP guests added</Text>
                   ) : vips.map(renderRow)}
                 </>
               );
@@ -390,7 +398,7 @@ function TripPassengerModal({ visible, onClose, trip }) {
                     <>
                       <View style={[tripPaxStyles.groupHeader, { marginTop: 0 }]}>
                         <Star size={12} color="#f59e0b" fill="#f59e0b" />
-                        <Text style={tripPaxStyles.addGroupLabel}>Drivers</Text>
+                        <Text style={[tripPaxStyles.addGroupLabel, { color: th.subtext }]}>Drivers</Text>
                       </View>
                       {renderChips(availDrivers, <Star size={12} color="#f59e0b" fill="#f59e0b" />)}
                     </>
@@ -398,8 +406,8 @@ function TripPassengerModal({ visible, onClose, trip }) {
                   {availPassengers.length > 0 && (
                     <>
                       <View style={[tripPaxStyles.groupHeader, { marginTop: 12 }]}>
-                        <User size={12} color="#666" />
-                        <Text style={tripPaxStyles.addGroupLabel}>Passengers</Text>
+                        <User size={12} color={th.subtext} />
+                        <Text style={[tripPaxStyles.addGroupLabel, { color: th.subtext }]}>Passengers</Text>
                       </View>
                       {renderChips(availPassengers, <User size={12} color="#888" />)}
                     </>
@@ -419,18 +427,18 @@ function TripPassengerModal({ visible, onClose, trip }) {
           </ScrollView>
 
           {/* Add passenger input */}
-          <View style={tripPaxStyles.addRow}>
+          <View style={[tripPaxStyles.addRow, { borderTopColor: th.border }]}>
             <TextInput
-              style={tripPaxStyles.addInput}
+              style={[tripPaxStyles.addInput, { backgroundColor: th.inputBg, color: th.text, borderColor: th.border }]}
               value={input}
               onChangeText={setInput}
               placeholder="Add new passenger..."
-              placeholderTextColor="#bbb"
+              placeholderTextColor={th.subtext}
               onSubmitEditing={handleAdd}
               returnKeyType="done"
             />
             <TouchableOpacity
-              style={[tripPaxStyles.vipToggle, newIsVip && tripPaxStyles.vipToggleActive]}
+              style={[tripPaxStyles.vipToggle, { backgroundColor: th.inputBg, borderColor: th.border }, newIsVip && tripPaxStyles.vipToggleActive]}
               onPress={() => setNewIsVip(!newIsVip)}
               hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
             >
@@ -660,6 +668,7 @@ function VehiclePassengerModal({ visible, onClose, tripVehicle, fleetVehicle, tr
     assignPassengerToVehicle, unassignPassengerFromVehicle,
   } = useTripStore();
   const { passengers: masterPassengers } = usePassengerStore();
+  const th = useTheme();
 
   const vehicleName = fleetVehicle
     ? `${fleetVehicle.make} ${fleetVehicle.model}`
@@ -697,27 +706,27 @@ function VehiclePassengerModal({ visible, onClose, tripVehicle, fleetVehicle, tr
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={vPaxStyles.overlay}
       >
-        <View style={vPaxStyles.sheet}>
+        <View style={[vPaxStyles.sheet, { backgroundColor: th.card }]}>
           {/* Header */}
           <View style={vPaxStyles.header}>
-            <Text style={vPaxStyles.headerTitle} numberOfLines={1}>
+            <Text style={[vPaxStyles.headerTitle, { color: th.text }]} numberOfLines={1}>
               Passengers - {vehicleName}
             </Text>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <X size={22} color="#000" />
+              <X size={22} color={th.text} />
             </TouchableOpacity>
           </View>
 
           {/* Seat counter */}
           <View style={vPaxStyles.seatCounter}>
-            <Text style={vPaxStyles.seatCounterText}>
+            <Text style={[vPaxStyles.seatCounterText, { color: th.subtext }]}>
               {assignedCount} / {seatsTotal} seats
             </Text>
           </View>
 
           <ScrollView style={vPaxStyles.listScroll} contentContainerStyle={{ paddingBottom: 20 }}>
             {tripPassengers.length === 0 ? (
-              <Text style={vPaxStyles.emptyText}>No active journey passengers. Add passengers to the journey first.</Text>
+              <Text style={[vPaxStyles.emptyText, { color: th.subtext }]}>No active journey passengers. Add passengers to the journey first.</Text>
             ) : (
               tripPassengers.map((tp) => {
                 const isAssigned = assignedNames.has(tp.name);
@@ -729,6 +738,7 @@ function VehiclePassengerModal({ visible, onClose, tripVehicle, fleetVehicle, tr
                     key={tp.name}
                     style={[
                       vPaxStyles.passengerRow,
+                      { backgroundColor: th.inputBg, borderColor: th.border },
                       isAssigned && vPaxStyles.passengerRowAssigned,
                       isFull && vPaxStyles.passengerRowDisabled,
                       isVip && !isAssigned && vPaxStyles.passengerRowVip,
@@ -746,6 +756,7 @@ function VehiclePassengerModal({ visible, onClose, tripVehicle, fleetVehicle, tr
                     <Text
                       style={[
                         vPaxStyles.passengerName,
+                        !isAssigned && !isVip && { color: th.text },
                         isFull && !isAssigned && vPaxStyles.passengerNameDisabled,
                       ]}
                       numberOfLines={1}
@@ -885,6 +896,7 @@ function PassengerModal({ visible, onClose, tripVehicle, fleetVehicle, tripId })
   const {
     addPassenger, removePassenger, togglePassenger,
   } = useTripStore();
+  const th = useTheme();
   const [input, setInput] = useState('');
 
   const vehicleName = fleetVehicle
@@ -927,20 +939,20 @@ function PassengerModal({ visible, onClose, tripVehicle, fleetVehicle, tripId })
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={paxStyles.overlay}
       >
-        <View style={paxStyles.sheet}>
+        <View style={[paxStyles.sheet, { backgroundColor: th.card }]}>
           {/* Header */}
           <View style={paxStyles.header}>
-            <Text style={paxStyles.headerTitle} numberOfLines={1}>
+            <Text style={[paxStyles.headerTitle, { color: th.text }]} numberOfLines={1}>
               Passengers - {vehicleName}
             </Text>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
-              <X size={22} color="#000" />
+              <X size={22} color={th.text} />
             </TouchableOpacity>
           </View>
 
           {/* Seat counter */}
           <View style={paxStyles.seatCounter}>
-            <Text style={paxStyles.seatCounterText}>
+            <Text style={[paxStyles.seatCounterText, { color: th.subtext }]}>
               {seatsFilled} / {seatsTotal} seats filled
             </Text>
           </View>
@@ -949,7 +961,7 @@ function PassengerModal({ visible, onClose, tripVehicle, fleetVehicle, tripId })
             {/* Driver section */}
             {driverName ? (
               <View style={paxStyles.driverSection}>
-                <Text style={paxStyles.sectionLabel}>DRIVER</Text>
+                <Text style={[paxStyles.sectionLabel, { color: th.subtext }]}>DRIVER</Text>
                 <View style={paxStyles.driverRow}>
                   <Star size={16} color="#f59e0b" fill="#f59e0b" />
                   <Text style={paxStyles.driverName}>{driverName}</Text>
@@ -957,15 +969,15 @@ function PassengerModal({ visible, onClose, tripVehicle, fleetVehicle, tripId })
               </View>
             ) : (
               <View style={paxStyles.driverSection}>
-                <Text style={paxStyles.sectionLabel}>DRIVER</Text>
-                <Text style={paxStyles.noDriver}>No driver assigned</Text>
+                <Text style={[paxStyles.sectionLabel, { color: th.subtext }]}>DRIVER</Text>
+                <Text style={[paxStyles.noDriver, { color: th.subtext }]}>No driver assigned</Text>
               </View>
             )}
 
             {/* Passenger list */}
-            <Text style={[paxStyles.sectionLabel, { marginTop: 16 }]}>PASSENGERS</Text>
+            <Text style={[paxStyles.sectionLabel, { marginTop: 16, color: th.subtext }]}>PASSENGERS</Text>
             {passengers.length === 0 ? (
-              <Text style={paxStyles.emptyText}>No passengers yet</Text>
+              <Text style={[paxStyles.emptyText, { color: th.subtext }]}>No passengers yet</Text>
             ) : (
               passengers.map((p, i) => {
                 const name = getPassengerName(p);
@@ -973,10 +985,10 @@ function PassengerModal({ visible, onClose, tripVehicle, fleetVehicle, tripId })
                 return (
                   <View
                     key={i}
-                    style={[paxStyles.passengerRow, !active && paxStyles.passengerRowInactive]}
+                    style={[paxStyles.passengerRow, { backgroundColor: th.inputBg, borderColor: th.border }, !active && paxStyles.passengerRowInactive]}
                   >
                     <Text
-                      style={[paxStyles.passengerName, !active && paxStyles.passengerNameInactive]}
+                      style={[paxStyles.passengerName, { color: th.text }, !active && paxStyles.passengerNameInactive]}
                       numberOfLines={1}
                     >
                       {name}
@@ -1002,13 +1014,13 @@ function PassengerModal({ visible, onClose, tripVehicle, fleetVehicle, tripId })
           </ScrollView>
 
           {/* Add passenger input */}
-          <View style={paxStyles.addRow}>
+          <View style={[paxStyles.addRow, { borderTopColor: th.border }]}>
             <TextInput
-              style={paxStyles.addInput}
+              style={[paxStyles.addInput, { backgroundColor: th.inputBg, color: th.text, borderColor: th.border }]}
               value={input}
               onChangeText={setInput}
               placeholder="Add passenger name..."
-              placeholderTextColor="#bbb"
+              placeholderTextColor={th.subtext}
               onSubmitEditing={handleAdd}
               returnKeyType="done"
             />
@@ -1164,6 +1176,7 @@ function VehicleCard({ tripVehicle, fleetVehicle, tripId, trip }) {
     updateTripVehicle, removeVehicleFromTrip, completeTripVehicle,
   } = useTripStore();
   const { passengers: masterPassengers } = usePassengerStore();
+  const th = useTheme();
 
   const [driverModalVisible, setDriverModalVisible] = useState(false);
   const [editingLocation, setEditingLocation] = useState(false);
@@ -1224,7 +1237,7 @@ function VehicleCard({ tripVehicle, fleetVehicle, tripId, trip }) {
   (trip.passengers || []).forEach((p) => { tripPassengerMap[p.name] = p; });
 
   return (
-    <View style={[styles.vehicleCard, isCompleted && styles.vehicleCardCompleted]}>
+    <View style={[styles.vehicleCard, { backgroundColor: th.card, borderColor: th.border }, isCompleted && styles.vehicleCardCompleted]}>
       {/* Completed badge */}
       {isCompleted && (
         <View style={styles.completedVehicleBadge}>
@@ -1244,7 +1257,7 @@ function VehicleCard({ tripVehicle, fleetVehicle, tripId, trip }) {
             />
           ) : (
             <View style={styles.vehicleImageFallback}>
-              <Car size={22} color="#888" />
+              <Car size={22} color={th.subtext} />
             </View>
           )}
         </View>
@@ -1259,7 +1272,7 @@ function VehicleCard({ tripVehicle, fleetVehicle, tripId, trip }) {
         )}
       </View>
 
-      <Text style={[styles.vehicleName, isCompleted && styles.textGreyed]}>{vehicleName}</Text>
+      <Text style={[styles.vehicleName, { color: th.text }, isCompleted && styles.textGreyed]}>{vehicleName}</Text>
       {fleetVehicle?.licensePlate && (
         <View style={styles.plateWrap}>
           <UKPlate registration={fleetVehicle.licensePlate} />
@@ -1270,10 +1283,10 @@ function VehicleCard({ tripVehicle, fleetVehicle, tripId, trip }) {
       <View style={styles.fieldSection}>
         {/* Driver - tap to open list */}
         <View style={styles.fieldRow}>
-          <View style={styles.fieldIconWrap}>
-            <User size={14} color="#555" />
+          <View style={[styles.fieldIconWrap, { backgroundColor: th.inputBg }]}>
+            <User size={14} color={th.text} />
           </View>
-          <Text style={styles.fieldLabel}>Driver</Text>
+          <Text style={[styles.fieldLabel, { color: th.subtext }]}>Driver</Text>
           {isCompleted ? (
             <View style={styles.fieldValueRow}>
               <Text style={[styles.fieldValue, styles.textGreyed]}>
@@ -1282,7 +1295,7 @@ function VehicleCard({ tripVehicle, fleetVehicle, tripId, trip }) {
             </View>
           ) : (
             <TouchableOpacity style={styles.fieldValueRow} onPress={() => setDriverModalVisible(true)}>
-              <Text style={[styles.fieldValue, !tripVehicle.driver && styles.fieldPlaceholder]}>
+              <Text style={[styles.fieldValue, { color: th.text }, !tripVehicle.driver && styles.fieldPlaceholder]}>
                 {tripVehicle.driver || 'Tap to assign'}
               </Text>
               <Edit3 size={13} color="#ccc" />
@@ -1292,12 +1305,12 @@ function VehicleCard({ tripVehicle, fleetVehicle, tripId, trip }) {
 
         {/* Seats - read-only */}
         <View style={styles.fieldRow}>
-          <View style={styles.fieldIconWrap}>
-            <Hash size={14} color="#555" />
+          <View style={[styles.fieldIconWrap, { backgroundColor: th.inputBg }]}>
+            <Hash size={14} color={th.text} />
           </View>
-          <Text style={styles.fieldLabel}>Seats</Text>
+          <Text style={[styles.fieldLabel, { color: th.subtext }]}>Seats</Text>
           <View style={styles.fieldValueRow}>
-            <Text style={[styles.fieldValue, isCompleted && styles.textGreyed]}>
+            <Text style={[styles.fieldValue, { color: th.text }, isCompleted && styles.textGreyed]}>
               {assignedCount}/{seatsTotal} filled
             </Text>
           </View>

@@ -7,6 +7,7 @@ import { LocateFixed } from 'lucide-react-native';
 import { useVehicleStore } from '../../src/store/vehicleStore';
 import { SERVER_URL } from '../../src/config/api';
 import { useLayout } from '../../src/hooks/useLayout';
+import { useTheme } from '../../src/store/themeStore';
 
 // The map runs inside a WebView, which can't load bundled RN assets in a
 // release build (only over Metro in dev). So we serve the car images from the
@@ -240,6 +241,7 @@ export default function MapScreen() {
   const [userLocation, setUserLocation] = useState(null);
   const router = useRouter();
   const { isUnfolded } = useLayout();
+  const t = useTheme();
   const webViewRef = useRef(null);
 
   useEffect(() => {
@@ -328,10 +330,10 @@ export default function MapScreen() {
   }
 
   return (
-    <View style={styles.container}>
-      <View style={[styles.header, isUnfolded && styles.headerUnfolded]}>
-        <Text style={[styles.headerTitle, isUnfolded && styles.headerTitleUnfolded]}>Live Map</Text>
-        <Text style={styles.headerCount}>
+    <View style={[styles.container, { backgroundColor: t.bg }]}>
+      <View style={[styles.header, isUnfolded && styles.headerUnfolded, { backgroundColor: t.card, borderBottomColor: t.border }]}>
+        <Text style={[styles.headerTitle, isUnfolded && styles.headerTitleUnfolded, { color: t.text }]}>Live Map</Text>
+        <Text style={[styles.headerCount, { color: t.subtext }]}>
           {vehicles.length} vehicle{vehicles.length !== 1 ? 's' : ''}
         </Text>
       </View>
@@ -356,11 +358,11 @@ export default function MapScreen() {
 
         {userLocation && (
           <TouchableOpacity
-            style={styles.myLocationButton}
+            style={[styles.myLocationButton, { backgroundColor: t.card }]}
             onPress={handleMyLocation}
             activeOpacity={0.7}
           >
-            <LocateFixed size={22} color="#333" strokeWidth={2.2} />
+            <LocateFixed size={22} color={t.text} strokeWidth={2.2} />
           </TouchableOpacity>
         )}
       </View>
