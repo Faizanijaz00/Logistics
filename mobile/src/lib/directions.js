@@ -7,7 +7,7 @@ export async function getRouteEstimate(pickup, dest) {
   try {
     const coords = `${pickup.lng},${pickup.lat};${dest.lng},${dest.lat}`;
     const url = `https://api.mapbox.com/directions/v5/mapbox/driving/${coords}`
-      + `?access_token=${MAPBOX_TOKEN}&overview=false`;
+      + `?access_token=${MAPBOX_TOKEN}&overview=full&geometries=polyline`;
     const res = await fetch(url);
     const data = await res.json();
     const route = data?.routes?.[0];
@@ -15,6 +15,7 @@ export async function getRouteEstimate(pickup, dest) {
     return {
       durationMin: Math.max(1, Math.round(route.duration / 60)),
       distanceKm: route.distance / 1000,
+      geometry: route.geometry || null, // encoded polyline for the static map line
     };
   } catch {
     return null;

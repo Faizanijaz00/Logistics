@@ -9,7 +9,7 @@ const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 // when the user picks a suggestion. `leftIcon` overrides the default pin,
 // `rightAccessory` renders inside the pill (e.g. a "Later" button), and `big`
 // enlarges it into an Uber-style "Where to?" search bar.
-export default function AddressAutocomplete({ label, placeholder, value, onSelect, leftIcon: LeftIcon = MapPin, rightAccessory, big }) {
+export default function AddressAutocomplete({ label, placeholder, value, onSelect, leftIcon: LeftIcon = MapPin, rightAccessory, big, proximity }) {
   const t = useTheme();
   const [text, setText] = useState(value || '');
   const [suggestions, setSuggestions] = useState([]);
@@ -26,8 +26,10 @@ export default function AddressAutocomplete({ label, placeholder, value, onSelec
     setSearching(true);
     const timer = setTimeout(async () => {
       try {
+        const prox = (proximity?.lat != null && proximity?.lng != null)
+          ? `&proximity=${proximity.lng},${proximity.lat}` : '&proximity=ip';
         const url = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json`
-          + `?access_token=${MAPBOX_TOKEN}&autocomplete=true&limit=5&types=poi,address,place,locality,neighborhood`;
+          + `?access_token=${MAPBOX_TOKEN}&autocomplete=true&limit=5&types=poi,address,place,locality,neighborhood${prox}`;
         const resp = await fetch(url);
         const data = await resp.json();
         if (alive) setSuggestions(Array.isArray(data.features) ? data.features : []);
@@ -38,7 +40,7 @@ export default function AddressAutocomplete({ label, placeholder, value, onSelec
       }
     }, 300);
     return () => { alive = false; clearTimeout(timer); };
-  }, [text]);
+  }, [text, proximity?.lat, proximity?.lng]);
 
   const pick = (f) => {
     skip.current = true;
