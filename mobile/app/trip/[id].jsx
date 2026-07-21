@@ -1280,7 +1280,7 @@ function VehicleCard({ tripVehicle, fleetVehicle, tripId, trip }) {
       )}
 
       {/* Editable fields */}
-      <View style={styles.fieldSection}>
+      <View style={[styles.fieldSection, { borderTopColor: th.border }]}>
         {/* Driver - tap to open list */}
         <View style={styles.fieldRow}>
           <View style={[styles.fieldIconWrap, { backgroundColor: th.inputBg }]}>
@@ -1318,10 +1318,10 @@ function VehicleCard({ tripVehicle, fleetVehicle, tripId, trip }) {
 
         {/* Departure Location */}
         <View style={styles.fieldRow}>
-          <View style={styles.fieldIconWrap}>
-            <MapPin size={14} color="#555" />
+          <View style={[styles.fieldIconWrap, { backgroundColor: th.inputBg }]}>
+            <MapPin size={14} color={th.text} />
           </View>
-          <Text style={styles.fieldLabel}>Departure</Text>
+          <Text style={[styles.fieldLabel, { color: th.subtext }]}>Departure</Text>
           {isCompleted ? (
             <View style={styles.fieldValueRow}>
               <Text style={[styles.fieldValue, styles.textGreyed]}>
@@ -1331,11 +1331,11 @@ function VehicleCard({ tripVehicle, fleetVehicle, tripId, trip }) {
           ) : editingLocation ? (
             <View style={styles.fieldEditRow}>
               <TextInput
-                style={styles.fieldInput}
+                style={[styles.fieldInput, { backgroundColor: th.inputBg, color: th.text, borderColor: th.border }]}
                 value={locationInput}
                 onChangeText={setLocationInput}
                 placeholder="Departure location"
-                placeholderTextColor="#bbb"
+                placeholderTextColor={th.subtext}
                 autoFocus
                 onSubmitEditing={saveLocation}
                 returnKeyType="done"
@@ -1346,7 +1346,7 @@ function VehicleCard({ tripVehicle, fleetVehicle, tripId, trip }) {
             </View>
           ) : (
             <TouchableOpacity style={styles.fieldValueRow} onPress={() => { setLocationInput(tripVehicle.departureLocation); setEditingLocation(true); }}>
-              <Text style={[styles.fieldValue, !tripVehicle.departureLocation && styles.fieldPlaceholder]}>
+              <Text style={[styles.fieldValue, { color: th.text }, !tripVehicle.departureLocation && styles.fieldPlaceholder]}>
                 {tripVehicle.departureLocation || 'Tap to set'}
               </Text>
               <Edit3 size={13} color="#ccc" />
