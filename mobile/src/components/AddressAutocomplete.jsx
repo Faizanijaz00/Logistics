@@ -51,7 +51,7 @@ export default function AddressAutocomplete({ label, placeholder, value, onSelec
   return (
     <View style={styles.wrap}>
       {label ? <Text style={[styles.label, { color: t.subtext }]}>{label}</Text> : null}
-      <View style={[styles.inputRow, big && styles.inputRowBig, { backgroundColor: big ? t.inputBg : t.card, borderColor: t.border, borderWidth: big ? 0 : 1 }]}>
+      <View style={[styles.inputRow, big && styles.inputRowBig, { backgroundColor: t.card, borderColor: t.border, borderWidth: 1 }]}>
         <LeftIcon size={big ? 22 : 16} color={t.subtext} />
         <TextInput
           style={[styles.input, big && styles.inputBig, { color: t.text }]}
@@ -82,7 +82,7 @@ const styles = StyleSheet.create({
   wrap: { marginBottom: 14 },
   label: { fontSize: 13, fontWeight: '500', color: '#626669', marginBottom: 6 },
   inputRow: { flexDirection: 'row', alignItems: 'center', gap: 8, backgroundColor: '#fff', borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 10, paddingHorizontal: 12, paddingVertical: 12 },
-  inputRowBig: { backgroundColor: '#f0f0f0', borderWidth: 0, borderRadius: 30, paddingHorizontal: 18, paddingVertical: 16, gap: 12 },
+  inputRowBig: { borderRadius: 30, paddingHorizontal: 18, paddingVertical: 16, gap: 12, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 12, shadowOffset: { width: 0, height: 4 }, elevation: 4 },
   input: { flex: 1, fontSize: 15, color: '#000', padding: 0 },
   inputBig: { fontSize: 20, fontWeight: '600' },
   suggestions: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#eee', borderRadius: 10, marginTop: 4, overflow: 'hidden' },

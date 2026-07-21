@@ -199,7 +199,7 @@ export default function RiderScreen() {
             value={destination?.address || ''}
             onSelect={setDestination}
             rightAccessory={(
-              <TouchableOpacity style={[styles.laterBtn, { backgroundColor: t.card }]} onPress={() => setShowPicker(true)} activeOpacity={0.8}>
+              <TouchableOpacity style={[styles.laterBtn, { backgroundColor: t.inputBg }]} onPress={() => setShowPicker(true)} activeOpacity={0.8}>
                 <Calendar size={15} color={t.text} />
                 <Text style={[styles.laterText, { color: t.text }]}>{scheduledFor ? shortTime(scheduledFor) : 'Later'}</Text>
               </TouchableOpacity>
