@@ -18,11 +18,14 @@ export default function TabLayout() {
   const toggleTheme = useThemeStore(s => s.toggle);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Land on Rides when the tab group first mounts (tab switches don't remount
-  // the layout, so this doesn't fight manual navigation to other tabs).
+  // Drivers land on Rides when the tab group first mounts; admins stay on their
+  // Home dashboard (they don't drive). Tab switches don't remount the layout, so
+  // this doesn't fight manual navigation.
   useEffect(() => {
-    const id = setTimeout(() => router.replace('/(tabs)/rides'), 0);
-    return () => clearTimeout(id);
+    if (useAuthStore.getState().user?.role === 'driver') {
+      const id = setTimeout(() => router.replace('/(tabs)/rides'), 0);
+      return () => clearTimeout(id);
+    }
   }, []);
 
   const homeLabel = user?.role === 'admin' ? 'Home' : (user?.name || 'Drive');

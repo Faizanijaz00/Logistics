@@ -8,7 +8,8 @@ import { sb } from './supabase.js';
 async function pushToDrivers(title, body, data) {
   let recipients = [];
   try {
-    const rows = await sb('/rest/v1/users?role=in.(driver,admin)&select=*');
+    // Only drivers get ride requests — admins manage, they don't drive.
+    const rows = await sb('/rest/v1/users?role=eq.driver&select=*');
     recipients = (rows || []).map(r => r.push_token).filter(Boolean);
   } catch { return; }
   if (recipients.length === 0) return;

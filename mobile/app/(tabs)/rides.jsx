@@ -28,6 +28,7 @@ export default function RidesScreen() {
   const selectVehicle = useAuthStore(s => s.selectVehicle);
   const vehicles = useVehicleStore(s => s.vehicles);
   const t = useTheme();
+  const isDriver = user?.role === 'driver'; // admins manage, they don't drive
 
   const [loc, setLoc] = useState(null);
   const [rides, setRides] = useState([]);
@@ -143,15 +144,15 @@ export default function RidesScreen() {
           {r.est_duration_min ? <Text style={[styles.chip, { backgroundColor: t.inputBg, color: t.subtext }]}>{r.est_duration_min} min</Text> : null}
           <Text style={[styles.when, { color: t.subtext }]}>{fmtWhen(r.created_at)}</Text>
         </View>
-        {r.status === 'pending' && (
+        {isDriver && r.status === 'pending' && (
           <TouchableOpacity style={[styles.select, { backgroundColor: t.accent }]} disabled={busyId === r.id} onPress={() => update(r, 'accepted')}>
             {busyId === r.id ? <ActivityIndicator size="small" color="#fff" /> : <><Text style={styles.selectText}>Select ride</Text><ArrowRight size={18} color="#fff" /></>}
           </TouchableOpacity>
         )}
-        {isMine && r.status === 'accepted' && (
+        {isDriver && isMine && r.status === 'accepted' && (
           <TouchableOpacity style={[styles.select, { backgroundColor: t.accent }]} disabled={busyId === r.id} onPress={() => update(r, 'in_progress')}><Text style={styles.selectText}>Start ride</Text></TouchableOpacity>
         )}
-        {isMine && r.status === 'in_progress' && (
+        {isDriver && isMine && r.status === 'in_progress' && (
           <TouchableOpacity style={[styles.select, { backgroundColor: '#018a16' }]} disabled={busyId === r.id} onPress={() => update(r, 'completed')}><Text style={styles.selectText}>Complete ride</Text></TouchableOpacity>
         )}
       </View>
@@ -220,21 +221,23 @@ export default function RidesScreen() {
       <View style={styles.mapWrap}>
         {mapUrl ? <Image source={{ uri: mapUrl }} style={styles.map} resizeMode="cover" />
           : <View style={[styles.map, styles.center, { backgroundColor: t.inputBg }]}><ActivityIndicator color={t.subtext} /></View>}
-        <TouchableOpacity style={[styles.vehBtn, { backgroundColor: t.card }]} activeOpacity={0.85} onPress={() => setPickerOpen(true)}>
-          <Car size={20} color={t.accent} />
-          <Text style={[styles.vehBtnText, { color: t.text }]} numberOfLines={1}>
-            {selectedVehicleName ? selectedVehicleName : 'Select vehicle'}
-          </Text>
-          {selectedVehicleName ? <Text style={[styles.vehBtnSub, { color: t.subtext }]}>Change</Text> : null}
-        </TouchableOpacity>
+        {isDriver && (
+          <TouchableOpacity style={[styles.vehBtn, { backgroundColor: t.card }]} activeOpacity={0.85} onPress={() => setPickerOpen(true)}>
+            <Car size={20} color={t.accent} />
+            <Text style={[styles.vehBtnText, { color: t.text }]} numberOfLines={1}>
+              {selectedVehicleName ? selectedVehicleName : 'Select vehicle'}
+            </Text>
+            {selectedVehicleName ? <Text style={[styles.vehBtnSub, { color: t.subtext }]}>Change</Text> : null}
+          </TouchableOpacity>
+        )}
       </View>
 
       {/* Bottom sheet */}
       <View style={[styles.sheet, { backgroundColor: t.bg }]}>
         <View style={styles.handle}><View style={[styles.handleBar, { backgroundColor: t.border }]} /></View>
         <View style={styles.statusRow}>
-          <View style={[styles.dot, { backgroundColor: selectedVehicleId ? '#018a16' : t.subtext }]} />
-          <Text style={[styles.statusText, { color: t.text }]}>{selectedVehicleId ? selectedVehicleName : 'No vehicle selected'}</Text>
+          <View style={[styles.dot, { backgroundColor: (isDriver && selectedVehicleId) ? '#018a16' : t.subtext }]} />
+          <Text style={[styles.statusText, { color: t.text }]}>{isDriver ? (selectedVehicleId ? selectedVehicleName : 'No vehicle selected') : 'Ride requests'}</Text>
           <Text style={[styles.statusSub, { color: t.subtext }]}>{pending.length} request{pending.length === 1 ? '' : 's'}</Text>
         </View>
 
