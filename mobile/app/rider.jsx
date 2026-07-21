@@ -126,6 +126,22 @@ export default function RiderScreen() {
       + `/auto/${SCREEN_W}x320@2x?access_token=${MAPBOX_TOKEN}&padding=60`
     : null;
 
+  const cancelRide = (ride) => {
+    Alert.alert('Cancel ride?', 'This will cancel your current ride.', [
+      { text: 'Keep ride', style: 'cancel' },
+      { text: 'Cancel ride', style: 'destructive', onPress: async () => {
+        try {
+          await fetch(`${SERVER_URL}/api/rides/${ride.id}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+            body: JSON.stringify({ status: 'cancelled' }),
+          });
+          loadRides();
+        } catch {}
+      } },
+    ]);
+  };
+
   const book = async () => {
     if (!destination?.address) return;
     setSubmitting(true);
@@ -249,6 +265,11 @@ export default function RiderScreen() {
             <View style={styles.line}><MapPin size={13} color="#018a16" /><Text style={[styles.lineText, { color: t.text }]} numberOfLines={1}>{activeRide.pickup_address || 'Pickup'}</Text></View>
             <View style={styles.line}><MapPin size={13} color="#c4001a" /><Text style={[styles.lineText, { color: t.text }]} numberOfLines={1}>{activeRide.destination_address}</Text></View>
           </View>
+          {onWay && (
+            <TouchableOpacity style={[styles.cancelBtn, { borderColor: t.border }]} onPress={() => cancelRide(activeRide)}>
+              <Text style={styles.cancelText}>Cancel ride</Text>
+            </TouchableOpacity>
+          )}
         </View>
       </SafeAreaView>
     );
@@ -458,5 +479,7 @@ const styles = StyleSheet.create({
   statusBadge: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 8 },
   statusBadgeText: { fontSize: 12, fontWeight: '700' },
   trackRoute: { gap: 2 },
+  cancelBtn: { marginTop: 16, borderWidth: 1, borderRadius: 12, paddingVertical: 13, alignItems: 'center' },
+  cancelText: { color: '#c4001a', fontSize: 15, fontWeight: '700' },
 });
 
