@@ -1,33 +1,10 @@
 // Rider ("Uber") ride requests + push to drivers.
-//
-// TEMPORARY storage note: to allow testing before the Supabase `ride_requests`
-// migration is run, rides are stored in a JSON file (server/data/rides.json),
-// same pattern as drives/fuel-records. This is ephemeral on Railway (resets on
-// redeploy) — fine for testing. Once migrations/rides.sql is applied we can
-// switch this back to the Supabase `ride_requests` table for durable storage.
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
+// Durable storage in the Supabase `ride_requests` table.
+// Requires migrations/rides.sql to have been applied.
 import { randomUUID } from 'crypto';
 import { sb } from './supabase.js';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, 'data');
-const FILE = 'rides.json';
-
-function loadRides() {
-  if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-  const p = join(DATA_DIR, FILE);
-  if (!existsSync(p)) return [];
-  try { return JSON.parse(readFileSync(p, 'utf8') || '[]'); } catch { return []; }
-}
-function saveRides(rides) {
-  if (!existsSync(DATA_DIR)) mkdirSync(DATA_DIR, { recursive: true });
-  writeFileSync(join(DATA_DIR, FILE), JSON.stringify(rides, null, 2));
-}
-
-// Best-effort Expo push to drivers/admins that have a push token. Defensive:
-// if the users.push_token column doesn't exist yet, this simply sends nothing.
+// Best-effort Expo push to drivers/admins that have a push token registered.
 async function pushToDrivers(title, body, data) {
   let recipients = [];
   try {
@@ -46,12 +23,11 @@ async function pushToDrivers(title, body, data) {
 }
 
 export function registerRideRoutes(app, requireAuth) {
-  // Rider books a ride → append + push drivers.
+  // Rider books a ride → insert + push drivers.
   app.post('/api/rides', requireAuth, async (req, res) => {
     const b = req.body || {};
     if (!b.destination_address) return res.status(400).json({ error: 'Destination required' });
     try {
-      const rides = loadRides();
       const row = {
         id: randomUUID(),
         rider_id: req.user.id,
@@ -69,18 +45,16 @@ export function registerRideRoutes(app, requireAuth) {
         vehicle_preference: b.vehicle_preference || 'flexible',
         vehicle_preference_name: b.vehicle_preference_name || 'Flexible',
         status: 'pending',
-        assigned_driver_id: null,
-        assigned_driver: null,
         created_at: new Date().toISOString(),
       };
-      rides.push(row);
-      saveRides(rides);
+      const result = await sb('/rest/v1/ride_requests', { method: 'POST', body: JSON.stringify(row) });
+      const saved = Array.isArray(result) ? result[0] : result;
       pushToDrivers(
         'New ride request',
         `${row.rider_name}: ${row.pickup_address ? row.pickup_address + ' → ' : ''}${row.destination_address}`,
         { type: 'ride_request', rideId: row.id },
       );
-      res.status(201).json(row);
+      res.status(201).json(saved || row);
     } catch (e) {
       console.error('[Rides] create error:', e.message);
       res.status(500).json({ error: e.message });
@@ -88,34 +62,32 @@ export function registerRideRoutes(app, requireAuth) {
   });
 
   // List rides. Riders see their own; drivers/admins see pending + their assigned.
-  app.get('/api/rides', requireAuth, (req, res) => {
+  app.get('/api/rides', requireAuth, async (req, res) => {
     try {
-      const rides = loadRides().sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
-      const out = req.user.role === 'rider'
-        ? rides.filter(r => r.rider_id === req.user.id)
-        : rides.filter(r => r.status === 'pending' || r.assigned_driver_id === req.user.id);
-      res.json(out);
+      const q = req.user.role === 'rider'
+        ? `/rest/v1/ride_requests?rider_id=eq.${encodeURIComponent(req.user.id)}&order=created_at.desc&select=*`
+        : `/rest/v1/ride_requests?or=(status.eq.pending,assigned_driver_id.eq.${encodeURIComponent(req.user.id)})&order=created_at.desc&select=*`;
+      const rows = await sb(q);
+      res.json(rows || []);
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 
-  // Accept / update a ride (driver claims it, or status change).
+  // Accept / update a ride (status change, driver claim, live driver location).
   app.patch('/api/rides/:id', requireAuth, async (req, res) => {
+    const b = req.body || {};
+    const updates = { updated_at: new Date().toISOString() };
+    if (b.status) updates.status = b.status;
+    if (b.status === 'accepted' && req.user.role !== 'rider') {
+      updates.assigned_driver_id = req.user.id;
+      updates.assigned_driver = b.assigned_driver || req.user.username;
+    }
+    if (b.driver_lat != null) updates.driver_lat = b.driver_lat;
+    if (b.driver_lng != null) updates.driver_lng = b.driver_lng;
     try {
-      const rides = loadRides();
-      const idx = rides.findIndex(r => r.id === req.params.id);
-      if (idx === -1) return res.status(404).json({ error: 'Ride not found' });
-      const b = req.body || {};
-      if (b.status) rides[idx].status = b.status;
-      if (b.status === 'accepted' && req.user.role !== 'rider') {
-        rides[idx].assigned_driver_id = req.user.id;
-        rides[idx].assigned_driver = b.assigned_driver || req.user.username;
-      }
-      // Live driver location share (so the rider can track the car).
-      if (b.driver_lat != null) rides[idx].driver_lat = b.driver_lat;
-      if (b.driver_lng != null) rides[idx].driver_lng = b.driver_lng;
-      rides[idx].updated_at = new Date().toISOString();
-      saveRides(rides);
-      res.json(rides[idx]);
+      const result = await sb(`/rest/v1/ride_requests?id=eq.${encodeURIComponent(req.params.id)}`, {
+        method: 'PATCH', body: JSON.stringify(updates),
+      });
+      res.json(Array.isArray(result) ? result[0] : result || { ok: true });
     } catch (e) { res.status(500).json({ error: e.message }); }
   });
 }

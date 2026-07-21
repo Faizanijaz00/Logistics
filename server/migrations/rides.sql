@@ -31,6 +31,8 @@ alter table public.ride_requests
   add column if not exists est_distance_km     numeric,       -- estimated trip distance
   add column if not exists vehicle_preference       text,      -- vehicle id, or 'flexible' (any car)
   add column if not exists vehicle_preference_name  text,      -- display label of chosen car
+  add column if not exists driver_lat          double precision,  -- driver's live location (for rider tracking)
+  add column if not exists driver_lng          double precision,
   add column if not exists updated_at          timestamptz;
 
 -- Nudge PostgREST to refresh its schema cache so the new columns are visible.
