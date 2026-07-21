@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Alert, Image, Dimensions, Modal, Pressable } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, RefreshControl, ActivityIndicator, Alert, Image, Dimensions, Modal, Pressable, Linking, Platform } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { MapPin, User, ArrowRight, Car, Check, X } from 'lucide-react-native';
+import { MapPin, User, ArrowRight, Car, Check, X, Navigation2, CheckCircle } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
 import { useVehicleStore } from '../../src/store/vehicleStore';
 import { useTheme } from '../../src/store/themeStore';
 import { SERVER_URL } from '../../src/config/api';
 import { getCarImage } from '../../src/config/carImages';
+import { getRouteEstimate } from '../../src/lib/directions';
 
 const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 const SCREEN_W = Math.round(Dimensions.get('window').width);
@@ -80,6 +81,29 @@ export default function RidesScreen() {
 
   const pending = rides.filter(r => r.status === 'pending');
   const mine = rides.filter(r => r.assigned_driver_id === user?.id && r.status !== 'completed' && r.status !== 'cancelled');
+  // The ride the driver is currently handling → drives the navigation view.
+  const activeRide = mine.find(r => r.status === 'accepted' || r.status === 'in_progress');
+
+  const [routeEst, setRouteEst] = useState(null);
+  useEffect(() => {
+    if (!activeRide || activeRide.pickup_lat == null || activeRide.destination_lat == null) { setRouteEst(null); return; }
+    let alive = true;
+    getRouteEstimate(
+      { lat: activeRide.pickup_lat, lng: activeRide.pickup_lng },
+      { lat: activeRide.destination_lat, lng: activeRide.destination_lng },
+    ).then(e => { if (alive) setRouteEst(e); });
+    return () => { alive = false; };
+  }, [activeRide?.id, activeRide?.pickup_lat, activeRide?.destination_lat]);
+
+  const openMaps = (r) => {
+    const dLat = r.destination_lat, dLng = r.destination_lng;
+    const daddr = (dLat != null && dLng != null) ? `${dLat},${dLng}` : encodeURIComponent(r.destination_address || '');
+    const url = Platform.OS === 'ios'
+      ? `http://maps.apple.com/?daddr=${daddr}&dirflg=d`
+      : `https://www.google.com/maps/dir/?api=1&destination=${daddr}&travelmode=driving`;
+    Linking.openURL(url).catch(() => Alert.alert('Could not open maps'));
+  };
+
   const mapUrl = loc && MAPBOX_TOKEN
     ? `https://api.mapbox.com/styles/v1/mapbox/${t.mapStyle}/static/pin-s+2563eb(${loc.lng},${loc.lat})/${loc.lng},${loc.lat},13,0/${SCREEN_W}x600@2x?access_token=${MAPBOX_TOKEN}`
     : null;
@@ -116,6 +140,60 @@ export default function RidesScreen() {
       </View>
     );
   };
+
+  // ══════════════ NAVIGATION VIEW (driver has an active ride) ══════════════
+  if (activeRide) {
+    const accepted = activeRide.status === 'accepted';
+    const hasCoords = activeRide.pickup_lat != null && activeRide.destination_lat != null;
+    const navMapUrl = MAPBOX_TOKEN && hasCoords
+      ? `https://api.mapbox.com/styles/v1/mapbox/${t.mapStyle}/static/`
+        + `${routeEst?.geometry ? `path-5+2563eb-0.9(${encodeURIComponent(routeEst.geometry)}),` : ''}`
+        + `pin-s+16a34a(${activeRide.pickup_lng},${activeRide.pickup_lat}),pin-s+dc2626(${activeRide.destination_lng},${activeRide.destination_lat})`
+        + `/auto/${SCREEN_W}x380@2x?access_token=${MAPBOX_TOKEN}&padding=60`
+      : (loc && MAPBOX_TOKEN ? `https://api.mapbox.com/styles/v1/mapbox/${t.mapStyle}/static/pin-s+2563eb(${loc.lng},${loc.lat})/${loc.lng},${loc.lat},13,0/${SCREEN_W}x380@2x?access_token=${MAPBOX_TOKEN}` : null);
+    return (
+      <SafeAreaView style={[styles.safe, { backgroundColor: t.bg }]} edges={['top']}>
+        <View style={styles.navMapWrap}>
+          {navMapUrl ? <Image source={{ uri: navMapUrl }} style={styles.navMap} resizeMode="cover" />
+            : <View style={[styles.navMap, styles.center, { backgroundColor: t.inputBg }]}><ActivityIndicator color={t.subtext} /></View>}
+          {routeEst && (
+            <View style={[styles.etaPill, { backgroundColor: t.card }]}>
+              <Text style={[styles.etaMin, { color: t.text }]}>{routeEst.durationMin}</Text>
+              <Text style={[styles.etaUnit, { color: t.subtext }]}>min</Text>
+            </View>
+          )}
+        </View>
+
+        <View style={[styles.navSheet, { backgroundColor: t.bg }]}>
+          <View style={styles.handle}><View style={[styles.handleBar, { backgroundColor: t.border }]} /></View>
+          <Text style={[styles.navPhase, { color: t.accent }]}>{accepted ? 'HEAD TO PICKUP' : 'DRIVE TO DESTINATION'}</Text>
+          <Text style={[styles.navAddr, { color: t.text }]}>{accepted ? (activeRide.pickup_address || 'Pickup') : activeRide.destination_address}</Text>
+
+          <View style={[styles.navRider, { borderColor: t.border }]}>
+            <View style={[styles.navAvatar, { backgroundColor: t.inputBg }]}><User size={20} color={t.subtext} /></View>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.navRiderName, { color: t.text }]}>{activeRide.rider_name || 'Rider'}</Text>
+              <Text style={[styles.navRoute, { color: t.subtext }]} numberOfLines={1}>{activeRide.pickup_address || 'Pickup'} → {activeRide.destination_address}</Text>
+            </View>
+            {routeEst && <Text style={[styles.navDist, { color: t.subtext }]}>{routeEst.distanceKm.toFixed(1)} km</Text>}
+          </View>
+
+          <TouchableOpacity style={[styles.navBtn, { backgroundColor: t.accent }]} onPress={() => openMaps(activeRide)}>
+            <Navigation2 size={20} color="#fff" /><Text style={styles.navBtnText}>Navigate</Text>
+          </TouchableOpacity>
+          {accepted ? (
+            <TouchableOpacity style={[styles.navBtn2, { backgroundColor: t.card, borderColor: t.border }]} disabled={busyId === activeRide.id} onPress={() => update(activeRide, 'in_progress')}>
+              {busyId === activeRide.id ? <ActivityIndicator color={t.text} /> : <Text style={[styles.navBtn2Text, { color: t.text }]}>Start ride</Text>}
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity style={[styles.navBtn2, { backgroundColor: '#018a16', borderColor: '#018a16' }]} disabled={busyId === activeRide.id} onPress={() => update(activeRide, 'completed')}>
+              {busyId === activeRide.id ? <ActivityIndicator color="#fff" /> : <><CheckCircle size={18} color="#fff" /><Text style={[styles.navBtn2Text, { color: '#fff' }]}>Complete ride</Text></>}
+            </TouchableOpacity>
+          )}
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   return (
     <SafeAreaView style={[styles.safe, { backgroundColor: t.bg }]} edges={['top']}>
@@ -227,4 +305,23 @@ const styles = StyleSheet.create({
   select: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, backgroundColor: '#000', borderRadius: 12, paddingVertical: 14, marginTop: 12 },
   selectText: { color: '#fff', fontSize: 15, fontWeight: '700' },
   empty: { fontSize: 14, textAlign: 'center', marginTop: 24 },
+
+  // Navigation view
+  navMapWrap: { flex: 1 },
+  navMap: { width: '100%', height: '100%' },
+  etaPill: { position: 'absolute', top: 16, left: 16, alignItems: 'center', borderRadius: 14, paddingHorizontal: 16, paddingVertical: 8, shadowColor: '#000', shadowOpacity: 0.15, shadowRadius: 8, shadowOffset: { width: 0, height: 2 }, elevation: 5 },
+  etaMin: { fontSize: 22, fontWeight: '800' },
+  etaUnit: { fontSize: 12, fontWeight: '600', marginTop: -2 },
+  navSheet: { borderTopLeftRadius: 22, borderTopRightRadius: 22, marginTop: -20, paddingHorizontal: 20, paddingTop: 8, paddingBottom: 28 },
+  navPhase: { fontSize: 12, fontWeight: '800', letterSpacing: 1, marginBottom: 4 },
+  navAddr: { fontSize: 22, fontWeight: '700', marginBottom: 14 },
+  navRider: { flexDirection: 'row', alignItems: 'center', gap: 12, borderTopWidth: 1, borderBottomWidth: 1, paddingVertical: 12, marginBottom: 14 },
+  navAvatar: { width: 42, height: 42, borderRadius: 21, alignItems: 'center', justifyContent: 'center' },
+  navRiderName: { fontSize: 16, fontWeight: '700' },
+  navRoute: { fontSize: 13, marginTop: 1 },
+  navDist: { fontSize: 13, fontWeight: '600' },
+  navBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 28, paddingVertical: 16, marginBottom: 10 },
+  navBtnText: { color: '#fff', fontSize: 17, fontWeight: '700' },
+  navBtn2: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, borderRadius: 28, paddingVertical: 15, borderWidth: 1 },
+  navBtn2Text: { fontSize: 16, fontWeight: '700' },
 });
