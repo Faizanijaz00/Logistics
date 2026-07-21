@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator } from 'react-native';
 import { MapPin } from 'lucide-react-native';
+import { useTheme } from '../store/themeStore';
 
 const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 
@@ -9,6 +10,7 @@ const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 // `rightAccessory` renders inside the pill (e.g. a "Later" button), and `big`
 // enlarges it into an Uber-style "Where to?" search bar.
 export default function AddressAutocomplete({ label, placeholder, value, onSelect, leftIcon: LeftIcon = MapPin, rightAccessory, big }) {
+  const t = useTheme();
   const [text, setText] = useState(value || '');
   const [suggestions, setSuggestions] = useState([]);
   const [searching, setSearching] = useState(false);
@@ -48,26 +50,26 @@ export default function AddressAutocomplete({ label, placeholder, value, onSelec
 
   return (
     <View style={styles.wrap}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
-      <View style={[styles.inputRow, big && styles.inputRowBig]}>
-        <LeftIcon size={big ? 22 : 16} color="#777" />
+      {label ? <Text style={[styles.label, { color: t.subtext }]}>{label}</Text> : null}
+      <View style={[styles.inputRow, big && styles.inputRowBig, { backgroundColor: big ? t.inputBg : t.card, borderColor: t.border, borderWidth: big ? 0 : 1 }]}>
+        <LeftIcon size={big ? 22 : 16} color={t.subtext} />
         <TextInput
-          style={[styles.input, big && styles.inputBig]}
+          style={[styles.input, big && styles.inputBig, { color: t.text }]}
           value={text}
-          onChangeText={(t) => { setText(t); if (!t) onSelect?.(null); }}
+          onChangeText={(v) => { setText(v); if (!v) onSelect?.(null); }}
           placeholder={placeholder}
-          placeholderTextColor="#9a9a9a"
+          placeholderTextColor={t.subtext}
           autoCorrect={false}
         />
-        {searching ? <ActivityIndicator size="small" color="#888" /> : null}
+        {searching ? <ActivityIndicator size="small" color={t.subtext} /> : null}
         {rightAccessory}
       </View>
       {suggestions.length > 0 && (
-        <View style={styles.suggestions}>
+        <View style={[styles.suggestions, { backgroundColor: t.card, borderColor: t.border }]}>
           {suggestions.map((f) => (
-            <TouchableOpacity key={f.id} style={styles.suggestion} onPress={() => pick(f)}>
-              <MapPin size={14} color="#999" />
-              <Text style={styles.suggestionText} numberOfLines={2}>{f.place_name}</Text>
+            <TouchableOpacity key={f.id} style={[styles.suggestion, { borderBottomColor: t.border }]} onPress={() => pick(f)}>
+              <MapPin size={14} color={t.subtext} />
+              <Text style={[styles.suggestionText, { color: t.text }]} numberOfLines={2}>{f.place_name}</Text>
             </TouchableOpacity>
           ))}
         </View>

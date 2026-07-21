@@ -1,14 +1,17 @@
 import { useState } from 'react';
 import { View } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
-import { User, Map, Car, Clock, CalendarClock, Shield, Navigation, Menu, LogOut, Route } from 'lucide-react-native';
+import { User, Map, Car, Clock, CalendarClock, Shield, Navigation, Menu, LogOut, Route, Sun, Moon } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
+import { useThemeStore } from '../../src/store/themeStore';
 import MenuDrawer from '../../src/components/MenuDrawer';
 
 export default function TabLayout() {
   const user = useAuthStore(s => s.user);
   const logout = useAuthStore(s => s.logout);
   const router = useRouter();
+  const mode = useThemeStore(s => s.mode);
+  const toggleTheme = useThemeStore(s => s.toggle);
   const [menuOpen, setMenuOpen] = useState(false);
   const homeLabel = user?.role === 'admin' ? 'Home' : (user?.name || 'Drive');
   const isAdmin = user?.role === 'admin';
@@ -19,6 +22,7 @@ export default function TabLayout() {
     { label: 'Drives', icon: Clock, onPress: () => router.push('/(tabs)/drives') },
     { label: 'Journeys', icon: Route, onPress: () => router.push('/(tabs)/journeys') },
     ...(isAdmin ? [{ label: 'Admin', icon: Shield, onPress: () => router.push('/(tabs)/admin') }] : []),
+    { label: mode === 'dark' ? 'Light mode' : 'Dark mode', icon: mode === 'dark' ? Sun : Moon, onPress: () => toggleTheme() },
     { label: 'Log out', icon: LogOut, danger: true, onPress: () => logout() },
   ];
 
