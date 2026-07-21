@@ -7,6 +7,7 @@ import { useAuthStore } from '../../src/store/authStore';
 import { useVehicleStore } from '../../src/store/vehicleStore';
 import { useTheme } from '../../src/store/themeStore';
 import { SERVER_URL } from '../../src/config/api';
+import { getCarImage } from '../../src/config/carImages';
 
 const MAPBOX_TOKEN = process.env.EXPO_PUBLIC_MAPBOX_TOKEN;
 const SCREEN_W = Math.round(Dimensions.get('window').width);
@@ -163,10 +164,13 @@ export default function RidesScreen() {
           <ScrollView style={{ maxHeight: 380 }}>
             {vehicles.map(v => {
               const active = v.id === selectedVehicleId;
+              const img = getCarImage(v.imageId);
               return (
                 <TouchableOpacity key={v.id} style={[styles.vehRow, { borderBottomColor: t.border }]} activeOpacity={0.7}
                   onPress={() => { selectVehicle(v.id, `${v.make} ${v.model}`); setPickerOpen(false); }}>
-                  <View style={[styles.vehIcon, { backgroundColor: t.inputBg }]}><Car size={20} color={t.subtext} /></View>
+                  <View style={[styles.vehIcon, { backgroundColor: t.inputBg }]}>
+                    {img ? <Image source={img} style={styles.vehImg} resizeMode="contain" /> : <Car size={20} color={t.subtext} />}
+                  </View>
                   <View style={{ flex: 1 }}>
                     <Text style={[styles.vehName, { color: t.text }]}>{v.make} {v.model}</Text>
                     {v.licensePlate ? <Text style={[styles.vehPlate, { color: t.subtext }]}>{v.licensePlate}</Text> : null}
@@ -196,7 +200,8 @@ const styles = StyleSheet.create({
   pickerHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 },
   pickerTitle: { fontSize: 18, fontWeight: '700' },
   vehRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1 },
-  vehIcon: { width: 44, height: 44, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  vehIcon: { width: 60, height: 46, borderRadius: 10, alignItems: 'center', justifyContent: 'center', overflow: 'hidden' },
+  vehImg: { width: 58, height: 42 },
   vehName: { fontSize: 16, fontWeight: '700' },
   vehPlate: { fontSize: 13, marginTop: 1 },
   sheet: { height: '46%', borderTopLeftRadius: 22, borderTopRightRadius: 22, marginTop: -20, paddingHorizontal: 16 },
