@@ -69,7 +69,7 @@ export function registerRideRoutes(app, requireAuth) {
       // requests feature that shares this table (they have no destination_address).
       const q = req.user.role === 'rider'
         ? `/rest/v1/ride_requests?rider_id=eq.${encodeURIComponent(req.user.id)}&destination_address=not.is.null&order=created_at.desc&select=*`
-        : `/rest/v1/ride_requests?and=(destination_address.not.is.null,or(status.eq.pending,assigned_driver_id.eq.${encodeURIComponent(req.user.id)}))&order=created_at.desc&select=*`;
+        : `/rest/v1/ride_requests?destination_address=not.is.null&or=(status.eq.pending,assigned_driver_id.eq.${encodeURIComponent(req.user.id)})&order=created_at.desc&select=*`;
       const rows = await sb(q);
       res.json(rows || []);
     } catch (e) { res.status(500).json({ error: e.message }); }
