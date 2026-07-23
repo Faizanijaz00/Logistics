@@ -269,19 +269,29 @@ function ChecklistModal({ store, vehicle, perCar, onClose }) {
 function ItemEditorModal({ store, itemNoun, perCar, showImport, onClose }) {
   const t = useTheme();
   const { items, fetchItems, addItem, updateItem, deleteItem, importItems } = store();
+  const vehicles = useVehicleStore(s => s.vehicles);
   const [label, setLabel] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [editLabel, setEditLabel] = useState('');
   const [busy, setBusy] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  // Which car new items apply to: 'all' (global) or a specific vehicle id. Only
+  // shown when perCar (Inventory). Selecting a car also filters the list to
+  // global + that car's items.
+  const [scope, setScope] = useState('all');
+  const scopeVehicleId = scope === 'all' ? undefined : scope;
 
-  useEffect(() => { fetchItems(); /* master list (all cars) */ // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  useEffect(() => { fetchItems(scopeVehicleId); // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [scope]);
 
   async function onAdd() {
     if (!label.trim()) return;
     setBusy(true);
-    try { await addItem({ label: label.trim() }); setLabel(''); }
+    try {
+      await addItem({ label: label.trim(), vehicle_id: scopeVehicleId || null });
+      setLabel('');
+      await fetchItems(scopeVehicleId);
+    }
     catch (e) { Alert.alert('Error', e.message); }
     finally { setBusy(false); }
   }
@@ -308,10 +318,27 @@ function ItemEditorModal({ store, itemNoun, perCar, showImport, onClose }) {
           <View style={[styles.modalHeader, { borderBottomColor: t.border }]}>
             <View style={{ flex: 1 }}>
               <Text style={[styles.modalTitle, { color: t.text }]}>Checklist items</Text>
-              <Text style={[styles.modalSub, { color: t.subtext }]}>Applies to {perCar ? 'all cars unless car-specific' : 'every car'}</Text>
+              <Text style={[styles.modalSub, { color: t.subtext }]}>
+                {perCar
+                  ? (scope === 'all' ? 'Adding items for all cars' : `Adding items for ${vehicles.find(v => v.id === scope)?.make || ''} ${vehicles.find(v => v.id === scope)?.model || 'this car'}`)
+                  : 'Applies to every car'}
+              </Text>
             </View>
             <TouchableOpacity onPress={onClose} style={styles.closeBtn}><X size={18} color={t.text} /></TouchableOpacity>
           </View>
+
+          {perCar && (
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 46, flexGrow: 0 }} contentContainerStyle={styles.scopeRow} keyboardShouldPersistTaps="handled">
+              <TouchableOpacity style={[styles.scopeChip, { borderColor: scope === 'all' ? t.text : t.border, backgroundColor: scope === 'all' ? t.text : 'transparent' }]} onPress={() => setScope('all')}>
+                <Text style={[styles.scopeChipText, { color: scope === 'all' ? t.card : t.text }]}>All cars</Text>
+              </TouchableOpacity>
+              {vehicles.map(v => (
+                <TouchableOpacity key={v.id} style={[styles.scopeChip, { borderColor: scope === v.id ? t.text : t.border, backgroundColor: scope === v.id ? t.text : 'transparent' }]} onPress={() => setScope(v.id)}>
+                  <Text style={[styles.scopeChipText, { color: scope === v.id ? t.card : t.text }]}>{v.make} {v.model}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          )}
 
           <ScrollView contentContainerStyle={styles.modalList} keyboardShouldPersistTaps="handled">
             <View style={styles.addRow}>
@@ -349,7 +376,8 @@ function ItemEditorModal({ store, itemNoun, perCar, showImport, onClose }) {
                     </>
                   ) : (
                     <>
-                      <Text style={[styles.editItemLabel, { color: t.text }]}>{item.label}{perCar && item.vehicle_id ? '  (this car)' : ''}</Text>
+                      <Text style={[styles.editItemLabel, { color: t.text }]}>{item.label}</Text>
+                      {perCar ? <Text style={[styles.scopeTag, { color: item.vehicle_id ? t.accent : t.subtext }]}>{item.vehicle_id ? 'car only' : 'all cars'}</Text> : null}
                       <TouchableOpacity onPress={() => { setEditingId(item.id); setEditLabel(item.label); }} hitSlop={8}><Pencil size={16} color={t.subtext} /></TouchableOpacity>
                       <TouchableOpacity onPress={() => onDelete(item)} hitSlop={8}><Trash2 size={16} color="#c4001a" /></TouchableOpacity>
                     </>
@@ -363,7 +391,7 @@ function ItemEditorModal({ store, itemNoun, perCar, showImport, onClose }) {
         {showImportModal ? (
           <ImportModal
             onClose={() => setShowImportModal(false)}
-            onImport={async (labels) => { await importItems(labels); setShowImportModal(false); }}
+            onImport={async (labels) => { await importItems(labels, scopeVehicleId); setShowImportModal(false); }}
           />
         ) : null}
       </SafeAreaView>
@@ -466,5 +494,9 @@ const styles = StyleSheet.create({
   fieldLabel: { fontSize: 13, color: '#666', marginBottom: 6, fontWeight: '500' },
   editItemRow: { flexDirection: 'row', alignItems: 'center', gap: 12, paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f2f2f2' },
   editItemLabel: { flex: 1, fontSize: 15, color: '#111' },
+  scopeRow: { paddingHorizontal: 16, paddingVertical: 8, gap: 8, alignItems: 'center' },
+  scopeChip: { paddingHorizontal: 14, paddingVertical: 7, borderRadius: 18, borderWidth: 1 },
+  scopeChipText: { fontSize: 13, fontWeight: '600' },
+  scopeTag: { fontSize: 11, fontWeight: '700', marginRight: 8 },
   editInput: { flex: 1, borderWidth: 1, borderColor: '#e0e0e0', borderRadius: 8, paddingHorizontal: 10, paddingVertical: 8, fontSize: 15, color: '#111' },
 });
