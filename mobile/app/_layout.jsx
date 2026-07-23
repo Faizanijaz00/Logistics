@@ -68,6 +68,17 @@ function AuthGate({ children }) {
     }
   }, [token]);
 
+  // Clear any stale "Currently driving" notification whenever the user isn't
+  // actually on a drive (fixes it getting stuck after a drive ended / restart).
+  const isDriving = useAuthStore((s) => s.isDriving);
+  useEffect(() => {
+    if (token && !isDriving) {
+      import('../src/services/driveNotification')
+        .then((m) => m.clearDrivingNotification())
+        .catch(() => {});
+    }
+  }, [token, isDriving]);
+
   // Drivers/admins register for ride-request push notifications.
   useEffect(() => {
     if (token && user && user.role !== 'rider') {
