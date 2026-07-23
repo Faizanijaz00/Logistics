@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { View } from 'react-native';
 import { Tabs, useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { User, Map, Car, Clock, CalendarClock, Shield, Navigation, Menu, LogOut, Route, Sun, Moon } from 'lucide-react-native';
 import { useAuthStore } from '../../src/store/authStore';
 import { useThemeStore, useTheme } from '../../src/store/themeStore';
@@ -41,7 +42,12 @@ export default function TabLayout() {
     { label: 'Log out', icon: LogOut, danger: true, onPress: () => logout() },
   ];
 
-  const tabBarStyle = { backgroundColor: t.card, borderTopWidth: 1, borderTopColor: t.border, height: 88, paddingBottom: 28, paddingTop: 8 };
+  // Size the bar off the device's actual bottom inset (gesture/nav bar) rather
+  // than a hardcoded value, so tab buttons never sit under the system bar on
+  // Android phones/foldables (which have different insets than iOS).
+  const insets = useSafeAreaInsets();
+  const bottomInset = Math.max(insets.bottom, 10);
+  const tabBarStyle = { backgroundColor: t.card, borderTopWidth: 1, borderTopColor: t.border, height: 58 + bottomInset, paddingBottom: bottomInset, paddingTop: 8 };
 
   return (
     <View style={{ flex: 1, backgroundColor: t.bg }}>
